@@ -1,0 +1,93 @@
+{
+  "benchmark_timestamp": 1758185058.488341,
+  "scenarios": [
+    {
+      "name": "grpc_point_to_point_latency",
+      "metrics": {
+        "latency": {
+          "avg_ms": 1.9894989333503568,
+          "min_ms": 1.5799529992364114,
+          "max_ms": 2.6291819995094556,
+          "std_ms": 0.3026233237991345,
+          "p95_ms": 2.490756000042893,
+          "p99_ms": 2.560457000072347
+        },
+        "throughput": {
+          "avg_msg_per_sec": 3.0,
+          "peak_msg_per_sec": 30.0,
+          "history": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            30.0
+          ]
+        },
+        "reliability": {
+          "success_rate": 1.0,
+          "delivery_failures": 0,
+          "timeout_failures": 0
+        },
+        "resources": {
+          "cpu_usage_avg": 7.98,
+          "memory_usage_avg_mb": 59.9375
+        },
+        "test_info": {
+          "agent_count": 2,
+          "total_messages": 30,
+          "duration_seconds": 0.46249135800098884,
+          "topology_density": 1.0
+        }
+      }
+    },
+    {
+      "name": "grpc_concurrent_messaging",
+      "metrics": {
+        "latency": {
+          "avg_ms": 0.8445032812574027,
+          "min_ms": 0.4246360003890004,
+          "max_ms": 1.8647670003701933,
+          "std_ms": 0.446050678818484,
+          "p95_ms": 1.7420549993403256,
+          "p99_ms": 1.8567349998193095
+        },
+        "throughput": {
+          "avg_msg_per_sec": 3.2,
+          "peak_msg_per_sec": 32.0,
+          "history": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            32.0
+          ]
+        },
+        "reliability": {
+          "success_rate": 1.0,
+          "delivery_failures": 0,
+          "timeout_failures": 0
+        },
+        "resources": {
+          "cpu_usage_avg": 9.966666666666667,
+          "memory_usage_avg_mb": 60.479166666666664
+        },
+        "test_info": {
+          "agent_count": 4,
+          "total_messages": 32,
+          "duration_seconds": 0.21581763600079285,
+          "topology_density": 1.0
+        }
+      }
+    }
+  ]
+}

@@ -6,17 +6,10 @@ import time
 import logging
 import json
 from typing import Dict, List, Any, Optional
+import redis
 
 from .base_storage import CacheStorage, StorageStatus
 
-try:
-    import redis
-    from redis.exceptions import ConnectionError as RedisConnectionError
-
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
-    redis = None
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +18,6 @@ class RedisStorage(CacheStorage):
     """Redis implementation of cache storage."""
 
     def __init__(self, config: Dict[str, Any]):
-        if not REDIS_AVAILABLE:
-            raise ImportError(
-                "redis package not installed. Install with: pip install redis"
-            )
 
         super().__init__(config)
         self.client: Optional[redis.Redis] = None
@@ -70,7 +59,8 @@ class RedisStorage(CacheStorage):
             self._record_operation("connect", start_time, True)
 
             logger.info(
-                f"Connected to Redis: {connection_kwargs['host']}:{connection_kwargs['port']}"
+                f"Connected to Redis:\
+                    {connection_kwargs['host']}:{connection_kwargs['port']}"
             )
             return True
 

@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package communication;
+
+// Service definition for agent communication
+service CommunicationService {
+  // Send a message from one agent to another
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  
+  // Broadcast a message to all reachable agents
+  rpc BroadcastMessage(BroadcastMessageRequest) returns (BroadcastMessageResponse);
+  
+  // Get messages from an agent's mailbox
+  rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse);
+  
+  // Register an agent with the communication service
+  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
+  
+  // Add a communication link between two agents
+  rpc AddCommunicationLink(AddLinkRequest) returns (AddLinkResponse);
+  
+  // Get communication statistics
+  rpc GetStatistics(StatisticsRequest) returns (StatisticsResponse);
+  
+  // Get topology information
+  rpc GetTopology(TopologyRequest) returns (TopologyResponse);
+}
+
+// Message types corresponding to the thesis definition
+enum MessageType {
+  INFORM = 0;
+  REQUEST = 1;
+  REPLY = 2;
+  BROADCAST = 3;
+  ERROR = 4;
+}
+
+// Core message structure representing m ∈ M (Message Space)
+message Message {
+  string message_id = 1;
+  string sender_id = 2;
+  string receiver_id = 3;
+  MessageType message_type = 4;
+  map<string, string> content = 5;  // JSON-like content
+  double timestamp = 6;
+  optional string reply_to = 7;
+}
+
+// Request to send a message: implements send(i,j,m)
+message SendMessageRequest {
+  string sender_id = 1;
+  string receiver_id = 2;
+  MessageType message_type = 3;
+  map<string, string> content = 4;
+  optional string reply_to = 5;
+}
+
+message SendMessageResponse {
+  bool success = 1;
+  string message_id = 2;
+  optional string error_message = 3;
+}
+
+// Request to broadcast a message: implements send(i,*,m)
+message BroadcastMessageRequest {
+  string sender_id = 1;
+  MessageType message_type = 2;
+  map<string, string> content = 3;
+}
+
+message BroadcastMessageResponse {
+  bool success = 1;
+  int32 delivered = 2;
+  int32 failed = 3;
+  int32 total_targets = 4;
+  repeated string message_ids = 5;
+}
+
+// Request to get messages from mailbox: implements MB_i access
+message GetMessagesRequest {
+  string agent_id = 1;
+  bool clear_mailbox = 2;
+}
+
+message GetMessagesResponse {
+  repeated Message messages = 1;
+  int32 count = 2;
+}
+
+// Agent registration
+message RegisterAgentRequest {
+  string agent_id = 1;
+}
+
+message RegisterAgentResponse {
+  bool success = 1;
+  optional string error_message = 2;
+}
+
+// Communication topology management: implements Comm ⊆ A × A
+message AddLinkRequest {
+  string sender_id = 1;
+  string receiver_id = 2;
+}
+
+message AddLinkResponse {
+  bool success = 1;
+  optional string error_message = 2;
+}
+
+// Statistics for benchmarking
+message StatisticsRequest {
+  // Empty - get all statistics
+}
+
+message StatisticsResponse {
+  int64 messages_sent = 1;
+  int64 messages_delivered = 2;
+  int64 delivery_failures = 3;
+  double avg_delivery_time = 4;
+}
+
+// Topology information
+message TopologyRequest {
+  // Empty - get topology info
+}
+
+message CommunicationLink {
+  string sender_id = 1;
+  string receiver_id = 2;
+}
+
+message TopologyResponse {
+  repeated CommunicationLink links = 1;
+  int32 total_links = 2;
+}

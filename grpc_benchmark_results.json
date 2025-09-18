@@ -1,0 +1,137 @@
+{
+  "benchmark_timestamp": 1758185307.0766144,
+  "scenarios": [
+    {
+      "name": "grpc_point_to_point_latency",
+      "metrics": {
+        "latency": {
+          "avg_ms": 2.19064687986247,
+          "min_ms": 1.594416999068926,
+          "max_ms": 2.719078998779878,
+          "std_ms": 0.3127344748724773,
+          "p95_ms": 2.6460249991941964,
+          "p99_ms": 2.7069970001321053
+        },
+        "throughput": {
+          "avg_msg_per_sec": 5.0,
+          "peak_msg_per_sec": 50.0,
+          "history": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            50.0
+          ]
+        },
+        "reliability": {
+          "success_rate": 1.0,
+          "delivery_failures": 0,
+          "timeout_failures": 0
+        },
+        "resources": {
+          "cpu_usage_avg": 8.7,
+          "memory_usage_avg_mb": 59.51953125
+        },
+        "test_info": {
+          "agent_count": 2,
+          "total_messages": 50,
+          "duration_seconds": 0.720965692999016,
+          "topology_density": 1.0
+        }
+      }
+    },
+    {
+      "name": "grpc_broadcast_throughput",
+      "metrics": {
+        "latency": {
+          "avg_ms": 1.3027723667012954,
+          "min_ms": 0.8005270010471577,
+          "max_ms": 1.7602910011191852,
+          "std_ms": 0.26107905426307754,
+          "p95_ms": 1.6062899994722102,
+          "p99_ms": 1.717060000373749
+        },
+        "throughput": {
+          "avg_msg_per_sec": 3.0,
+          "peak_msg_per_sec": 30.0,
+          "history": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            30.0
+          ]
+        },
+        "reliability": {
+          "success_rate": 1.0,
+          "delivery_failures": 0,
+          "timeout_failures": 0
+        },
+        "resources": {
+          "cpu_usage_avg": 7.4375,
+          "memory_usage_avg_mb": 60.09765625
+        },
+        "test_info": {
+          "agent_count": 5,
+          "total_messages": 30,
+          "duration_seconds": 0.7489637970011245,
+          "topology_density": 1.0
+        }
+      }
+    },
+    {
+      "name": "grpc_concurrent_messaging",
+      "metrics": {
+        "latency": {
+          "avg_ms": 0.9240763250090822,
+          "min_ms": 0.3636660003394354,
+          "max_ms": 1.6436559999419842,
+          "std_ms": 0.41409282043594736,
+          "p95_ms": 1.5753510015201755,
+          "p99_ms": 1.585897000040859
+        },
+        "throughput": {
+          "avg_msg_per_sec": 4.0,
+          "peak_msg_per_sec": 40.0,
+          "history": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            40.0
+          ]
+        },
+        "reliability": {
+          "success_rate": 1.0,
+          "delivery_failures": 0,
+          "timeout_failures": 0
+        },
+        "resources": {
+          "cpu_usage_avg": 13.266666666666666,
+          "memory_usage_avg_mb": 60.39453125
+        },
+        "test_info": {
+          "agent_count": 4,
+          "total_messages": 40,
+          "duration_seconds": 0.23194198300006974,
+          "topology_density": 1.0
+        }
+      }
+    }
+  ]
+}

@@ -533,8 +533,8 @@ class MultiAgentStorageManager:
                     metrics["system_stats"]["active_agents_24h"] = result[
                         0
                     ].get("count", 0)
-            except:
-                ...
+            except Exception as e:
+                print(e)
 
         return metrics
 

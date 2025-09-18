@@ -6,16 +6,10 @@ import time
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
+from influxdb import InfluxDBClient
 
 from .base_storage import TimeSeriesStorage, StorageStatus
 
-try:
-    from influxdb import InfluxDBClient
-
-    INFLUX_AVAILABLE = True
-except ImportError:
-    INFLUX_AVAILABLE = False
-    InfluxDBClient = None
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +18,6 @@ class InfluxDBStorage(TimeSeriesStorage):
     """InfluxDB implementation of time series storage."""
 
     def __init__(self, config: Dict[str, Any]):
-        if not INFLUX_AVAILABLE:
-            raise ImportError(
-                "influxdb package not installed. Install with: pip install influxdb"
-            )
 
         super().__init__(config)
         self.client: Optional[InfluxDBClient] = None

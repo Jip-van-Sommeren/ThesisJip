@@ -5,17 +5,10 @@ Graph storage implementation for hierarchy relationships and network analysis.
 import time
 import logging
 from typing import Dict, List, Any, Optional
+from neo4j import GraphDatabase, basic_auth
 
 from .base_storage import GraphStorage, StorageStatus
 
-try:
-    from neo4j import GraphDatabase, basic_auth
-    from neo4j.exceptions import ServiceUnavailable, AuthError
-
-    NEO4J_AVAILABLE = True
-except ImportError:
-    NEO4J_AVAILABLE = False
-    GraphDatabase = None
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +17,6 @@ class Neo4jStorage(GraphStorage):
     """Neo4j implementation of graph storage."""
 
     def __init__(self, config: Dict[str, Any]):
-        if not NEO4J_AVAILABLE:
-            raise ImportError(
-                "neo4j package not installed. Install with: pip install neo4j"
-            )
 
         super().__init__(config)
         self.driver = None
@@ -198,7 +187,8 @@ class Neo4jStorage(GraphStorage):
 
                 self._record_operation("create_relationship", start_time, True)
                 logger.debug(
-                    f"Created relationship {relationship_type} with ID: {rel_id}"
+                    f"Created relationship {relationship_type} with ID:\
+                        {rel_id}"
                 )
 
                 return str(rel_id)
