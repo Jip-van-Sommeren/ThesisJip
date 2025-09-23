@@ -1,3 +1,5 @@
 /venv
 /misc
 */__pycache__/
+*/.pytect_cashe/
+*.pyc
