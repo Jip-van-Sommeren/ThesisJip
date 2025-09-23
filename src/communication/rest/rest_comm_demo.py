@@ -12,12 +12,12 @@ definition.
 # sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from abstract_agent import AgentId
-from communicating_agent import (
-    ExtendedCommunicatingAgent,
-    CommunicationEnvironment,
+from rest_communicating_agent import (
+    ExtendedRestCommunicatingAgent,
+    RestCommunicationEnvironment,
 )
 from communication_config import CommunicationConfiguration, TopologyPattern
-from rest_communication import MessageType
+from communication.base_communication import MessageType
 from benchmarks.rest_benchmark_scenarios import create_benchmark_scenarios
 import time
 
@@ -29,7 +29,7 @@ def simple_demo():
 
     # 1. Create communication environment
     print("\n1. Setting up communication environment...")
-    env = CommunicationEnvironment()
+    env = RestCommunicationEnvironment()
     env.start_service()
 
     service_url = env.get_service_url()
@@ -37,13 +37,13 @@ def simple_demo():
 
     # 2. Create agents
     print("2. Creating agents...")
-    agent1 = ExtendedCommunicatingAgent(
+    agent1 = ExtendedRestCommunicatingAgent(
         AgentId("demo", "sender", "alice"), {"environment", "messages"}
     )
-    agent2 = ExtendedCommunicatingAgent(
+    agent2 = ExtendedRestCommunicatingAgent(
         AgentId("demo", "receiver", "bob"), {"environment", "messages"}
     )
-    agent3 = ExtendedCommunicatingAgent(
+    agent3 = ExtendedRestCommunicatingAgent(
         AgentId("demo", "coordinator", "charlie"), {"environment", "messages"}
     )
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 import json
 import networkx as nx
-from .rest.rest_communication import MessageType, CommunicationTopology
+from .base_communication import MessageType, CommunicationTopology
 
 
 class TopologyPattern(Enum):

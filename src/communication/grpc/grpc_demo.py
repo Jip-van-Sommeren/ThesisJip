@@ -9,7 +9,7 @@ and allows for comparison with the REST implementation.
 """
 
 from abstract_agent import AgentId
-from grpc_communicating_agent import (
+from communication.grpc.grpc_communication_agent import (
     ExtendedGrpcCommunicatingAgent,
     GrpcCommunicationEnvironment,
 )

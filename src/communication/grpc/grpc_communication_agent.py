@@ -6,7 +6,7 @@ Provides the same interface as REST communicating agents but uses gRPC
 for message transmission following the formal communication model.
 """
 
-import communication_pb2
+from . import communication_pb2
 
 from typing import Dict, Set, List, Optional, Any
 import grpc
@@ -17,7 +17,7 @@ from abstract_agent import (
     ActionType,
     ReactiveRule,
 )
-from grpc_communication import (
+from .grpc_communication import (
     GrpcCommunicatingAgent,
     GrpcCommunicationServer,
     GrpcMessage,

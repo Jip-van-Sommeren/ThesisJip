@@ -19,52 +19,13 @@ from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
-
-try:
-    from kafka import KafkaProducer, KafkaConsumer, KafkaAdminClient
-    from kafka.admin import NewTopic
-    from kafka.errors import TopicAlreadyExistsError
-
-    KAFKA_AVAILABLE = True
-except ImportError:
-    KAFKA_AVAILABLE = False
-
-    # Mock classes for when Kafka is not available
-    class KafkaProducer:
-        def __init__(self, **kwargs):
-            pass
-
-        def send(self, topic, value=None, key=None):
-            pass
-
-        def flush(self):
-            pass
-
-        def close(self):
-            pass
-
-    class KafkaConsumer:
-        def __init__(self, *topics, **kwargs):
-            pass
-
-        def poll(self, timeout_ms=1000):
-            return {}
-
-        def close(self):
-            pass
-
-    class KafkaAdminClient:
-        def __init__(self, **kwargs):
-            pass
-
-        def create_topics(self, topics):
-            pass
-
-
-# Import existing communication models for compatibility
-from communication.rest.rest_communication import (
-    MessageType as RestMessageType,
+from communication.base_communication import (
+    MessageType as BaseMessageType,
 )
+
+from kafka import KafkaProducer, KafkaConsumer, KafkaAdminClient
+from kafka.admin import NewTopic
+from kafka.errors import TopicAlreadyExistsError
 
 
 class KafkaMessageType(Enum):
@@ -77,25 +38,25 @@ class KafkaMessageType(Enum):
     ERROR = "error"
 
     @classmethod
-    def from_rest_type(cls, rest_type: RestMessageType) -> "KafkaMessageType":
-        """Convert REST message type to Kafka message type."""
+    def from_base_type(cls, base_type: BaseMessageType) -> "KafkaMessageType":
+        """Convert base message type to Kafka message type."""
         mapping = {
-            RestMessageType.INFORM: cls.INFORM,
-            RestMessageType.REQUEST: cls.REQUEST,
-            RestMessageType.REPLY: cls.REPLY,
-            RestMessageType.BROADCAST: cls.BROADCAST,
-            RestMessageType.ERROR: cls.ERROR,
+            BaseMessageType.INFORM: cls.INFORM,
+            BaseMessageType.REQUEST: cls.REQUEST,
+            BaseMessageType.REPLY: cls.REPLY,
+            BaseMessageType.BROADCAST: cls.BROADCAST,
+            BaseMessageType.ERROR: cls.ERROR,
         }
-        return mapping[rest_type]
+        return mapping[base_type]
 
-    def to_rest_type(self) -> RestMessageType:
-        """Convert Kafka message type to REST message type."""
+    def to_base_type(self) -> BaseMessageType:
+        """Convert Kafka message type to base message type."""
         mapping = {
-            self.INFORM: RestMessageType.INFORM,
-            self.REQUEST: RestMessageType.REQUEST,
-            self.REPLY: RestMessageType.REPLY,
-            self.BROADCAST: RestMessageType.BROADCAST,
-            self.ERROR: RestMessageType.ERROR,
+            self.INFORM: BaseMessageType.INFORM,
+            self.REQUEST: BaseMessageType.REQUEST,
+            self.REPLY: BaseMessageType.REPLY,
+            self.BROADCAST: BaseMessageType.BROADCAST,
+            self.ERROR: BaseMessageType.ERROR,
         }
         return mapping[self]
 
@@ -165,8 +126,7 @@ class KafkaMailbox:
         # Topic for this agent's mailbox
         self.topic = f"agent_mailbox_{agent_id}"
 
-        if KAFKA_AVAILABLE:
-            self._setup_consumer()
+        self._setup_consumer()
 
     def _setup_consumer(self):
         """Setup Kafka consumer for this agent's mailbox."""
@@ -311,8 +271,7 @@ class KafkaCommunicationService:
         self.admin_client = None
         self.is_running = False
 
-        if KAFKA_AVAILABLE:
-            self._setup_kafka()
+        self._setup_kafka()
 
     def _setup_kafka(self):
         """Setup Kafka producer and admin client."""
@@ -328,12 +287,12 @@ class KafkaCommunicationService:
                 retries=3,
                 acks="all",
             )
-
+            client_id_value = (
+                self.kafka_config.get("client_id", "agent_communication"),
+            )
             self.admin_client = KafkaAdminClient(
                 bootstrap_servers=self.kafka_config["bootstrap_servers"],
-                client_id=f"\
-                    {self.kafka_config.get('client_id', 'agent_communication')}\
-                        _admin",
+                client_id=f"{client_id_value}_admin",
             )
 
             self.is_running = True
@@ -353,7 +312,7 @@ class KafkaCommunicationService:
             )
 
             # Create Kafka topic for this agent if Kafka is available
-            if KAFKA_AVAILABLE and self.admin_client:
+            if self.admin_client:
                 try:
                     topic_name = f"agent_mailbox_{agent_id}"
                     topic = NewTopic(
@@ -391,7 +350,7 @@ class KafkaCommunicationService:
             return False
 
         try:
-            if KAFKA_AVAILABLE and self.producer and self.is_running:
+            if self.producer and self.is_running:
                 # Send via Kafka
                 topic = f"agent_mailbox_{message.receiver_id}"
                 future = self.producer.send(topic, value=message.to_json())

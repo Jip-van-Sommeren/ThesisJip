@@ -10,25 +10,27 @@ Implements:
 - Communication Actions: send(i,j,m) operations
 """
 
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Tuple, Optional, Any
-from collections import defaultdict, deque
-import json
+from collections import deque
 import time
 import uuid
-from abc import ABC, abstractmethod
 from enum import Enum
 import threading
-from queue import Queue
 import requests
 from flask import Flask, request, jsonify
 import logging
 
-from abstract_agent import AgentId
+# Import base communication abstractions
+from communication.base_communication import (
+    MessageType as BaseMessageType,
+    Message,
+    CommunicationTopology,
+)
 
 
-class MessageType(Enum):
-    """Types of messages in the message space M."""
+class RestMessageType(Enum):
+    """REST Message types mapping to thesis definition."""
 
     INFORM = "inform"
     REQUEST = "request"
@@ -36,18 +38,41 @@ class MessageType(Enum):
     BROADCAST = "broadcast"
     ERROR = "error"
 
+    @classmethod
+    def from_base_type(cls, base_type: BaseMessageType) -> "RestMessageType":
+        """Convert base message type to REST message type."""
+        mapping = {
+            BaseMessageType.INFORM: cls.INFORM,
+            BaseMessageType.REQUEST: cls.REQUEST,
+            BaseMessageType.REPLY: cls.REPLY,
+            BaseMessageType.BROADCAST: cls.BROADCAST,
+            BaseMessageType.ERROR: cls.ERROR,
+        }
+        return mapping[base_type]
+
+    def to_base_type(self) -> BaseMessageType:
+        """Convert REST message type to base message type."""
+        mapping = {
+            self.INFORM: BaseMessageType.INFORM,
+            self.REQUEST: BaseMessageType.REQUEST,
+            self.REPLY: BaseMessageType.REPLY,
+            self.BROADCAST: BaseMessageType.BROADCAST,
+            self.ERROR: BaseMessageType.ERROR,
+        }
+        return mapping[self]
+
 
 @dataclass
-class Message:
+class RestMessage:
     """
-    Message m ∈ M: Represents a communication message.
-    Abstract entity with content and intent.
+    Message representation for REST communication.
+    Implements the message space M from the thesis.
     """
 
     message_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     sender_id: str = ""
     receiver_id: str = ""
-    message_type: MessageType = MessageType.INFORM
+    message_type: RestMessageType = RestMessageType.INFORM
     content: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
     reply_to: Optional[str] = None
@@ -65,23 +90,48 @@ class Message:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "Message":
+    def from_dict(cls, data: Dict) -> "RestMessage":
         """Create message from dictionary."""
         return cls(
             message_id=data["message_id"],
             sender_id=data["sender_id"],
             receiver_id=data["receiver_id"],
-            message_type=MessageType(data["message_type"]),
+            message_type=RestMessageType(data["message_type"]),
             content=data["content"],
             timestamp=data["timestamp"],
             reply_to=data.get("reply_to"),
         )
 
+    def to_base_message(self) -> Message:
+        """Convert to base message type."""
+        return Message(
+            message_id=self.message_id,
+            sender_id=self.sender_id,
+            receiver_id=self.receiver_id,
+            message_type=self.message_type.to_base_type(),
+            content=self.content,
+            timestamp=self.timestamp,
+            reply_to=self.reply_to,
+        )
 
-class Mailbox:
+    @classmethod
+    def from_base_message(cls, base_msg: Message) -> "RestMessage":
+        """Create from base message type."""
+        return cls(
+            message_id=base_msg.message_id,
+            sender_id=base_msg.sender_id,
+            receiver_id=base_msg.receiver_id,
+            message_type=RestMessageType.from_base_type(base_msg.message_type),
+            content=base_msg.content,
+            timestamp=base_msg.timestamp,
+            reply_to=base_msg.reply_to,
+        )
+
+
+class RestMailbox:
     """
-    MB_i: Mailbox for agent i.
-    Buffer that holds incoming messages as multiset/queue.
+    MB_i: Mailbox for agent i using REST communication.
+    Thread-safe message buffer for HTTP-based message delivery.
     """
 
     def __init__(self, agent_id: str, max_size: int = 1000):
@@ -89,12 +139,12 @@ class Mailbox:
         self.messages: deque = deque(maxlen=max_size)
         self.lock = threading.Lock()
 
-    def add_message(self, message: Message):
+    def add_message(self, message: RestMessage):
         """Add message to mailbox (thread-safe)."""
         with self.lock:
             self.messages.append(message)
 
-    def get_messages(self, clear: bool = True) -> List[Message]:
+    def get_messages(self, clear: bool = True) -> List[RestMessage]:
         """Get all messages from mailbox, optionally clearing it."""
         with self.lock:
             messages = list(self.messages)
@@ -102,7 +152,7 @@ class Mailbox:
                 self.messages.clear()
             return messages
 
-    def peek_messages(self) -> List[Message]:
+    def peek_messages(self) -> List[RestMessage]:
         """Get messages without removing them."""
         return self.get_messages(clear=False)
 
@@ -110,49 +160,6 @@ class Mailbox:
         """Get number of messages in mailbox."""
         with self.lock:
             return len(self.messages)
-
-
-class CommunicationTopology:
-    """
-    Comm ⊆ A × A: Communication topology relation.
-    Defines which agents can communicate with each other.
-    """
-
-    def __init__(self):
-        self.links: Set[Tuple[str, str]] = set()
-        self.lock = threading.Lock()
-
-    def add_link(self, sender_id: str, receiver_id: str):
-        """Add communication link (i,j) ∈ Comm."""
-        with self.lock:
-            self.links.add((sender_id, receiver_id))
-
-    def remove_link(self, sender_id: str, receiver_id: str):
-        """Remove communication link."""
-        with self.lock:
-            self.links.discard((sender_id, receiver_id))
-
-    def can_communicate(self, sender_id: str, receiver_id: str) -> bool:
-        """Check if sender can communicate with receiver."""
-        with self.lock:
-            return (sender_id, receiver_id) in self.links
-
-    def get_reachable_agents(self, sender_id: str) -> Set[str]:
-        """Get all agents that sender can communicate with."""
-        with self.lock:
-            return {
-                receiver
-                for sender, receiver in self.links
-                if sender == sender_id
-            }
-
-    def create_fully_connected(self, agent_ids: List[str]):
-        """Create fully connected topology: Comm = A × A."""
-        with self.lock:
-            for sender in agent_ids:
-                for receiver in agent_ids:
-                    if sender != receiver:  # No self-communication by default
-                        self.links.add((sender, receiver))
 
 
 class RESTCommunicationService:
@@ -168,7 +175,7 @@ class RESTCommunicationService:
         self.app.logger.setLevel(logging.WARNING)  # Reduce Flask logging
 
         # Communication components
-        self.mailboxes: Dict[str, Mailbox] = {}
+        self.mailboxes: Dict[str, RestMailbox] = {}
         self.topology = CommunicationTopology()
         self.delivery_stats = {
             "messages_sent": 0,
@@ -204,10 +211,10 @@ class RESTCommunicationService:
             """Send message from agent to another agent."""
             try:
                 data = request.get_json()
-                message = Message(
+                message = RestMessage(
                     sender_id=agent_id,
                     receiver_id=data["receiver_id"],
-                    message_type=MessageType(data["message_type"]),
+                    message_type=RestMessageType(data["message_type"]),
                     content=data["content"],
                     reply_to=data.get("reply_to"),
                 )
@@ -225,7 +232,8 @@ class RESTCommunicationService:
                         jsonify(
                             {
                                 "status": "failed",
-                                "error": "Communication not allowed or receiver not found",
+                                "error": "Communication not allowed\
+                                    or receiver not found",
                             }
                         ),
                         400,
@@ -245,10 +253,10 @@ class RESTCommunicationService:
                 failed = 0
 
                 for receiver_id in reachable:
-                    message = Message(
+                    message = RestMessage(
                         sender_id=agent_id,
                         receiver_id=receiver_id,
-                        message_type=MessageType.BROADCAST,
+                        message_type=RestMessageType.BROADCAST,
                         content=data["content"],
                     )
 
@@ -297,9 +305,9 @@ class RESTCommunicationService:
     def register_agent(self, agent_id: str):
         """Register an agent and create its mailbox."""
         if agent_id not in self.mailboxes:
-            self.mailboxes[agent_id] = Mailbox(agent_id)
+            self.mailboxes[agent_id] = RestMailbox(agent_id)
 
-    def deliver_message(self, message: Message) -> bool:
+    def deliver_message(self, message: RestMessage) -> bool:
         """
         deliver(i,j,m): Message delivery function.
         Delivers message m from agent i to agent j's mailbox.
@@ -340,7 +348,7 @@ class RESTCommunicationService:
         )
 
 
-class CommunicatingAgent:
+class RestCommunicatingAgent:
     """
     Agent wrapper that adds communication capabilities to existing agents.
     Extends agents with communication actions and mailbox access.
@@ -355,7 +363,7 @@ class CommunicatingAgent:
     def send_message(
         self,
         receiver_id: str,
-        message_type: MessageType,
+        message_type: RestMessageType,
         content: Dict[str, Any],
         reply_to: Optional[str] = None,
     ) -> bool:
@@ -379,7 +387,7 @@ class CommunicatingAgent:
             return False
 
     def broadcast_message(
-        self, message_type: MessageType, content: Dict[str, Any]
+        self, message_type: RestMessageType, content: Dict[str, Any]
     ) -> Dict:
         """
         Broadcast message: send(i,*,m)
@@ -397,7 +405,9 @@ class CommunicatingAgent:
         except requests.RequestException:
             return {"status": "failed"}
 
-    def receive_messages(self, clear_mailbox: bool = True) -> List[Message]:
+    def receive_messages(
+        self, clear_mailbox: bool = True
+    ) -> List[RestMessage]:
         """
         Get messages from agent's mailbox.
         Part of agent's perception input.
@@ -410,18 +420,18 @@ class CommunicatingAgent:
             )
             if response.status_code == 200:
                 data = response.json()
-                return [Message.from_dict(msg) for msg in data["messages"]]
+                return [RestMessage.from_dict(msg) for msg in data["messages"]]
             return []
         except requests.RequestException:
             return []
 
     def reply_to_message(
-        self, original_message: Message, content: Dict[str, Any]
+        self, original_message: RestMessage, content: Dict[str, Any]
     ) -> bool:
         """Reply to a received message."""
         return self.send_message(
             receiver_id=original_message.sender_id,
-            message_type=MessageType.REPLY,
+            message_type=RestMessageType.REPLY,
             content=content,
             reply_to=original_message.message_id,
         )

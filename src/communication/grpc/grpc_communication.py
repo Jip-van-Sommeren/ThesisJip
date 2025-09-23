@@ -22,12 +22,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 # Import generated protobuf classes
-import communication_pb2
-import communication_pb2_grpc
+from . import communication_pb2
+from . import communication_pb2_grpc
 
 # Import existing communication models for compatibility
-from communication.rest.rest_communication import (
-    MessageType as RestMessageType,
+from communication.base_communication import (
+    MessageType as BaseMessageType,
 )
 
 
@@ -41,25 +41,25 @@ class GrpcMessageType(Enum):
     ERROR = communication_pb2.ERROR
 
     @classmethod
-    def from_rest_type(cls, rest_type: RestMessageType) -> "GrpcMessageType":
-        """Convert REST message type to gRPC message type."""
+    def from_base_type(cls, base_type: BaseMessageType) -> "GrpcMessageType":
+        """Convert base message type to gRPC message type."""
         mapping = {
-            RestMessageType.INFORM: cls.INFORM,
-            RestMessageType.REQUEST: cls.REQUEST,
-            RestMessageType.REPLY: cls.REPLY,
-            RestMessageType.BROADCAST: cls.BROADCAST,
-            RestMessageType.ERROR: cls.ERROR,
+            BaseMessageType.INFORM: cls.INFORM,
+            BaseMessageType.REQUEST: cls.REQUEST,
+            BaseMessageType.REPLY: cls.REPLY,
+            BaseMessageType.BROADCAST: cls.BROADCAST,
+            BaseMessageType.ERROR: cls.ERROR,
         }
-        return mapping[rest_type]
+        return mapping[base_type]
 
-    def to_rest_type(self) -> RestMessageType:
-        """Convert gRPC message type to REST message type."""
+    def to_base_type(self) -> BaseMessageType:
+        """Convert gRPC message type to base message type."""
         mapping = {
-            self.INFORM: RestMessageType.INFORM,
-            self.REQUEST: RestMessageType.REQUEST,
-            self.REPLY: RestMessageType.REPLY,
-            self.BROADCAST: RestMessageType.BROADCAST,
-            self.ERROR: RestMessageType.ERROR,
+            self.INFORM: BaseMessageType.INFORM,
+            self.REQUEST: BaseMessageType.REQUEST,
+            self.REPLY: BaseMessageType.REPLY,
+            self.BROADCAST: BaseMessageType.BROADCAST,
+            self.ERROR: BaseMessageType.ERROR,
         }
         return mapping[self]
 

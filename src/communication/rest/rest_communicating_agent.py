@@ -1,8 +1,8 @@
 """
-Communicating Agent Implementation
+REST Communicating Agent Implementation
 
 Integrates the formal communication model (mailboxes, message space, topology)
-with the existing BDI-Reactive agent architecture.
+with the existing BDI-Reactive agent architecture using REST communication.
 """
 
 from typing import Dict, Set, List, Optional, Any
@@ -15,21 +15,23 @@ from abstract_agent import (
     ActionType,
     ReactiveRule,
 )
-from rest.rest_communication import (
-    CommunicatingAgent,
-    RESTCommunicationService,
+from communication.base_communication import (
     Message,
     MessageType,
 )
+from .rest_communication import (
+    RestCommunicatingAgent,
+    RESTCommunicationService,
+)
 
 
-class CommunicationAction(Action):
+class RestCommunicationAction(Action):
     """
-    Communication-specific action that extends the base Action class.
-    Implements send(i,j,m) communication actions.
+    REST Communication-specific action that extends the base Action class.
+    Implements send(i,j,m) communication actions via REST API.
     """
 
-    def __init__(self, action_id: str, comm_agent: CommunicatingAgent):
+    def __init__(self, action_id: str, comm_agent: RestCommunicatingAgent):
         self.comm_agent = comm_agent
         super().__init__(
             action_id=action_id,
@@ -45,13 +47,13 @@ class CommunicationAction(Action):
         return environment_state
 
 
-class ExtendedCommunicatingAgent(AbstractAgent):
+class ExtendedRestCommunicatingAgent(AbstractAgent):
     """
-    Agent that combines AbstractAgent capabilities with communication.
+    Agent that combines AbstractAgent capabilities with REST communication.
 
     Extends the formal agent definition A=(Id, State, Goal, Perception,
     Action, Decision)
-    with communication components from the thesis:
+    with REST communication components from the thesis:
     - Mailbox (MB_i) integration with perception
     - Communication actions in Action set
     - Message handling in decision process
@@ -66,7 +68,9 @@ class ExtendedCommunicatingAgent(AbstractAgent):
         super().__init__(agent_id, observable_properties)
 
         # Initialize communication capabilities
-        self.comm_agent = CommunicatingAgent(str(agent_id), comm_service_url)
+        self.comm_agent = RestCommunicatingAgent(
+            str(agent_id), comm_service_url
+        )
 
         # Add communication actions to agent's action set
         self._add_communication_actions()
@@ -79,17 +83,19 @@ class ExtendedCommunicatingAgent(AbstractAgent):
         """Add communication actions to the agent's action set Act_A."""
 
         # Basic send action
-        send_action = CommunicationAction("send_message", self.comm_agent)
+        send_action = RestCommunicationAction("send_message", self.comm_agent)
         self.add_action(send_action)
 
         # Broadcast action
-        broadcast_action = CommunicationAction(
+        broadcast_action = RestCommunicationAction(
             "broadcast_message", self.comm_agent
         )
         self.add_action(broadcast_action)
 
         # Reply action
-        reply_action = CommunicationAction("reply_message", self.comm_agent)
+        reply_action = RestCommunicationAction(
+            "reply_message", self.comm_agent
+        )
         self.add_action(reply_action)
 
     def perceive(self, environment_state: Dict):
@@ -259,10 +265,10 @@ class ExtendedCommunicatingAgent(AbstractAgent):
         }
 
 
-class CommunicationEnvironment:
+class RestCommunicationEnvironment:
     """
-    Environment that manages multiple communicating agents.
-    Handles agent registration and communication service setup.
+    Environment that manages multiple REST communicating agents.
+    Handles agent registration and REST communication service setup.
     """
 
     def __init__(
@@ -271,7 +277,7 @@ class CommunicationEnvironment:
         self.service_host = service_host
         self.service_port = service_port
         self.comm_service = None
-        self.agents: Dict[str, ExtendedCommunicatingAgent] = {}
+        self.agents: Dict[str, ExtendedRestCommunicatingAgent] = {}
         self.environment_state: Dict[str, Any] = {}
         self.service_thread = None
         self.is_running = False
@@ -321,7 +327,7 @@ class CommunicationEnvironment:
         """Get the service URL."""
         return f"http://{self.service_host}:{self.service_port}"
 
-    def register_agent(self, agent: ExtendedCommunicatingAgent):
+    def register_agent(self, agent: ExtendedRestCommunicatingAgent):
         """Register an agent with the communication environment."""
         if not self.is_running:
             raise RuntimeError(

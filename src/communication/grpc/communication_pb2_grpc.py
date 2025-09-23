@@ -3,33 +3,31 @@
 import grpc
 import warnings
 
-import communication_pb2 as communication__pb2
+from communication.grpc import communication_pb2 as communication_dot_grpc_dot_communication__pb2
 
-GRPC_GENERATED_VERSION = "1.75.0"
+GRPC_GENERATED_VERSION = '1.75.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
 try:
     from grpc._utilities import first_version_is_lower
-
-    _version_not_supported = first_version_is_lower(
-        GRPC_VERSION, GRPC_GENERATED_VERSION
-    )
+    _version_not_supported = first_version_is_lower(GRPC_VERSION, GRPC_GENERATED_VERSION)
 except ImportError:
     _version_not_supported = True
 
 if _version_not_supported:
     raise RuntimeError(
-        f"The grpc package installed is at version {GRPC_VERSION},"
-        + f" but the generated code in communication_pb2_grpc.py depends on"
-        + f" grpcio>={GRPC_GENERATED_VERSION}."
-        + f" Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}"
-        + f" or downgrade your generated code using grpcio-tools<={GRPC_VERSION}."
+        f'The grpc package installed is at version {GRPC_VERSION},'
+        + f' but the generated code in communication/grpc/communication_pb2_grpc.py depends on'
+        + f' grpcio>={GRPC_GENERATED_VERSION}.'
+        + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
+        + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
 class CommunicationServiceStub(object):
-    """Service definition for agent communication"""
+    """Service definition for agent communication
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -38,165 +36,162 @@ class CommunicationServiceStub(object):
             channel: A grpc.Channel.
         """
         self.SendMessage = channel.unary_unary(
-            "/communication.CommunicationService/SendMessage",
-            request_serializer=communication__pb2.SendMessageRequest.SerializeToString,
-            response_deserializer=communication__pb2.SendMessageResponse.FromString,
-            _registered_method=True,
-        )
+                '/communication.grpc.CommunicationService/SendMessage',
+                request_serializer=communication_dot_grpc_dot_communication__pb2.SendMessageRequest.SerializeToString,
+                response_deserializer=communication_dot_grpc_dot_communication__pb2.SendMessageResponse.FromString,
+                _registered_method=True)
         self.BroadcastMessage = channel.unary_unary(
-            "/communication.CommunicationService/BroadcastMessage",
-            request_serializer=communication__pb2.BroadcastMessageRequest.SerializeToString,
-            response_deserializer=communication__pb2.BroadcastMessageResponse.FromString,
-            _registered_method=True,
-        )
+                '/communication.grpc.CommunicationService/BroadcastMessage',
+                request_serializer=communication_dot_grpc_dot_communication__pb2.BroadcastMessageRequest.SerializeToString,
+                response_deserializer=communication_dot_grpc_dot_communication__pb2.BroadcastMessageResponse.FromString,
+                _registered_method=True)
         self.GetMessages = channel.unary_unary(
-            "/communication.CommunicationService/GetMessages",
-            request_serializer=communication__pb2.GetMessagesRequest.SerializeToString,
-            response_deserializer=communication__pb2.GetMessagesResponse.FromString,
-            _registered_method=True,
-        )
+                '/communication.grpc.CommunicationService/GetMessages',
+                request_serializer=communication_dot_grpc_dot_communication__pb2.GetMessagesRequest.SerializeToString,
+                response_deserializer=communication_dot_grpc_dot_communication__pb2.GetMessagesResponse.FromString,
+                _registered_method=True)
         self.RegisterAgent = channel.unary_unary(
-            "/communication.CommunicationService/RegisterAgent",
-            request_serializer=communication__pb2.RegisterAgentRequest.SerializeToString,
-            response_deserializer=communication__pb2.RegisterAgentResponse.FromString,
-            _registered_method=True,
-        )
+                '/communication.grpc.CommunicationService/RegisterAgent',
+                request_serializer=communication_dot_grpc_dot_communication__pb2.RegisterAgentRequest.SerializeToString,
+                response_deserializer=communication_dot_grpc_dot_communication__pb2.RegisterAgentResponse.FromString,
+                _registered_method=True)
         self.AddCommunicationLink = channel.unary_unary(
-            "/communication.CommunicationService/AddCommunicationLink",
-            request_serializer=communication__pb2.AddLinkRequest.SerializeToString,
-            response_deserializer=communication__pb2.AddLinkResponse.FromString,
-            _registered_method=True,
-        )
+                '/communication.grpc.CommunicationService/AddCommunicationLink',
+                request_serializer=communication_dot_grpc_dot_communication__pb2.AddLinkRequest.SerializeToString,
+                response_deserializer=communication_dot_grpc_dot_communication__pb2.AddLinkResponse.FromString,
+                _registered_method=True)
         self.GetStatistics = channel.unary_unary(
-            "/communication.CommunicationService/GetStatistics",
-            request_serializer=communication__pb2.StatisticsRequest.SerializeToString,
-            response_deserializer=communication__pb2.StatisticsResponse.FromString,
-            _registered_method=True,
-        )
+                '/communication.grpc.CommunicationService/GetStatistics',
+                request_serializer=communication_dot_grpc_dot_communication__pb2.StatisticsRequest.SerializeToString,
+                response_deserializer=communication_dot_grpc_dot_communication__pb2.StatisticsResponse.FromString,
+                _registered_method=True)
         self.GetTopology = channel.unary_unary(
-            "/communication.CommunicationService/GetTopology",
-            request_serializer=communication__pb2.TopologyRequest.SerializeToString,
-            response_deserializer=communication__pb2.TopologyResponse.FromString,
-            _registered_method=True,
-        )
+                '/communication.grpc.CommunicationService/GetTopology',
+                request_serializer=communication_dot_grpc_dot_communication__pb2.TopologyRequest.SerializeToString,
+                response_deserializer=communication_dot_grpc_dot_communication__pb2.TopologyResponse.FromString,
+                _registered_method=True)
 
 
 class CommunicationServiceServicer(object):
-    """Service definition for agent communication"""
+    """Service definition for agent communication
+    """
 
     def SendMessage(self, request, context):
-        """Send a message from one agent to another"""
+        """Send a message from one agent to another
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def BroadcastMessage(self, request, context):
-        """Broadcast a message to all reachable agents"""
+        """Broadcast a message to all reachable agents
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetMessages(self, request, context):
-        """Get messages from an agent's mailbox"""
+        """Get messages from an agent's mailbox
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def RegisterAgent(self, request, context):
-        """Register an agent with the communication service"""
+        """Register an agent with the communication service
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def AddCommunicationLink(self, request, context):
-        """Add a communication link between two agents"""
+        """Add a communication link between two agents
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetStatistics(self, request, context):
-        """Get communication statistics"""
+        """Get communication statistics
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetTopology(self, request, context):
-        """Get topology information"""
+        """Get topology information
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
 
 def add_CommunicationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-        "SendMessage": grpc.unary_unary_rpc_method_handler(
-            servicer.SendMessage,
-            request_deserializer=communication__pb2.SendMessageRequest.FromString,
-            response_serializer=communication__pb2.SendMessageResponse.SerializeToString,
-        ),
-        "BroadcastMessage": grpc.unary_unary_rpc_method_handler(
-            servicer.BroadcastMessage,
-            request_deserializer=communication__pb2.BroadcastMessageRequest.FromString,
-            response_serializer=communication__pb2.BroadcastMessageResponse.SerializeToString,
-        ),
-        "GetMessages": grpc.unary_unary_rpc_method_handler(
-            servicer.GetMessages,
-            request_deserializer=communication__pb2.GetMessagesRequest.FromString,
-            response_serializer=communication__pb2.GetMessagesResponse.SerializeToString,
-        ),
-        "RegisterAgent": grpc.unary_unary_rpc_method_handler(
-            servicer.RegisterAgent,
-            request_deserializer=communication__pb2.RegisterAgentRequest.FromString,
-            response_serializer=communication__pb2.RegisterAgentResponse.SerializeToString,
-        ),
-        "AddCommunicationLink": grpc.unary_unary_rpc_method_handler(
-            servicer.AddCommunicationLink,
-            request_deserializer=communication__pb2.AddLinkRequest.FromString,
-            response_serializer=communication__pb2.AddLinkResponse.SerializeToString,
-        ),
-        "GetStatistics": grpc.unary_unary_rpc_method_handler(
-            servicer.GetStatistics,
-            request_deserializer=communication__pb2.StatisticsRequest.FromString,
-            response_serializer=communication__pb2.StatisticsResponse.SerializeToString,
-        ),
-        "GetTopology": grpc.unary_unary_rpc_method_handler(
-            servicer.GetTopology,
-            request_deserializer=communication__pb2.TopologyRequest.FromString,
-            response_serializer=communication__pb2.TopologyResponse.SerializeToString,
-        ),
+            'SendMessage': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendMessage,
+                    request_deserializer=communication_dot_grpc_dot_communication__pb2.SendMessageRequest.FromString,
+                    response_serializer=communication_dot_grpc_dot_communication__pb2.SendMessageResponse.SerializeToString,
+            ),
+            'BroadcastMessage': grpc.unary_unary_rpc_method_handler(
+                    servicer.BroadcastMessage,
+                    request_deserializer=communication_dot_grpc_dot_communication__pb2.BroadcastMessageRequest.FromString,
+                    response_serializer=communication_dot_grpc_dot_communication__pb2.BroadcastMessageResponse.SerializeToString,
+            ),
+            'GetMessages': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMessages,
+                    request_deserializer=communication_dot_grpc_dot_communication__pb2.GetMessagesRequest.FromString,
+                    response_serializer=communication_dot_grpc_dot_communication__pb2.GetMessagesResponse.SerializeToString,
+            ),
+            'RegisterAgent': grpc.unary_unary_rpc_method_handler(
+                    servicer.RegisterAgent,
+                    request_deserializer=communication_dot_grpc_dot_communication__pb2.RegisterAgentRequest.FromString,
+                    response_serializer=communication_dot_grpc_dot_communication__pb2.RegisterAgentResponse.SerializeToString,
+            ),
+            'AddCommunicationLink': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddCommunicationLink,
+                    request_deserializer=communication_dot_grpc_dot_communication__pb2.AddLinkRequest.FromString,
+                    response_serializer=communication_dot_grpc_dot_communication__pb2.AddLinkResponse.SerializeToString,
+            ),
+            'GetStatistics': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetStatistics,
+                    request_deserializer=communication_dot_grpc_dot_communication__pb2.StatisticsRequest.FromString,
+                    response_serializer=communication_dot_grpc_dot_communication__pb2.StatisticsResponse.SerializeToString,
+            ),
+            'GetTopology': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetTopology,
+                    request_deserializer=communication_dot_grpc_dot_communication__pb2.TopologyRequest.FromString,
+                    response_serializer=communication_dot_grpc_dot_communication__pb2.TopologyResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-        "communication.CommunicationService", rpc_method_handlers
-    )
+            'communication.grpc.CommunicationService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers(
-        "communication.CommunicationService", rpc_method_handlers
-    )
+    server.add_registered_method_handlers('communication.grpc.CommunicationService', rpc_method_handlers)
 
 
-# This class is part of an EXPERIMENTAL API.
+ # This class is part of an EXPERIMENTAL API.
 class CommunicationService(object):
-    """Service definition for agent communication"""
+    """Service definition for agent communication
+    """
 
     @staticmethod
-    def SendMessage(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def SendMessage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/communication.CommunicationService/SendMessage",
-            communication__pb2.SendMessageRequest.SerializeToString,
-            communication__pb2.SendMessageResponse.FromString,
+            '/communication.grpc.CommunicationService/SendMessage',
+            communication_dot_grpc_dot_communication__pb2.SendMessageRequest.SerializeToString,
+            communication_dot_grpc_dot_communication__pb2.SendMessageResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -205,28 +200,25 @@ class CommunicationService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def BroadcastMessage(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def BroadcastMessage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/communication.CommunicationService/BroadcastMessage",
-            communication__pb2.BroadcastMessageRequest.SerializeToString,
-            communication__pb2.BroadcastMessageResponse.FromString,
+            '/communication.grpc.CommunicationService/BroadcastMessage',
+            communication_dot_grpc_dot_communication__pb2.BroadcastMessageRequest.SerializeToString,
+            communication_dot_grpc_dot_communication__pb2.BroadcastMessageResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -235,28 +227,25 @@ class CommunicationService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def GetMessages(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def GetMessages(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/communication.CommunicationService/GetMessages",
-            communication__pb2.GetMessagesRequest.SerializeToString,
-            communication__pb2.GetMessagesResponse.FromString,
+            '/communication.grpc.CommunicationService/GetMessages',
+            communication_dot_grpc_dot_communication__pb2.GetMessagesRequest.SerializeToString,
+            communication_dot_grpc_dot_communication__pb2.GetMessagesResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -265,28 +254,25 @@ class CommunicationService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def RegisterAgent(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def RegisterAgent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/communication.CommunicationService/RegisterAgent",
-            communication__pb2.RegisterAgentRequest.SerializeToString,
-            communication__pb2.RegisterAgentResponse.FromString,
+            '/communication.grpc.CommunicationService/RegisterAgent',
+            communication_dot_grpc_dot_communication__pb2.RegisterAgentRequest.SerializeToString,
+            communication_dot_grpc_dot_communication__pb2.RegisterAgentResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -295,28 +281,25 @@ class CommunicationService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def AddCommunicationLink(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def AddCommunicationLink(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/communication.CommunicationService/AddCommunicationLink",
-            communication__pb2.AddLinkRequest.SerializeToString,
-            communication__pb2.AddLinkResponse.FromString,
+            '/communication.grpc.CommunicationService/AddCommunicationLink',
+            communication_dot_grpc_dot_communication__pb2.AddLinkRequest.SerializeToString,
+            communication_dot_grpc_dot_communication__pb2.AddLinkResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -325,28 +308,25 @@ class CommunicationService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def GetStatistics(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def GetStatistics(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/communication.CommunicationService/GetStatistics",
-            communication__pb2.StatisticsRequest.SerializeToString,
-            communication__pb2.StatisticsResponse.FromString,
+            '/communication.grpc.CommunicationService/GetStatistics',
+            communication_dot_grpc_dot_communication__pb2.StatisticsRequest.SerializeToString,
+            communication_dot_grpc_dot_communication__pb2.StatisticsResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -355,28 +335,25 @@ class CommunicationService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def GetTopology(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def GetTopology(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/communication.CommunicationService/GetTopology",
-            communication__pb2.TopologyRequest.SerializeToString,
-            communication__pb2.TopologyResponse.FromString,
+            '/communication.grpc.CommunicationService/GetTopology',
+            communication_dot_grpc_dot_communication__pb2.TopologyRequest.SerializeToString,
+            communication_dot_grpc_dot_communication__pb2.TopologyResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -385,5 +362,4 @@ class CommunicationService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)

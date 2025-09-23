@@ -1,6 +1,7 @@
 syntax = "proto3";
 
-package communication;
+package communication.grpc;
+
 
 // Service definition for agent communication
 service CommunicationService {

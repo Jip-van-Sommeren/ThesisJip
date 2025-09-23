@@ -16,9 +16,9 @@ import random
 from typing import Dict, Any
 import concurrent.futures
 from abstract_agent import AgentId
-from communication.communicating_agent import (
-    ExtendedCommunicatingAgent,
-    CommunicationEnvironment,
+from communication.rest.rest_communicating_agent import (
+    ExtendedRestCommunicatingAgent,
+    RestCommunicationEnvironment,
 )
 from communication.communication_config import (
     CommunicationConfiguration,
@@ -28,18 +28,18 @@ from benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )
-from communication.rest.rest_communication import MessageType
+from communication.base_communication import MessageType
 
 
 def create_test_agent(
     agent_id: str, observable_props: set = None
-) -> ExtendedCommunicatingAgent:
+) -> ExtendedRestCommunicatingAgent:
     """Create a test agent with basic configuration."""
     if observable_props is None:
         observable_props = {"environment", "messages"}
 
     agent_id_obj = AgentId("benchmark", "test", agent_id)
-    agent = ExtendedCommunicatingAgent(agent_id_obj, observable_props)
+    agent = ExtendedRestCommunicatingAgent(agent_id_obj, observable_props)
     agent.initialize_agent()
     return agent
 
@@ -52,7 +52,7 @@ def setup_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     # Create communication environment with dynamic port allocation
-    env = CommunicationEnvironment()
+    env = RestCommunicationEnvironment()
     env.start_service()
 
     # Create agents

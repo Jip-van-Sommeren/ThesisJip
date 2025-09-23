@@ -1,5 +1,5 @@
 """
-gRPC Benchmark Test Scenarios 
+gRPC Benchmark Test Scenarios
 Provides the same benchmark scenarios as REST but using gRPC communication.
 
 Enables direct performance comparison between REST and gRPC implementations
@@ -11,13 +11,19 @@ import random
 from typing import Dict, Any
 import concurrent.futures
 from abstract_agent import AgentId
-from grpc_communicating_agent import (
+from communication.grpc.grpc_communication_agent import (
     ExtendedGrpcCommunicatingAgent,
     GrpcCommunicationEnvironment,
 )
-from communication.communication_config import CommunicationConfiguration, TopologyPattern
-from benchmarks.communication_benchmark import CommunicationBenchmark, BenchmarkScenario
-from grpc_communication import GrpcMessageType
+from communication.communication_config import (
+    CommunicationConfiguration,
+    TopologyPattern,
+)
+from benchmarks.communication_benchmark import (
+    CommunicationBenchmark,
+    BenchmarkScenario,
+)
+from communication.grpc.grpc_communication import GrpcMessageType
 
 
 def create_grpc_test_agent(
@@ -261,7 +267,9 @@ def test_grpc_scalability_stress(
             content = {"stress_test": True, "count": message_count}
             success = agent.send_message(
                 str(target.id),
-                random.choice([GrpcMessageType.INFORM, GrpcMessageType.REQUEST]),
+                random.choice(
+                    [GrpcMessageType.INFORM, GrpcMessageType.REQUEST]
+                ),
                 content,
             )
 
@@ -280,7 +288,8 @@ def test_grpc_scalability_stress(
         max_workers=len(agents)
     ) as executor:
         futures = [
-            executor.submit(grpc_stress_messaging_task, agent) for agent in agents
+            executor.submit(grpc_stress_messaging_task, agent)
+            for agent in agents
         ]
         concurrent.futures.wait(futures, timeout=stress_duration + 5)
 
@@ -361,7 +370,9 @@ def run_grpc_topology_comparison():
         benchmark.print_summary(result)
 
     # Compare results
-    scenario_names = [f"grpc_concurrent_messaging_{t.value}" for t in topologies]
+    scenario_names = [
+        f"grpc_concurrent_messaging_{t.value}" for t in topologies
+    ]
     comparison = benchmark.compare_scenarios(scenario_names)
 
     print("\n" + "=" * 60)
