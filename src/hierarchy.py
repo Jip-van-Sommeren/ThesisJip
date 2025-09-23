@@ -300,7 +300,8 @@ class OrganizationalMixin:
         """Handle escalated issue."""
         # As supervisor, need to address escalated issue
         escalation_goal = Goal(
-            condition=f"resolve_escalation_{message.content.get('type', 'issue')}",
+            condition=f"resolve_escalation_\
+                {message.content.get('type', 'issue')}",
             goal_type=GoalType.EXTRINSIC,
             priority=8.0,
         )
@@ -326,11 +327,12 @@ class OrganizationalMixin:
         query_type = query.get("type", "status")
 
         if query_type == "status":
+            hierarchy_level = self.organizational_position.hierarchy_level
             return {
                 "agent_id": str(self.id),
                 "status": "active",
                 "current_goals": len(self.goals),
-                "hierarchy_level": self.organizational_position.hierarchy_level,
+                "hierarchy_level": hierarchy_level,
             }
 
         return {"error": "unknown_query_type"}

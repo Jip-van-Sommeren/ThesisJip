@@ -1,5 +1,7 @@
 /venv
 /misc
 */__pycache__/
-*/.pytect_cashe/
+*/.pytest_cache/
 *.pyc
+*benchmark.json
+.DS_Store
