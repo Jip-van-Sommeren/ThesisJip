@@ -1,8 +1,8 @@
 """
-gRPC Benchmark Test Scenarios
-Provides the same benchmark scenarios as REST but using gRPC communication.
+MQTT Benchmark Test Scenarios
+Provides the same benchmark scenarios as REST and gRPC but using MQTT communication.
 
-Enables direct performance comparison between REST and gRPC implementations
+Enables direct performance comparison between MQTT and other protocol implementations
 of the same formal communication model from the thesis.
 """
 
@@ -11,9 +11,9 @@ import random
 from typing import Dict, Any
 import concurrent.futures
 from abstract_agent import AgentId
-from communication.grpc.grpc_communication_agent import (
-    ExtendedGrpcCommunicatingAgent,
-    GrpcCommunicationEnvironment,
+from communication.mqtt.mqtt_communication_agent import (
+    ExtendedMqttCommunicatingAgent,
+    MqttCommunicationEnvironment,
 )
 from communication.communication_config import (
     CommunicationConfiguration,
@@ -23,37 +23,43 @@ from benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )
-from communication.grpc.grpc_communication import GrpcMessageType
+from communication.mqtt.mqtt_communication import MqttMessageType
 
 
-def create_grpc_test_agent(
+def create_mqtt_test_agent(
     agent_id: str, observable_props: set = None
-) -> ExtendedGrpcCommunicatingAgent:
-    """Create a gRPC test agent with basic configuration."""
+) -> ExtendedMqttCommunicatingAgent:
+    """Create an MQTT test agent with basic configuration."""
     if observable_props is None:
         observable_props = {"environment", "messages"}
 
-    agent_id_obj = AgentId("grpc_benchmark", "test", agent_id)
-    agent = ExtendedGrpcCommunicatingAgent(agent_id_obj, observable_props)
+    agent_id_obj = AgentId("mqtt_benchmark", "test", agent_id)
+    agent = ExtendedMqttCommunicatingAgent(agent_id_obj, observable_props)
     agent.initialize_agent()
     return agent
 
 
-def setup_grpc_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Setup for basic gRPC latency/throughput scenarios."""
+def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Setup for basic MQTT latency/throughput scenarios."""
     agent_count = params.get("agent_count", 5)
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
     )
 
-    # Create gRPC communication environment with dynamic port allocation
-    env = GrpcCommunicationEnvironment()
+    # Create MQTT communication environment
+    mqtt_config = {
+        "broker_host": "localhost",
+        "broker_port": 1883,
+        "keepalive": 60,
+        "qos": 1,
+    }
+    env = MqttCommunicationEnvironment(mqtt_config)
     env.start_service()
 
     # Create agents
     agents = []
     for i in range(agent_count):
-        agent = create_grpc_test_agent(f"agent_{i}")
+        agent = create_mqtt_test_agent(f"agent_{i}")
         agents.append(agent)
         env.register_agent(agent)
 
@@ -79,9 +85,9 @@ def setup_grpc_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def teardown_grpc_basic_scenario(params: Dict[str, Any]):
-    """Cleanup for gRPC basic scenarios."""
-    # Stop the gRPC communication service and close connections
+def teardown_mqtt_basic_scenario(params: Dict[str, Any]):
+    """Cleanup for MQTT basic scenarios."""
+    # Stop the MQTT communication service and close connections
     if "environment" in params:
         env = params["environment"]
         env.close_all_agents()
@@ -91,10 +97,10 @@ def teardown_grpc_basic_scenario(params: Dict[str, Any]):
     params.clear()
 
 
-def test_grpc_point_to_point_latency(
+def test_mqtt_point_to_point_latency(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Test basic point-to-point message latency via gRPC."""
+    """Test basic point-to-point message latency via MQTT."""
     agents = params["agents"]
     message_count = params.get("message_count", 100)
 
@@ -107,16 +113,16 @@ def test_grpc_point_to_point_latency(
     delivery_failures = 0
 
     for i in range(message_count):
-        message_id = f"grpc_latency_test_{i}"
+        message_id = f"mqtt_latency_test_{i}"
 
         # Start timing
         benchmark.latency_tracker.start_message_timing(message_id)
         benchmark.throughput_tracker.record_message()
 
-        # Send message via gRPC
-        content = {"test_id": message_id, "data": f"grpc_test_data_{i}"}
+        # Send message via MQTT
+        content = {"test_id": message_id, "data": f"mqtt_test_data_{i}"}
         success = sender.send_message(
-            str(receiver.id), GrpcMessageType.INFORM, content
+            str(receiver.id), MqttMessageType.INFORM, content
         )
 
         if success:
@@ -132,10 +138,10 @@ def test_grpc_point_to_point_latency(
     return {"delivery_failures": delivery_failures}
 
 
-def test_grpc_broadcast_throughput(
+def test_mqtt_broadcast_throughput(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Test gRPC broadcast message throughput."""
+    """Test MQTT broadcast message throughput."""
     agents = params["agents"]
     message_count = params.get("message_count", 50)
 
@@ -146,16 +152,16 @@ def test_grpc_broadcast_throughput(
     delivery_failures = 0
 
     for i in range(message_count):
-        message_id = f"grpc_broadcast_test_{i}"
+        message_id = f"mqtt_broadcast_test_{i}"
 
         # Start timing
         benchmark.latency_tracker.start_message_timing(message_id)
         benchmark.throughput_tracker.record_message()
 
-        # Send broadcast via gRPC
+        # Send broadcast via MQTT
         content = {
             "broadcast_id": message_id,
-            "announcement": f"grpc_broadcast_{i}",
+            "announcement": f"mqtt_broadcast_{i}",
         }
         result = sender.broadcast_message(content)
 
@@ -170,10 +176,10 @@ def test_grpc_broadcast_throughput(
     return {"delivery_failures": delivery_failures}
 
 
-def test_grpc_concurrent_messaging(
+def test_mqtt_concurrent_messaging(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Test concurrent gRPC messaging between multiple agents."""
+    """Test concurrent MQTT messaging between multiple agents."""
     agents = params["agents"]
     messages_per_agent = params.get("messages_per_agent", 20)
 
@@ -183,26 +189,26 @@ def test_grpc_concurrent_messaging(
     delivery_failures = 0
     timeout_failures = 0
 
-    def grpc_agent_messaging_task(agent, agent_index):
+    def mqtt_agent_messaging_task(agent, agent_index):
         nonlocal delivery_failures, timeout_failures
         targets = [a for a in agents if a != agent]
 
         for i in range(messages_per_agent):
             target = random.choice(targets)
-            message_id = f"grpc_concurrent_{agent_index}_{i}"
+            message_id = f"mqtt_concurrent_{agent_index}_{i}"
 
             # Start timing
             benchmark.latency_tracker.start_message_timing(message_id)
             benchmark.throughput_tracker.record_message()
 
-            # Send message via gRPC
+            # Send message via MQTT
             content = {
                 "sender": agent_index,
                 "message_num": i,
                 "timestamp": time.time(),
             }
             success = agent.send_message(
-                str(target.id), GrpcMessageType.INFORM, content
+                str(target.id), MqttMessageType.INFORM, content
             )
 
             if success:
@@ -214,13 +220,13 @@ def test_grpc_concurrent_messaging(
             # Random delay to simulate realistic messaging patterns
             time.sleep(random.uniform(0.005, 0.02))
 
-    # Run concurrent gRPC messaging
+    # Run concurrent MQTT messaging
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=len(agents)
     ) as executor:
         futures = []
         for i, agent in enumerate(agents):
-            future = executor.submit(grpc_agent_messaging_task, agent, i)
+            future = executor.submit(mqtt_agent_messaging_task, agent, i)
             futures.append(future)
 
         # Wait for all tasks to complete
@@ -237,10 +243,10 @@ def test_grpc_concurrent_messaging(
     }
 
 
-def test_grpc_scalability_stress(
+def test_mqtt_scalability_stress(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Test gRPC system under high message load for scalability."""
+    """Test MQTT system under high message load for scalability."""
     agents = params["agents"]
     stress_duration = params.get("stress_duration", 5.0)  # seconds
 
@@ -250,25 +256,25 @@ def test_grpc_scalability_stress(
     delivery_failures = 0
     message_count = 0
 
-    def grpc_stress_messaging_task(agent):
+    def mqtt_stress_messaging_task(agent):
         nonlocal delivery_failures, message_count
         end_time = time.time() + stress_duration
         targets = [a for a in agents if a != agent]
 
         while time.time() < end_time:
             target = random.choice(targets)
-            message_id = f"grpc_stress_{agent.id}_{message_count}"
+            message_id = f"mqtt_stress_{agent.id}_{message_count}"
 
             # Track timing and throughput
             benchmark.latency_tracker.start_message_timing(message_id)
             benchmark.throughput_tracker.record_message()
 
-            # Send message via gRPC
+            # Send message via MQTT
             content = {"stress_test": True, "count": message_count}
             success = agent.send_message(
                 str(target.id),
                 random.choice(
-                    [GrpcMessageType.INFORM, GrpcMessageType.REQUEST]
+                    [MqttMessageType.INFORM, MqttMessageType.REQUEST]
                 ),
                 content,
             )
@@ -283,12 +289,12 @@ def test_grpc_scalability_stress(
             # Minimal delay for high throughput
             time.sleep(0.001)
 
-    # Run gRPC stress test
+    # Run MQTT stress test
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=len(agents)
     ) as executor:
         futures = [
-            executor.submit(grpc_stress_messaging_task, agent)
+            executor.submit(mqtt_stress_messaging_task, agent)
             for agent in agents
         ]
         concurrent.futures.wait(futures, timeout=stress_duration + 5)
@@ -299,56 +305,56 @@ def test_grpc_scalability_stress(
     }
 
 
-def create_grpc_benchmark_scenarios() -> CommunicationBenchmark:
-    """Create and configure all gRPC benchmark scenarios."""
+def create_mqtt_benchmark_scenarios() -> CommunicationBenchmark:
+    """Create and configure all MQTT benchmark scenarios."""
     benchmark = CommunicationBenchmark()
 
-    # Scenario 1: gRPC Point-to-Point Latency
-    grpc_latency_scenario = BenchmarkScenario(
+    # Scenario 1: MQTT Point-to-Point Latency
+    mqtt_latency_scenario = BenchmarkScenario(
         name="point_to_point_latency",
-        description="Measures basic gRPC message latency between two agents",
+        description="Measures basic MQTT message latency between two agents",
     )
-    grpc_latency_scenario.set_setup(setup_grpc_basic_scenario)
-    grpc_latency_scenario.set_test(test_grpc_point_to_point_latency)
-    grpc_latency_scenario.set_teardown(teardown_grpc_basic_scenario)
-    benchmark.add_scenario(grpc_latency_scenario)
+    mqtt_latency_scenario.set_setup(setup_mqtt_basic_scenario)
+    mqtt_latency_scenario.set_test(test_mqtt_point_to_point_latency)
+    mqtt_latency_scenario.set_teardown(teardown_mqtt_basic_scenario)
+    benchmark.add_scenario(mqtt_latency_scenario)
 
-    # Scenario 2: gRPC Broadcast Throughput
-    grpc_broadcast_scenario = BenchmarkScenario(
+    # Scenario 2: MQTT Broadcast Throughput
+    mqtt_broadcast_scenario = BenchmarkScenario(
         name="broadcast_throughput",
-        description="Tests gRPC broadcast message throughput and delivery",
+        description="Tests MQTT broadcast message throughput and delivery",
     )
-    grpc_broadcast_scenario.set_setup(setup_grpc_basic_scenario)
-    grpc_broadcast_scenario.set_test(test_grpc_broadcast_throughput)
-    grpc_broadcast_scenario.set_teardown(teardown_grpc_basic_scenario)
-    benchmark.add_scenario(grpc_broadcast_scenario)
+    mqtt_broadcast_scenario.set_setup(setup_mqtt_basic_scenario)
+    mqtt_broadcast_scenario.set_test(test_mqtt_broadcast_throughput)
+    mqtt_broadcast_scenario.set_teardown(teardown_mqtt_basic_scenario)
+    benchmark.add_scenario(mqtt_broadcast_scenario)
 
-    # Scenario 3: gRPC Concurrent Messaging
-    grpc_concurrent_scenario = BenchmarkScenario(
+    # Scenario 3: MQTT Concurrent Messaging
+    mqtt_concurrent_scenario = BenchmarkScenario(
         name="concurrent_messaging",
-        description="Tests gRPC concurrent messaging between multiple agents",
+        description="Tests MQTT concurrent messaging between multiple agents",
     )
-    grpc_concurrent_scenario.set_setup(setup_grpc_basic_scenario)
-    grpc_concurrent_scenario.set_test(test_grpc_concurrent_messaging)
-    grpc_concurrent_scenario.set_teardown(teardown_grpc_basic_scenario)
-    benchmark.add_scenario(grpc_concurrent_scenario)
+    mqtt_concurrent_scenario.set_setup(setup_mqtt_basic_scenario)
+    mqtt_concurrent_scenario.set_test(test_mqtt_concurrent_messaging)
+    mqtt_concurrent_scenario.set_teardown(teardown_mqtt_basic_scenario)
+    benchmark.add_scenario(mqtt_concurrent_scenario)
 
-    # Scenario 4: gRPC Scalability Stress Test
-    grpc_stress_scenario = BenchmarkScenario(
+    # Scenario 4: MQTT Scalability Stress Test
+    mqtt_stress_scenario = BenchmarkScenario(
         name="scalability_stress",
-        description="High-load gRPC stress test for scalability analysis",
+        description="High-load MQTT stress test for scalability analysis",
     )
-    grpc_stress_scenario.set_setup(setup_grpc_basic_scenario)
-    grpc_stress_scenario.set_test(test_grpc_scalability_stress)
-    grpc_stress_scenario.set_teardown(teardown_grpc_basic_scenario)
-    benchmark.add_scenario(grpc_stress_scenario)
+    mqtt_stress_scenario.set_setup(setup_mqtt_basic_scenario)
+    mqtt_stress_scenario.set_test(test_mqtt_scalability_stress)
+    mqtt_stress_scenario.set_teardown(teardown_mqtt_basic_scenario)
+    benchmark.add_scenario(mqtt_stress_scenario)
 
     return benchmark
 
 
-def run_grpc_topology_comparison():
-    """Run gRPC performance comparison across different topology patterns."""
-    benchmark = create_grpc_benchmark_scenarios()
+def run_mqtt_topology_comparison():
+    """Run MQTT performance comparison across different topology patterns."""
+    benchmark = create_mqtt_benchmark_scenarios()
     topologies = [
         TopologyPattern.FULLY_CONNECTED,
         TopologyPattern.STAR,
@@ -359,7 +365,7 @@ def run_grpc_topology_comparison():
     results = {}
 
     for topology in topologies:
-        print(f"\nTesting gRPC topology: {topology.value}")
+        print(f"\nTesting MQTT topology: {topology.value}")
         result = benchmark.run_scenario(
             "concurrent_messaging",
             agent_count=6,
@@ -376,7 +382,7 @@ def run_grpc_topology_comparison():
     comparison = benchmark.compare_scenarios(scenario_names)
 
     print("\n" + "=" * 60)
-    print("gRPC TOPOLOGY COMPARISON SUMMARY")
+    print("MQTT TOPOLOGY COMPARISON SUMMARY")
     print("=" * 60)
     for topology, metrics in comparison.items():
         print(f"\n{topology}:")
@@ -387,15 +393,15 @@ def run_grpc_topology_comparison():
     return results
 
 
-def run_grpc_scalability_analysis():
-    """Run gRPC scalability analysis with increasing agent counts."""
-    benchmark = create_grpc_benchmark_scenarios()
+def run_mqtt_scalability_analysis():
+    """Run MQTT scalability analysis with increasing agent counts."""
+    benchmark = create_mqtt_benchmark_scenarios()
     agent_counts = [3, 5, 8, 12]
 
     results = {}
 
     for count in agent_counts:
-        print(f"\nTesting gRPC with {count} agents")
+        print(f"\nTesting MQTT with {count} agents")
         result = benchmark.run_scenario(
             "scalability_stress",
             agent_count=count,
@@ -406,7 +412,7 @@ def run_grpc_scalability_analysis():
         benchmark.print_summary(result)
 
     print("\n" + "=" * 60)
-    print("gRPC SCALABILITY ANALYSIS SUMMARY")
+    print("MQTT SCALABILITY ANALYSIS SUMMARY")
     print("=" * 60)
     for count, result in results.items():
         print(f"\n{count} Agents:")
@@ -420,42 +426,42 @@ def run_grpc_scalability_analysis():
 
 
 if __name__ == "__main__":
-    print("gRPC Communication Benchmark Suite")
+    print("MQTT Communication Benchmark Suite")
     print("=" * 60)
 
-    # Create gRPC benchmark suite
-    benchmark = create_grpc_benchmark_scenarios()
+    # Create MQTT benchmark suite
+    benchmark = create_mqtt_benchmark_scenarios()
 
-    # Run individual gRPC scenarios
-    print("\n1. gRPC Point-to-Point Latency Test")
+    # Run individual MQTT scenarios
+    print("\n1. MQTT Point-to-Point Latency Test")
     result1 = benchmark.run_scenario(
         "point_to_point_latency", agent_count=2, message_count=50
     )
     benchmark.print_summary(result1)
 
-    print("\n2. gRPC Broadcast Throughput Test")
+    print("\n2. MQTT Broadcast Throughput Test")
     result2 = benchmark.run_scenario(
         "broadcast_throughput", agent_count=5, message_count=30
     )
     benchmark.print_summary(result2)
 
-    print("\n3. gRPC Concurrent Messaging Test")
+    print("\n3. MQTT Concurrent Messaging Test")
     result3 = benchmark.run_scenario(
         "concurrent_messaging", agent_count=4, messages_per_agent=10
     )
     benchmark.print_summary(result3)
 
     # Export results
-    benchmark.export_results("grpc_benchmark_results.json")
-    print("\nResults exported to grpc_benchmark_results.json")
+    benchmark.export_results("mqtt_benchmark_results.json")
+    print("\nResults exported to mqtt_benchmark_results.json")
 
     # Optional: Run extended analysis
     extended_tests = input(
-        "\nRun extended gRPC topology and scalability analysis? (y/n): "
+        "\nRun extended MQTT topology and scalability analysis? (y/n): "
     )
     if extended_tests.lower() == "y":
-        print("\nRunning gRPC topology comparison...")
-        run_grpc_topology_comparison()
+        print("\nRunning MQTT topology comparison...")
+        run_mqtt_topology_comparison()
 
-        print("\nRunning gRPC scalability analysis...")
-        run_grpc_scalability_analysis()
+        print("\nRunning MQTT scalability analysis...")
+        run_mqtt_scalability_analysis()

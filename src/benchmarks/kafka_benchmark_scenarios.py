@@ -1,371 +1,465 @@
 """
-Kafka Communication Benchmark Scenarios
-Performance testing scenarios for Kafka-based agent communication.
+Kafka Benchmark Test Scenarios
+Provides the same benchmark scenarios as REST, gRPC, and MQTT but using Kafka communication.
+
+Enables direct performance comparison between Kafka and other protocol implementations
+of the same formal communication model from the thesis.
 """
 
 import time
-import threading
+import random
 from typing import Dict, Any
-from communication.kafka.kafka_communication import KafkaMessageType
+import concurrent.futures
+from abstract_agent import AgentId
 from communication.kafka.kafka_communication_agent import (
+    ExtendedKafkaCommunicatingAgent,
     KafkaCommunicationEnvironment,
 )
+from communication.communication_config import (
+    CommunicationConfiguration,
+    TopologyPattern,
+)
+from benchmarks.communication_benchmark import (
+    CommunicationBenchmark,
+    BenchmarkScenario,
+)
+from communication.kafka.kafka_communication import KafkaMessageType
 
 
-def setup_basic_scenario(agent_count: int = 2) -> Dict[str, Any]:
-    """
-    Basic Kafka communication scenario.
-    Two agents exchanging simple messages.
-    """
-    env = KafkaCommunicationEnvironment()
-    env.setup({})
+def create_kafka_test_agent(
+    agent_id: str, observable_props: set = None
+) -> ExtendedKafkaCommunicatingAgent:
+    """Create a Kafka test agent with basic configuration."""
+    if observable_props is None:
+        observable_props = {"environment", "messages"}
+
+    agent_id_obj = AgentId("kafka_benchmark", "test", agent_id)
+    agent = ExtendedKafkaCommunicatingAgent(agent_id_obj, observable_props)
+    agent.initialize_agent()
+    return agent
+
+
+def setup_kafka_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Setup for basic Kafka latency/throughput scenarios."""
+    agent_count = params.get("agent_count", 5)
+    topology_pattern = params.get(
+        "topology_pattern", TopologyPattern.FULLY_CONNECTED
+    )
+
+    # Create Kafka communication environment
+    kafka_config = {
+        "bootstrap_servers": ["localhost:9092"],
+        "client_id": "kafka_benchmark_service",
+    }
+    env = KafkaCommunicationEnvironment(kafka_config)
+    env.start_service()
 
     # Create agents
     agents = []
     for i in range(agent_count):
-        agent = env.create_agent(f"kafka_agent_{i}")
+        agent = create_kafka_test_agent(f"agent_{i}")
         agents.append(agent)
+        env.register_agent(agent)
 
     # Setup topology
-    env.setup_topology(agents, "fully_connected")
+    config = CommunicationConfiguration()
+    config.set_agents([str(agent.id) for agent in agents])
+    topology = config.set_topology(topology_pattern)
 
-    config = {
-        "scenario_name": "kafka_basic",
-        "message_types": [KafkaMessageType.INFORM, KafkaMessageType.REQUEST],
-        "test_duration": 5.0,
-    }
-
-    return {
-        "environment": env,
-        "agents": agents,
-        "config": config,
-        "agent_count": agent_count,
-        "topology_density": 1.0,
-    }
-
-
-def setup_broadcast_scenario(agent_count: int = 5) -> Dict[str, Any]:
-    """
-    Kafka broadcast performance scenario.
-    One agent broadcasting to multiple receivers.
-    """
-    env = KafkaCommunicationEnvironment()
-    env.setup({})
-
-    # Create agents
-    agents = []
-    for i in range(agent_count):
-        agent = env.create_agent(f"kafka_broadcast_agent_{i}")
-        agents.append(agent)
-
-    # Setup star topology (agent_0 is broadcaster)
-    env.setup_topology(agents, "star")
-
-    config = {
-        "scenario_name": "kafka_broadcast",
-        "broadcaster_id": "kafka_broadcast_agent_0",
-        "message_types": [KafkaMessageType.BROADCAST],
-        "test_duration": 10.0,
-    }
+    # Apply topology to environment
+    for sender, receiver in topology.links:
+        env.add_communication_link(sender, receiver)
 
     return {
         "environment": env,
         "agents": agents,
         "config": config,
         "agent_count": agent_count,
-        "topology_density": 0.4,
+        "topology_density": (
+            len(topology.links) / (agent_count * (agent_count - 1))
+            if agent_count > 1
+            else 0
+        ),
     }
 
 
-def setup_high_throughput_scenario(agent_count: int = 10) -> Dict[str, Any]:
-    """
-    High throughput Kafka scenario.
-    Multiple agents sending many messages rapidly.
-    """
-    env = KafkaCommunicationEnvironment()
-    env.setup({})
+def teardown_kafka_basic_scenario(params: Dict[str, Any]):
+    """Cleanup for Kafka basic scenarios."""
+    # Stop the Kafka communication service and close connections
+    if "environment" in params:
+        env = params["environment"]
+        env.close_all_agents()
+        env.stop_service()
 
-    # Create agents
-    agents = []
-    for i in range(agent_count):
-        agent = env.create_agent(f"kafka_throughput_agent_{i}")
-        agents.append(agent)
-
-    # Fully connected topology
-    env.setup_topology(agents, "fully_connected")
-
-    config = {
-        "scenario_name": "kafka_high_throughput",
-        "messages_per_agent": 100,
-        "message_types": [KafkaMessageType.INFORM],
-        "test_duration": 15.0,
-    }
-
-    return {
-        "environment": env,
-        "agents": agents,
-        "config": config,
-        "agent_count": agent_count,
-        "topology_density": 1.0,
-    }
+    # Clear references
+    params.clear()
 
 
-def setup_request_reply_scenario(agent_count: int = 4) -> Dict[str, Any]:
-    """
-    Request-reply pattern scenario using Kafka.
-    Agents sending requests and waiting for replies.
-    """
-    env = KafkaCommunicationEnvironment()
-    env.setup({})
-
-    # Create agents
-    agents = []
-    for i in range(agent_count):
-        agent = env.create_agent(f"kafka_reqrep_agent_{i}")
-        agents.append(agent)
-
-    # Setup topology
-    env.setup_topology(agents, "fully_connected")
-
-    config = {
-        "scenario_name": "kafka_request_reply",
-        "request_pairs": agent_count // 2,
-        "message_types": [KafkaMessageType.REQUEST, KafkaMessageType.REPLY],
-        "test_duration": 8.0,
-    }
-
-    return {
-        "environment": env,
-        "agents": agents,
-        "config": config,
-        "agent_count": agent_count,
-        "topology_density": 1.0,
-    }
-
-
-def run_basic_message_test(
-    scenario_data: Dict[str, Any], duration: float
+def test_kafka_point_to_point_latency(
+    params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Run basic Kafka message exchange test."""
-    agents = scenario_data["agents"]
+    """Test basic point-to-point message latency via Kafka."""
+    agents = params["agents"]
+    message_count = params.get("message_count", 100)
 
     if len(agents) < 2:
-        return {"error": "Need at least 2 agents for basic test"}
+        return {"delivery_failures": message_count}
 
     sender = agents[0]
     receiver = agents[1]
 
-    # Send messages
-    messages_sent = 0
-    start_time = time.time()
+    delivery_failures = 0
 
-    while time.time() - start_time < duration:
+    for i in range(message_count):
+        message_id = f"kafka_latency_test_{i}"
+
+        # Start timing
+        benchmark.latency_tracker.start_message_timing(message_id)
+        benchmark.throughput_tracker.record_message()
+
+        # Send message via Kafka
+        content = {"test_id": message_id, "data": f"kafka_test_data_{i}"}
         success = sender.send_message(
-            receiver.agent_id,
-            KafkaMessageType.INFORM,
-            {
-                "test_data": f"message_{messages_sent}",
-                "timestamp": time.time(),
-            },
+            str(receiver.id), KafkaMessageType.INFORM, content
         )
+
         if success:
-            messages_sent += 1
-        time.sleep(0.1)
+            # Simulate processing time and end timing
+            time.sleep(0.001)  # 1ms processing simulation
+            benchmark.latency_tracker.end_message_timing(message_id)
+        else:
+            delivery_failures += 1
 
-    # Allow time for message delivery
-    time.sleep(1.0)
+        # Small delay between messages
+        time.sleep(0.01)
 
-    # Check received messages
-    received_messages = receiver.receive_messages()
-    messages_received = len(received_messages)
-
-    return {
-        "messages_sent": messages_sent,
-        "messages_received": messages_received,
-        "success_rate": messages_received / max(messages_sent, 1),
-    }
+    return {"delivery_failures": delivery_failures}
 
 
-def run_broadcast_test(
-    scenario_data: Dict[str, Any], duration: float
+def test_kafka_broadcast_throughput(
+    params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Run Kafka broadcast performance test."""
-    agents = scenario_data["agents"]
+    """Test Kafka broadcast message throughput."""
+    agents = params["agents"]
+    message_count = params.get("message_count", 50)
 
-    broadcaster = agents[0]  # First agent is broadcaster
-    receivers = agents[1:]
+    if len(agents) < 1:
+        return {"delivery_failures": message_count}
 
-    broadcasts_sent = 0
-    start_time = time.time()
+    sender = agents[0]
+    delivery_failures = 0
 
-    while time.time() - start_time < duration:
-        result = broadcaster.broadcast_message(
-            KafkaMessageType.BROADCAST,
-            {
-                "broadcast_data": f"broadcast_{broadcasts_sent}",
+    for i in range(message_count):
+        message_id = f"kafka_broadcast_test_{i}"
+
+        # Start timing
+        benchmark.latency_tracker.start_message_timing(message_id)
+        benchmark.throughput_tracker.record_message()
+
+        # Send broadcast via Kafka
+        content = {
+            "broadcast_id": message_id,
+            "announcement": f"kafka_broadcast_{i}",
+        }
+        result = sender.broadcast_message(content)
+
+        if result.get("status") == "completed":
+            # End timing
+            benchmark.latency_tracker.end_message_timing(message_id)
+        else:
+            delivery_failures += 1
+
+        time.sleep(0.02)  # Slight delay between broadcasts
+
+    return {"delivery_failures": delivery_failures}
+
+
+def test_kafka_concurrent_messaging(
+    params: Dict[str, Any], benchmark: CommunicationBenchmark
+) -> Dict[str, Any]:
+    """Test concurrent Kafka messaging between multiple agents."""
+    agents = params["agents"]
+    messages_per_agent = params.get("messages_per_agent", 20)
+
+    if len(agents) < 2:
+        return {"delivery_failures": messages_per_agent * len(agents)}
+
+    delivery_failures = 0
+    timeout_failures = 0
+
+    def kafka_agent_messaging_task(agent, agent_index):
+        nonlocal delivery_failures, timeout_failures
+        targets = [a for a in agents if a != agent]
+
+        for i in range(messages_per_agent):
+            target = random.choice(targets)
+            message_id = f"kafka_concurrent_{agent_index}_{i}"
+
+            # Start timing
+            benchmark.latency_tracker.start_message_timing(message_id)
+            benchmark.throughput_tracker.record_message()
+
+            # Send message via Kafka
+            content = {
+                "sender": agent_index,
+                "message_num": i,
                 "timestamp": time.time(),
-            },
-        )
-        if result["status"] == "completed":
-            broadcasts_sent += 1
-        time.sleep(0.2)
+            }
+            success = agent.send_message(
+                str(target.id), KafkaMessageType.INFORM, content
+            )
 
-    # Allow time for message delivery
-    time.sleep(1.5)
+            if success:
+                # End timing
+                benchmark.latency_tracker.end_message_timing(message_id)
+            else:
+                delivery_failures += 1
 
-    # Check messages received by each receiver
-    total_received = 0
-    for receiver in receivers:
-        messages = receiver.receive_messages()
-        total_received += len(messages)
+            # Random delay to simulate realistic messaging patterns
+            time.sleep(random.uniform(0.005, 0.02))
 
-    expected_total = broadcasts_sent * len(receivers)
+    # Run concurrent Kafka messaging
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=len(agents)
+    ) as executor:
+        futures = []
+        for i, agent in enumerate(agents):
+            future = executor.submit(kafka_agent_messaging_task, agent, i)
+            futures.append(future)
+
+        # Wait for all tasks to complete
+        concurrent.futures.wait(futures, timeout=30)
+
+        # Check for timeout failures
+        for future in futures:
+            if not future.done():
+                timeout_failures += 1
 
     return {
-        "broadcasts_sent": broadcasts_sent,
-        "total_messages_received": total_received,
-        "expected_total": expected_total,
-        "broadcast_efficiency": total_received / max(expected_total, 1),
+        "delivery_failures": delivery_failures,
+        "timeout_failures": timeout_failures,
     }
 
 
-def run_throughput_test(
-    scenario_data: Dict[str, Any], duration: float
+def test_kafka_scalability_stress(
+    params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Run high throughput Kafka test."""
-    agents = scenario_data["agents"]
-    config = scenario_data["config"]
+    """Test Kafka system under high message load for scalability."""
+    agents = params["agents"]
+    stress_duration = params.get("stress_duration", 5.0)  # seconds
 
-    results = {"messages_sent_per_agent": {}, "total_messages_sent": 0}
+    if len(agents) < 2:
+        return {"delivery_failures": 1000}
 
-    def agent_sender(agent, target_agents, messages_to_send):
-        """Thread function for each agent to send messages."""
-        sent_count = 0
-        for i in range(messages_to_send):
-            for target in target_agents:
-                if target.agent_id != agent.agent_id:
-                    success = agent.send_message(
-                        target.agent_id,
-                        KafkaMessageType.INFORM,
-                        {"data": f"msg_{i}_from_{agent.agent_id}"},
-                    )
-                    if success:
-                        sent_count += 1
-            time.sleep(0.01)  # Small delay
-        results["messages_sent_per_agent"][agent.agent_id] = sent_count
+    delivery_failures = 0
+    message_count = 0
 
-    # Start sender threads
-    threads = []
-    messages_per_agent = config.get("messages_per_agent", 50)
+    def kafka_stress_messaging_task(agent):
+        nonlocal delivery_failures, message_count
+        end_time = time.time() + stress_duration
+        targets = [a for a in agents if a != agent]
 
-    for agent in agents:
-        thread = threading.Thread(
-            target=agent_sender, args=(agent, agents, messages_per_agent)
-        )
-        threads.append(thread)
-        thread.start()
+        while time.time() < end_time:
+            target = random.choice(targets)
+            message_id = f"kafka_stress_{agent.id}_{message_count}"
 
-    # Wait for all threads to complete
-    for thread in threads:
-        thread.join()
+            # Track timing and throughput
+            benchmark.latency_tracker.start_message_timing(message_id)
+            benchmark.throughput_tracker.record_message()
 
-    # Calculate total sent
-    results["total_messages_sent"] = sum(
-        results["messages_sent_per_agent"].values()
+            # Send message via Kafka
+            content = {"stress_test": True, "count": message_count}
+            success = agent.send_message(
+                str(target.id),
+                random.choice(
+                    [KafkaMessageType.INFORM, KafkaMessageType.REQUEST]
+                ),
+                content,
+            )
+
+            if success:
+                benchmark.latency_tracker.end_message_timing(message_id)
+            else:
+                delivery_failures += 1
+
+            message_count += 1
+
+            # Minimal delay for high throughput
+            time.sleep(0.001)
+
+    # Run Kafka stress test
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=len(agents)
+    ) as executor:
+        futures = [
+            executor.submit(kafka_stress_messaging_task, agent)
+            for agent in agents
+        ]
+        concurrent.futures.wait(futures, timeout=stress_duration + 5)
+
+    return {
+        "delivery_failures": delivery_failures,
+        "total_stress_messages": message_count,
+    }
+
+
+def create_kafka_benchmark_scenarios() -> CommunicationBenchmark:
+    """Create and configure all Kafka benchmark scenarios."""
+    benchmark = CommunicationBenchmark()
+
+    # Scenario 1: Kafka Point-to-Point Latency
+    kafka_latency_scenario = BenchmarkScenario(
+        name="point_to_point_latency",
+        description="Measures basic Kafka message latency between two agents",
     )
+    kafka_latency_scenario.set_setup(setup_kafka_basic_scenario)
+    kafka_latency_scenario.set_test(test_kafka_point_to_point_latency)
+    kafka_latency_scenario.set_teardown(teardown_kafka_basic_scenario)
+    benchmark.add_scenario(kafka_latency_scenario)
 
-    # Allow delivery time
-    time.sleep(2.0)
+    # Scenario 2: Kafka Broadcast Throughput
+    kafka_broadcast_scenario = BenchmarkScenario(
+        name="broadcast_throughput",
+        description="Tests Kafka broadcast message throughput and delivery",
+    )
+    kafka_broadcast_scenario.set_setup(setup_kafka_basic_scenario)
+    kafka_broadcast_scenario.set_test(test_kafka_broadcast_throughput)
+    kafka_broadcast_scenario.set_teardown(teardown_kafka_basic_scenario)
+    benchmark.add_scenario(kafka_broadcast_scenario)
 
-    # Count received messages
-    total_received = 0
-    for agent in agents:
-        messages = agent.receive_messages()
-        total_received += len(messages)
+    # Scenario 3: Kafka Concurrent Messaging
+    kafka_concurrent_scenario = BenchmarkScenario(
+        name="concurrent_messaging",
+        description="Tests Kafka concurrent messaging between multiple agents",
+    )
+    kafka_concurrent_scenario.set_setup(setup_kafka_basic_scenario)
+    kafka_concurrent_scenario.set_test(test_kafka_concurrent_messaging)
+    kafka_concurrent_scenario.set_teardown(teardown_kafka_basic_scenario)
+    benchmark.add_scenario(kafka_concurrent_scenario)
 
-    results["total_messages_received"] = total_received
-    results["throughput_rate"] = results["total_messages_sent"] / duration
+    # Scenario 4: Kafka Scalability Stress Test
+    kafka_stress_scenario = BenchmarkScenario(
+        name="scalability_stress",
+        description="High-load Kafka stress test for scalability analysis",
+    )
+    kafka_stress_scenario.set_setup(setup_kafka_basic_scenario)
+    kafka_stress_scenario.set_test(test_kafka_scalability_stress)
+    kafka_stress_scenario.set_teardown(teardown_kafka_basic_scenario)
+    benchmark.add_scenario(kafka_stress_scenario)
+
+    return benchmark
+
+
+def run_kafka_topology_comparison():
+    """Run Kafka performance comparison across different topology patterns."""
+    benchmark = create_kafka_benchmark_scenarios()
+    topologies = [
+        TopologyPattern.FULLY_CONNECTED,
+        TopologyPattern.STAR,
+        TopologyPattern.RING,
+        TopologyPattern.CHAIN,
+    ]
+
+    results = {}
+
+    for topology in topologies:
+        print(f"\nTesting Kafka topology: {topology.value}")
+        result = benchmark.run_scenario(
+            "concurrent_messaging",
+            agent_count=6,
+            topology_pattern=topology,
+            messages_per_agent=15,
+        )
+        results[topology.value] = result
+        benchmark.print_summary(result)
+
+    # Compare results
+    scenario_names = [
+        f"concurrent_messaging_{t.value}" for t in topologies
+    ]
+    comparison = benchmark.compare_scenarios(scenario_names)
+
+    print("\n" + "=" * 60)
+    print("KAFKA TOPOLOGY COMPARISON SUMMARY")
+    print("=" * 60)
+    for topology, metrics in comparison.items():
+        print(f"\n{topology}:")
+        print(f"  Avg Latency: {metrics['avg_latency_ms']:.2f}ms")
+        print(f"  Throughput: {metrics['throughput_msg_per_sec']:.1f} msg/s")
+        print(f"  Success Rate: {metrics['success_rate_percent']:.1f}%")
 
     return results
 
 
-def run_request_reply_test(
-    scenario_data: Dict[str, Any], duration: float
-) -> Dict[str, Any]:
-    """Run request-reply pattern test with Kafka."""
-    agents = scenario_data["agents"]
+def run_kafka_scalability_analysis():
+    """Run Kafka scalability analysis with increasing agent counts."""
+    benchmark = create_kafka_benchmark_scenarios()
+    agent_counts = [3, 5, 8, 12]
 
-    if len(agents) < 2:
-        return {"error": "Need at least 2 agents for request-reply test"}
+    results = {}
 
-    # Pair agents for request-reply
-    requesters = agents[::2]  # Even indexed agents
-    responders = agents[1::2]  # Odd indexed agents
-
-    requests_sent = 0
-    replies_received = 0
-
-    # Send requests
-    for requester, responder in zip(requesters, responders):
-        for i in range(5):  # 5 requests per pair
-            success = requester.send_message(
-                responder.agent_id,
-                KafkaMessageType.REQUEST,
-                {"request_id": f"req_{i}", "requester": requester.agent_id},
-            )
-            if success:
-                requests_sent += 1
-            time.sleep(0.1)
-
-    # Allow processing time
-    time.sleep(1.0)
-
-    # Process requests and send replies
-    for responder in responders:
-        requests = responder.receive_messages()
-        for request in requests:
-            if request.message_type == KafkaMessageType.REQUEST:
-                responder.reply_to_message(
-                    request,
-                    {
-                        "reply_to": request.content.get("request_id"),
-                        "responder": responder.agent_id,
-                    },
-                )
-
-    # Allow reply delivery time
-    time.sleep(1.5)
-
-    # Count replies received
-    for requester in requesters:
-        replies = requester.receive_messages()
-        replies_received += len(
-            [
-                msg
-                for msg in replies
-                if msg.message_type == KafkaMessageType.REPLY
-            ]
+    for count in agent_counts:
+        print(f"\nTesting Kafka with {count} agents")
+        result = benchmark.run_scenario(
+            "scalability_stress",
+            agent_count=count,
+            topology_pattern=TopologyPattern.FULLY_CONNECTED,
+            stress_duration=3.0,
         )
+        results[count] = result
+        benchmark.print_summary(result)
 
-    return {
-        "requests_sent": requests_sent,
-        "replies_received": replies_received,
-        "reply_rate": replies_received / max(requests_sent, 1),
-    }
+    print("\n" + "=" * 60)
+    print("KAFKA SCALABILITY ANALYSIS SUMMARY")
+    print("=" * 60)
+    for count, result in results.items():
+        print(f"\n{count} Agents:")
+        print(f"  Avg Latency: {result.message_latency_avg*1000:.2f}ms")
+        print(f"  Throughput: {result.throughput_avg:.1f} msg/s")
+        print(f"  Success Rate: {result.success_rate*100:.1f}%")
+        print(f"  CPU Usage: {result.cpu_usage_avg:.1f}%")
+        print(f"  Memory Usage: {result.memory_usage_avg:.1f}MB")
+
+    return results
 
 
-# Test scenario mapping
-KAFKA_TEST_SCENARIOS = {
-    "test_basic": run_basic_message_test,
-    "test_broadcast": run_broadcast_test,
-    "test_throughput": run_throughput_test,
-    "test_request_reply": run_request_reply_test,
-}
+if __name__ == "__main__":
+    print("Kafka Communication Benchmark Suite")
+    print("=" * 60)
 
-# Setup scenario mapping
-KAFKA_SETUP_SCENARIOS = {
-    "test_basic": setup_basic_scenario,
-    "test_broadcast": setup_broadcast_scenario,
-    "test_throughput": setup_high_throughput_scenario,
-    "test_request_reply": setup_request_reply_scenario,
-}
+    # Create Kafka benchmark suite
+    benchmark = create_kafka_benchmark_scenarios()
+
+    # Run individual Kafka scenarios
+    print("\n1. Kafka Point-to-Point Latency Test")
+    result1 = benchmark.run_scenario(
+        "point_to_point_latency", agent_count=2, message_count=50
+    )
+    benchmark.print_summary(result1)
+
+    print("\n2. Kafka Broadcast Throughput Test")
+    result2 = benchmark.run_scenario(
+        "broadcast_throughput", agent_count=5, message_count=30
+    )
+    benchmark.print_summary(result2)
+
+    print("\n3. Kafka Concurrent Messaging Test")
+    result3 = benchmark.run_scenario(
+        "concurrent_messaging", agent_count=4, messages_per_agent=10
+    )
+    benchmark.print_summary(result3)
+
+    # Export results
+    benchmark.export_results("kafka_benchmark_results.json")
+    print("\nResults exported to kafka_benchmark_results.json")
+
+    # Optional: Run extended analysis
+    extended_tests = input(
+        "\nRun extended Kafka topology and scalability analysis? (y/n): "
+    )
+    if extended_tests.lower() == "y":
+        print("\nRunning Kafka topology comparison...")
+        run_kafka_topology_comparison()
+
+        print("\nRunning Kafka scalability analysis...")
+        run_kafka_scalability_analysis()

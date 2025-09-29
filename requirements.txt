@@ -13,3 +13,6 @@ kafka-python
 paho-mqtt
 pytest
 pytest-mock
+pandas
+seaborn
+matplotlib
