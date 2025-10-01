@@ -3,11 +3,11 @@
 Quick test script to verify hierarchy benchmark metrics are working correctly.
 """
 
-from hierarchy_benchmark_scenarios import (
+from src.benchmarks.hierarchy_benchmark_scenarios import (
     HierarchyBenchmarkScenario,
-    BenchmarkConfiguration
+    BenchmarkConfiguration,
 )
-from hierarchy_strategies import HierarchyType
+from src.benchmarks.hierarchy_strategies import HierarchyType
 
 
 def test_metrics():
@@ -22,7 +22,7 @@ def test_metrics():
         environment_type="task_distribution",
         num_episodes=3,
         num_tasks_per_episode=3,
-        max_steps=50
+        max_steps=50,
     )
 
     # Run benchmark
@@ -32,9 +32,9 @@ def test_metrics():
     # Check metrics
     metrics = result.metrics
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("METRICS CHECK")
-    print("="*60)
+    print("=" * 60)
 
     print("\nHierarchy Overhead Metrics:")
     print(f"  Manager Utilization: {metrics.manager_utilization:.2f}")
@@ -43,31 +43,34 @@ def test_metrics():
 
     print("\nCommunication Metrics:")
     print(f"  Messages/Episode: {metrics.messages_per_episode:.1f}")
-    print(f"  Coordination Latency: {metrics.coordination_latency_mean*1000:.2f}ms")
+    print(
+        f"  Coordination Latency:\
+        {metrics.coordination_latency_mean*1000:.2f}ms"
+    )
 
     # Validation
     issues = []
 
     if metrics.manager_utilization == 0:
-        issues.append("⚠ Manager utilization is 0")
+        issues.append("Manager utilization is 0")
 
     if metrics.delegation_success_rate == 0:
-        issues.append("⚠ Delegation success rate is 0")
+        issues.append("Delegation success rate is 0")
 
     if metrics.coordination_latency_mean == 0:
-        issues.append("⚠ Coordination latency is 0")
+        issues.append("Coordination latency is 0")
 
     if metrics.messages_per_episode == 0:
-        issues.append("⚠ Messages per episode is 0")
+        issues.append("Messages per episode is 0")
 
     if issues:
-        print("\n❌ Issues found:")
+        print("\n Issues found:")
         for issue in issues:
             print(f"  {issue}")
     else:
-        print("\n✅ All metrics are being tracked correctly!")
+        print("\n All metrics are being tracked correctly!")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
 
     return len(issues) == 0
 
