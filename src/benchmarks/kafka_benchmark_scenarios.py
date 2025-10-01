@@ -1,8 +1,10 @@
 """
 Kafka Benchmark Test Scenarios
-Provides the same benchmark scenarios as REST, gRPC, and MQTT but using Kafka communication.
+Provides the same benchmark scenarios as REST, gRPC, and MQTT but using Kafka
+communication.
 
-Enables direct performance comparison between Kafka and other protocol implementations
+Enables direct performance comparison between Kafka and other protocol
+implementations
 of the same formal communication model from the thesis.
 """
 
@@ -10,10 +12,10 @@ import time
 import random
 import subprocess
 import socket
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import concurrent.futures
+
 from communication.kafka.kafka_communication_agent import (
-    ExtendedKafkaCommunicatingAgent,
     KafkaCommunicationEnvironment,
 )
 from communication.communication_config import (
@@ -25,6 +27,8 @@ from benchmarks.communication_benchmark import (
     BenchmarkScenario,
 )
 from communication.kafka.kafka_communication import KafkaMessageType
+
+_kafka_broker_container: Optional[str] = None
 
 
 def is_kafka_running(host="localhost", port=9092, timeout=2) -> bool:
@@ -39,8 +43,28 @@ def is_kafka_running(host="localhost", port=9092, timeout=2) -> bool:
         return False
 
 
+def stop_kafka_docker():
+    """Stop the kafka broker Docker container."""
+    global _kafka_broker_container
+
+    if _kafka_broker_container:
+        print("\nStopping kafka broker...")
+        try:
+            subprocess.run(
+                ["docker", "stop", _kafka_broker_container],
+                capture_output=True,
+                check=True,
+            )
+            print("✓ kafka broker stopped")
+        except subprocess.CalledProcessError:
+            pass  # Container might already be stopped
+        finally:
+            _kafka_broker_container = None
+
+
 def start_kafka_docker(wait_time=15) -> bool:
     """Start Kafka using Docker if not already running."""
+    global _kafka_broker_container
     if is_kafka_running():
         print("Kafka is already running on localhost:9092")
         return True
@@ -49,36 +73,77 @@ def start_kafka_docker(wait_time=15) -> bool:
     try:
         # Check if container exists but is stopped
         result = subprocess.run(
-            ["docker", "ps", "-a", "--filter", "name=kafka-benchmark", "--format", "{{.Names}}"],
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--filter",
+                "name=kafka-benchmark",
+                "--format",
+                "{{.Names}}",
+            ],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
 
         if "kafka-benchmark" in result.stdout:
             # Start existing container
-            subprocess.run(["docker", "start", "kafka-benchmark"], check=True)
+            start_result = subprocess.run(
+                ["docker", "start", "kafka-benchmark"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            print(f"[DEBUG] Start output: {start_result.stdout}")
+            _kafka_broker_container = "kafka-benchmark"
         else:
             # Create and start new container with proper configuration
-            subprocess.run([
-                "docker", "run", "-d",
-                "--name", "kafka-benchmark",
-                "-p", "9092:9092",
-                "-e", "KAFKA_NODE_ID=1",
-                "-e", "KAFKA_PROCESS_ROLES=broker,controller",
-                "-e", "KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093",
-                "-e", "KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092",
-                "-e", "KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER",
-                "-e", "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT",
-                "-e", "KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093",
-                "-e", "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1",
-                "-e", "KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1",
-                "-e", "KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1",
-                "-e", "KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0",
-                "-e", "KAFKA_AUTO_CREATE_TOPICS_ENABLE=true",
-                "-e", "KAFKA_NUM_PARTITIONS=3",
-                "apache/kafka:latest"
-            ], check=True)
+            run_result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--name",
+                    "kafka-benchmark",
+                    "-p",
+                    "9092:9092",
+                    "-e",
+                    "KAFKA_NODE_ID=1",
+                    "-e",
+                    "KAFKA_PROCESS_ROLES=broker,controller",
+                    "-e",
+                    "KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://\
+                        0.0.0.0:9093",
+                    "-e",
+                    "KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092",
+                    "-e",
+                    "KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER",
+                    "-e",
+                    "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,\
+                        PLAINTEXT:PLAINTEXT",
+                    "-e",
+                    "KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093",
+                    "-e",
+                    "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1",
+                    "-e",
+                    "KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1",
+                    "-e",
+                    "KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1",
+                    "-e",
+                    "KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0",
+                    "-e",
+                    "KAFKA_AUTO_CREATE_TOPICS_ENABLE=true",
+                    "-e",
+                    "KAFKA_NUM_PARTITIONS=24",
+                    "apache/kafka:latest",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            print(f"[DEBUG] Container ID: {run_result.stdout.strip()}")
+            _kafka_broker_container = "kafka-benchmark"
 
         print(f"Waiting {wait_time}s for Kafka to be fully ready...")
         time.sleep(wait_time)
@@ -101,7 +166,15 @@ def start_kafka_docker(wait_time=15) -> bool:
         print("Please start Kafka manually or install Docker")
         return False
     except FileNotFoundError:
-        print("Docker not found. Please install Docker or start Kafka manually")
+        print(
+            "Docker not found. Please install Docker or start Kafka manually"
+        )
+        return False
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -109,17 +182,8 @@ def ensure_kafka_running() -> bool:
     """Ensure Kafka is running, start it if needed."""
     if is_kafka_running():
         return True
-
-    print("\n⚠️  Kafka broker not detected on localhost:9092")
-    response = input("Would you like to start Kafka using Docker? (y/n): ")
-
-    if response.lower() == 'y':
-        return start_kafka_docker()
-    else:
-        print("\nPlease start Kafka manually before running benchmarks:")
-        print("  docker run -d --name kafka -p 9092:9092 apache/kafka:latest")
-        return False
-
+    print("\nKafka broker not detected on localhost:9092")
+    return start_kafka_docker()
 
 
 def setup_kafka_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -431,9 +495,8 @@ def create_kafka_benchmark_scenarios() -> CommunicationBenchmark:
     return benchmark
 
 
-def run_kafka_topology_comparison():
+def run_kafka_topology_comparison(benchmark: CommunicationBenchmark):
     """Run Kafka performance comparison across different topology patterns."""
-    benchmark = create_kafka_benchmark_scenarios()
     topologies = [
         TopologyPattern.FULLY_CONNECTED,
         TopologyPattern.STAR,
@@ -455,9 +518,7 @@ def run_kafka_topology_comparison():
         benchmark.print_summary(result)
 
     # Compare results
-    scenario_names = [
-        f"concurrent_messaging_{t.value}" for t in topologies
-    ]
+    scenario_names = [f"concurrent_messaging_{t.value}" for t in topologies]
     comparison = benchmark.compare_scenarios(scenario_names)
 
     print("\n" + "=" * 60)
@@ -472,10 +533,12 @@ def run_kafka_topology_comparison():
     return results
 
 
-def run_kafka_scalability_analysis():
+def run_kafka_scalability_analysis(
+    benchmark: CommunicationBenchmark, agent_counts: Optional[List[int]] = None
+):
     """Run Kafka scalability analysis with increasing agent counts."""
-    benchmark = create_kafka_benchmark_scenarios()
-    agent_counts = [3, 5, 8, 12]
+    if agent_counts is None:
+        agent_counts = [3, 5, 8, 12]
 
     results = {}
 
@@ -509,43 +572,42 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # Ensure Kafka is running
-    if not ensure_kafka_running():
+    start_kafka_docker()
+    if not is_kafka_running():
         print("\n✗ Cannot run benchmarks without Kafka broker")
         exit(1)
 
     # Create Kafka benchmark suite
-    benchmark = create_kafka_benchmark_scenarios()
+    try:
+        benchmark = create_kafka_benchmark_scenarios()
 
-    # Run individual Kafka scenarios
-    print("\n1. Kafka Point-to-Point Latency Test")
-    result1 = benchmark.run_scenario(
-        "point_to_point_latency", agent_count=2, message_count=50
-    )
-    benchmark.print_summary(result1)
+        # Run individual Kafka scenarios
+        print("\n1. Kafka Point-to-Point Latency Test")
+        result1 = benchmark.run_scenario(
+            "point_to_point_latency", agent_count=2, message_count=50
+        )
+        benchmark.print_summary(result1)
 
-    print("\n2. Kafka Broadcast Throughput Test")
-    result2 = benchmark.run_scenario(
-        "broadcast_throughput", agent_count=5, message_count=30
-    )
-    benchmark.print_summary(result2)
+        print("\n2. Kafka Broadcast Throughput Test")
+        result2 = benchmark.run_scenario(
+            "broadcast_throughput", agent_count=5, message_count=30
+        )
+        benchmark.print_summary(result2)
 
-    print("\n3. Kafka Concurrent Messaging Test")
-    result3 = benchmark.run_scenario(
-        "concurrent_messaging", agent_count=4, messages_per_agent=10
-    )
-    benchmark.print_summary(result3)
+        print("\n3. Kafka Concurrent Messaging Test")
+        result3 = benchmark.run_scenario(
+            "concurrent_messaging", agent_count=4, messages_per_agent=10
+        )
+        benchmark.print_summary(result3)
 
-    # Export results
-    benchmark.export_results("kafka_benchmark_results.json")
-    print("\nResults exported to kafka_benchmark_results.json")
-
-    # Optional: Run extended analysis
-    extended_tests = input(
-        "\nRun extended Kafka topology and scalability analysis? (y/n): "
-    )
-    if extended_tests.lower() == "y":
         print("\nRunning Kafka topology comparison...")
-        run_kafka_topology_comparison()
+        run_kafka_topology_comparison(benchmark)
 
         print("\nRunning Kafka scalability analysis...")
-        run_kafka_scalability_analysis()
+        run_kafka_scalability_analysis(benchmark, [5, 10, 15, 20])
+
+        # Export results (after all benchmarks are complete)
+        benchmark.export_results("kafka_benchmark_results.json")
+        print("\nResults exported to kafka_benchmark_results.json")
+    finally:
+        stop_kafka_docker()

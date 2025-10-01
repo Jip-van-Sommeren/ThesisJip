@@ -12,8 +12,7 @@ import time
 import random
 import subprocess
 import socket
-import atexit
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 import concurrent.futures
 from communication.mqtt.mqtt_communication_agent import (
     MqttCommunicationEnvironment,
@@ -113,23 +112,16 @@ def start_mqtt_docker(wait_time=3) -> bool:
         print(f"Waiting {wait_time}s for MQTT broker to be ready...")
         time.sleep(wait_time)
 
-        if is_mqtt_running():
-            print("✓ MQTT broker is ready")
-            return True
-        else:
-            print("✗ MQTT broker failed to start")
-            # Check container logs for debugging
-            try:
-                logs = subprocess.run(
-                    ["docker", "logs", "mqtt-benchmark"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                print(f"[DEBUG] Container logs:\n{logs.stdout}\n{logs.stderr}")
-            except Exception:
-                pass
-            return False
+        max_retries = 5
+        for i in range(max_retries):
+            if is_mqtt_running():
+                print("✓ mqtt broker is ready")
+                return True
+            if i < max_retries - 1:
+                print(f"  Still waiting... ({i+1}/{max_retries})")
+                time.sleep(3)
+        print("✗ mqtt broker failed to start properly")
+        return False
 
     except subprocess.CalledProcessError as e:
         print(f"✗ Failed to start MQTT broker: {e}")
@@ -143,7 +135,7 @@ def start_mqtt_docker(wait_time=3) -> bool:
         )
         return False
     except Exception as e:
-        print(f"✗ Unexpected error: {e}")
+        print(f"Unexpected error: {e}")
         import traceback
 
         traceback.print_exc()
@@ -169,33 +161,14 @@ def stop_mqtt_docker():
             _mqtt_broker_container = None
 
 
-def ensure_mqtt_running(auto_start=False) -> bool:
+def ensure_mqtt_running() -> bool:
     """Ensure MQTT broker is running, start it if needed."""
     if is_mqtt_running():
         return True
 
     print("\n MQTT broker not detected on localhost:1883")
 
-    if auto_start:
-        return start_mqtt_docker()
-
-    response = input(
-        "Would you like to start MQTT broker using Docker? (y/n): "
-    )
-
-    if response.lower() == "y":
-        success = start_mqtt_docker()
-        if success:
-            # Register cleanup function to stop broker on exit
-            atexit.register(stop_mqtt_docker)
-        return success
-    else:
-        print("\nPlease start MQTT broker manually before running benchmarks:")
-        print(
-            "  docker run -d --name mqtt-benchmark -p\
-                1883:1883 eclipse-mosquitto:latest"
-        )
-        return False
+    return start_mqtt_docker()
 
 
 def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -204,6 +177,10 @@ def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
     )
+
+    # Ensure MQTT broker is running before creating environment
+    if not ensure_mqtt_running():
+        raise RuntimeError("Failed to start MQTT broker")
 
     # Create MQTT communication environment
     mqtt_config = {
@@ -519,9 +496,8 @@ def create_mqtt_benchmark_scenarios() -> CommunicationBenchmark:
     return benchmark
 
 
-def run_mqtt_topology_comparison():
+def run_mqtt_topology_comparison(benchmark: CommunicationBenchmark):
     """Run MQTT performance comparison across different topology patterns."""
-    benchmark = create_mqtt_benchmark_scenarios()
     topologies = [
         TopologyPattern.FULLY_CONNECTED,
         TopologyPattern.STAR,
@@ -558,10 +534,12 @@ def run_mqtt_topology_comparison():
     return results
 
 
-def run_mqtt_scalability_analysis():
+def run_mqtt_scalability_analysis(
+    benchmark: CommunicationBenchmark, agent_counts: Optional[List[int]] = None
+):
     """Run MQTT scalability analysis with increasing agent counts."""
-    benchmark = create_mqtt_benchmark_scenarios()
-    agent_counts = [3, 5, 8, 12]
+    if agent_counts is None:
+        agent_counts = [3, 5, 8, 12]
 
     results = {}
 
@@ -595,8 +573,9 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # Ensure MQTT broker is running
-    if not ensure_mqtt_running():
-        print("\n✗ Cannot run benchmarks without MQTT broker")
+    start_mqtt_docker()
+    if not is_mqtt_running():
+        print("\nCannot run benchmarks without MQTT broker")
         exit(1)
 
     try:
@@ -622,20 +601,17 @@ if __name__ == "__main__":
         )
         benchmark.print_summary(result3)
 
-        # Export results
+        # Optional: Run extended analysis
+
+        print("\nRunning MQTT topology comparison...")
+        run_mqtt_topology_comparison(benchmark)
+
+        print("\nRunning MQTT scalability analysis...")
+        run_mqtt_scalability_analysis(benchmark, [5, 10, 15, 20])
+
+        # Export results (after all benchmarks are complete)
         benchmark.export_results("mqtt_benchmark_results.json")
         print("\nResults exported to mqtt_benchmark_results.json")
-
-        # Optional: Run extended analysis
-        extended_tests = input(
-            "\nRun extended MQTT topology and scalability analysis? (y/n): "
-        )
-        if extended_tests.lower() == "y":
-            print("\nRunning MQTT topology comparison...")
-            run_mqtt_topology_comparison()
-
-            print("\nRunning MQTT scalability analysis...")
-            run_mqtt_scalability_analysis()
 
     finally:
         # Clean up: stop broker if we started it

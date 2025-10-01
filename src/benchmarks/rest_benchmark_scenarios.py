@@ -13,7 +13,7 @@ Scenarios include:
 
 import time
 import random
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import concurrent.futures
 from abstract_agent import AgentId
 from communication.rest.rest_communicating_agent import (
@@ -300,7 +300,7 @@ def test_scalability_stress(
     }
 
 
-def create_benchmark_scenarios() -> CommunicationBenchmark:
+def create_rest_benchmark_scenarios() -> CommunicationBenchmark:
     """Create and configure all benchmark scenarios."""
     benchmark = CommunicationBenchmark()
 
@@ -347,9 +347,8 @@ def create_benchmark_scenarios() -> CommunicationBenchmark:
     return benchmark
 
 
-def run_topology_comparison():
+def run_topology_comparison(benchmark: CommunicationBenchmark):
     """Run comparison across different topology patterns."""
-    benchmark = create_benchmark_scenarios()
     topologies = [
         TopologyPattern.FULLY_CONNECTED,
         TopologyPattern.STAR,
@@ -386,10 +385,12 @@ def run_topology_comparison():
     return results
 
 
-def run_scalability_analysis():
+def run_scalability_analysis(
+    benchmark: CommunicationBenchmark, agent_counts: Optional[List[int]] = None
+):
     """Run scalability analysis with increasing agent counts."""
-    benchmark = create_benchmark_scenarios()
-    agent_counts = [3, 5, 8, 12]
+    if agent_counts is None:
+        agent_counts = [3, 5, 8, 12]
 
     results = {}
 
@@ -423,7 +424,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # Create benchmark suite
-    benchmark = create_benchmark_scenarios()
+    benchmark = create_rest_benchmark_scenarios()
 
     # Run individual scenarios
     print("\n1. Point-to-Point Latency Test")
@@ -444,17 +445,14 @@ if __name__ == "__main__":
     )
     benchmark.print_summary(result3)
 
-    # Export results
+    # Optional: Run extended analysis
+
+    print("\nRunning topology comparison...")
+    run_topology_comparison(benchmark)
+
+    print("\nRunning scalability analysis...")
+    run_scalability_analysis(benchmark, [5, 10, 15, 20])
+
+    # Export results (after all benchmarks are complete)
     benchmark.export_results("rest_benchmark_results.json")
     print("\nResults exported to rest_benchmark_results.json")
-
-    # Optional: Run extended analysis
-    extended_tests = input(
-        "\nRun extended topology and scalability analysis? (y/n): "
-    )
-    if extended_tests.lower() == "y":
-        print("\nRunning topology comparison...")
-        run_topology_comparison()
-
-        print("\nRunning scalability analysis...")
-        run_scalability_analysis()

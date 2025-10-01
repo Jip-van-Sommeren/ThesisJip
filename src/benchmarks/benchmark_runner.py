@@ -19,18 +19,13 @@ from communication.communication_config import TopologyPattern
 
 
 # Import protocol-specific benchmark scenarios
-from benchmarks.rest_benchmark_scenarios import (
-    create_benchmark_scenarios as create_rest_scenarios,
-)
+from benchmarks.rest_benchmark_scenarios import create_rest_benchmark_scenarios
 from benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
 from benchmarks.mqtt_benchmark_scenarios import (
     create_mqtt_benchmark_scenarios,
-    ensure_mqtt_running,
-    stop_mqtt_docker,
 )
 from benchmarks.kafka_benchmark_scenarios import (
     create_kafka_benchmark_scenarios,
-    ensure_kafka_running,
 )
 from benchmarks.hierarchy_benchmark_scenarios import (
     HierarchyComparisonBenchmark,
@@ -93,7 +88,7 @@ class ProtocolBenchmarkRunner:
 
         # Protocol factory mapping
         self.protocol_factories = {
-            "rest": create_rest_scenarios,
+            "rest": create_rest_benchmark_scenarios,
             "grpc": create_grpc_benchmark_scenarios,
             "mqtt": create_mqtt_benchmark_scenarios,
             "kafka": create_kafka_benchmark_scenarios,
@@ -117,7 +112,7 @@ class ProtocolBenchmarkRunner:
         print("=" * 80)
 
         # Check and start required brokers
-        self._ensure_brokers_running()
+        # self._ensure_brokers_running()
 
         start_time = time.time()
 
@@ -150,24 +145,6 @@ class ProtocolBenchmarkRunner:
         self._print_final_summary(total_time)
 
         return self.results
-
-    def _ensure_brokers_running(self):
-        """Ensure required message brokers are running."""
-        protocols = self.config.protocols
-
-        # Check MQTT broker if needed
-        if "mqtt" in protocols:
-            print("\n[MQTT] Checking broker status...")
-            if not ensure_mqtt_running(auto_start=True):
-                print("MQTT broker not available. MQTT benchmarks may fail.")
-                raise RuntimeError("MQTT service failed to start.")
-
-        # Check Kafka broker if needed
-        if "kafka" in protocols:
-            print("\n[Kafka] Checking broker status...")
-            if not ensure_kafka_running():
-                print("Kafka broker not available. Kafka benchmarks may fail.")
-                raise RuntimeError("Kafka service failed to start.")
 
     def _run_protocol_benchmarks(self, protocol: str) -> Dict[str, Any]:
         """Run benchmarks for a specific protocol."""
@@ -493,7 +470,7 @@ class ProtocolBenchmarkRunner:
             print("-" * 50)
 
             for scenario, protocol_data in self.comparison_data.items():
-                print(f"\n📊 {scenario.replace('_', ' ').title()}:")
+                print(f"\n{scenario.replace('_', ' ').title()}:")
 
                 if not protocol_data:
                     print("   No data available")
@@ -717,18 +694,13 @@ Examples:
         output_dir=args.output_dir,
         export_csv=not args.no_csv,
         export_json=not args.no_json,
+        agent_counts=[5, 10, 15, 20],
     )
 
     # Run protocol benchmarks
     runner = ProtocolBenchmarkRunner(config)
-    try:
-        results = runner.run_all_benchmarks()
-        return results
-    finally:
-        pass
-        # Cleanup: stop MQTT broker if it was started
-        if "mqtt" in args.protocols:
-            stop_mqtt_docker()
+    results = runner.run_all_benchmarks()
+    return results
 
 
 if __name__ == "__main__":

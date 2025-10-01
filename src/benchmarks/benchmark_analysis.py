@@ -647,6 +647,170 @@ class BenchmarkAnalyzer:
 
         print(f"Summary report saved to {output_path}")
 
+    def create_topology_comparison_plot(
+        self, output_file: str = "topology_comparison.png"
+    ):
+        """Create topology comparison plot from individual protocol results."""
+        if not self.data:
+            print("No data available")
+            return
+
+        # Extract topology scenarios from protocol results
+        topology_data = []
+        topologies = ["fully_connected", "star", "ring", "chain"]
+
+        for protocol, protocol_data in self.data.get("protocol_results", {}).items():
+            scenarios = protocol_data.get("scenarios", [])
+
+            for scenario in scenarios:
+                scenario_name = scenario.get("name", "")
+                # Check if this is a topology comparison scenario
+                for topo in topologies:
+                    if f"concurrent_messaging_{topo}" == scenario_name:
+                        metrics = scenario.get("metrics", {})
+                        topology_data.append({
+                            "Protocol": protocol.upper(),
+                            "Topology": topo.replace("_", " ").title(),
+                            "Avg_Latency_ms": metrics.get("latency", {}).get("avg_ms", 0),
+                            "Throughput_msg_per_sec": metrics.get("throughput", {}).get("avg_msg_per_sec", 0),
+                            "Success_Rate_percent": metrics.get("reliability", {}).get("success_rate", 0) * 100
+                        })
+
+        if not topology_data:
+            print("No topology comparison data found")
+            return
+
+        df = pd.DataFrame(topology_data)
+
+        # Create 1x3 subplot
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+
+        # Latency by topology
+        sns.barplot(data=df, x="Topology", y="Avg_Latency_ms", hue="Protocol", ax=ax1)
+        ax1.set_title("Latency by Topology Pattern", fontsize=12, fontweight="bold")
+        ax1.set_ylabel("Average Latency (ms)")
+        ax1.tick_params(axis="x", rotation=45)
+        ax1.grid(True, alpha=0.3, axis='y')
+
+        # Throughput by topology
+        sns.barplot(data=df, x="Topology", y="Throughput_msg_per_sec", hue="Protocol", ax=ax2)
+        ax2.set_title("Throughput by Topology Pattern", fontsize=12, fontweight="bold")
+        ax2.set_ylabel("Throughput (msg/s)")
+        ax2.tick_params(axis="x", rotation=45)
+        ax2.grid(True, alpha=0.3, axis='y')
+
+        # Success rate by topology
+        sns.barplot(data=df, x="Topology", y="Success_Rate_percent", hue="Protocol", ax=ax3)
+        ax3.set_title("Success Rate by Topology Pattern", fontsize=12, fontweight="bold")
+        ax3.set_ylabel("Success Rate (%)")
+        ax3.set_ylim(0, 105)
+        ax3.tick_params(axis="x", rotation=45)
+        ax3.grid(True, alpha=0.3, axis='y')
+
+        plt.suptitle("Topology Pattern Performance Comparison", fontsize=16, fontweight="bold")
+        plt.tight_layout()
+
+        output_path = os.path.join(self.results_dir, output_file)
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        print(f"Topology comparison plot saved to {output_path}")
+        plt.close()
+
+    def create_scalability_analysis_plot(
+        self, output_file: str = "scalability_analysis.png"
+    ):
+        """Create scalability analysis plot showing performance vs agent count."""
+        if not self.data:
+            print("No data available")
+            return
+
+        # Extract scalability scenarios from protocol results
+        scalability_data = []
+        agent_counts = [3, 5, 8, 12, 15, 20]  # Common agent counts
+
+        for protocol, protocol_data in self.data.get("protocol_results", {}).items():
+            scenarios = protocol_data.get("scenarios", [])
+
+            for scenario in scenarios:
+                scenario_name = scenario.get("name", "")
+                # Check if this is a scalability stress scenario
+                if scenario_name.startswith("scalability_stress_"):
+                    try:
+                        # Extract agent count from scenario name
+                        count = int(scenario_name.split("_")[-1])
+                        metrics = scenario.get("metrics", {})
+                        scalability_data.append({
+                            "Protocol": protocol.upper(),
+                            "Agent_Count": count,
+                            "Avg_Latency_ms": metrics.get("latency", {}).get("avg_ms", 0),
+                            "Throughput_msg_per_sec": metrics.get("throughput", {}).get("avg_msg_per_sec", 0),
+                            "Success_Rate_percent": metrics.get("reliability", {}).get("success_rate", 0) * 100,
+                            "CPU_Usage_percent": metrics.get("resources", {}).get("cpu_usage_avg", 0),
+                            "Memory_Usage_mb": metrics.get("resources", {}).get("memory_usage_avg_mb", 0)
+                        })
+                    except (ValueError, IndexError):
+                        continue
+
+        if not scalability_data:
+            print("No scalability analysis data found")
+            return
+
+        df = pd.DataFrame(scalability_data)
+
+        # Create 2x2 subplot
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+
+        # Plot 1: Latency vs Agent Count
+        for protocol in df["Protocol"].unique():
+            protocol_df = df[df["Protocol"] == protocol]
+            axes[0, 0].plot(protocol_df["Agent_Count"], protocol_df["Avg_Latency_ms"],
+                           marker='o', linewidth=2, label=protocol)
+        axes[0, 0].set_title("Latency vs Team Size", fontsize=12, fontweight="bold")
+        axes[0, 0].set_xlabel("Number of Agents")
+        axes[0, 0].set_ylabel("Average Latency (ms)")
+        axes[0, 0].legend()
+        axes[0, 0].grid(True, alpha=0.3)
+
+        # Plot 2: Throughput vs Agent Count
+        for protocol in df["Protocol"].unique():
+            protocol_df = df[df["Protocol"] == protocol]
+            axes[0, 1].plot(protocol_df["Agent_Count"], protocol_df["Throughput_msg_per_sec"],
+                           marker='s', linewidth=2, label=protocol)
+        axes[0, 1].set_title("Throughput vs Team Size", fontsize=12, fontweight="bold")
+        axes[0, 1].set_xlabel("Number of Agents")
+        axes[0, 1].set_ylabel("Throughput (msg/s)")
+        axes[0, 1].legend()
+        axes[0, 1].grid(True, alpha=0.3)
+
+        # Plot 3: CPU Usage vs Agent Count
+        for protocol in df["Protocol"].unique():
+            protocol_df = df[df["Protocol"] == protocol]
+            axes[1, 0].plot(protocol_df["Agent_Count"], protocol_df["CPU_Usage_percent"],
+                           marker='^', linewidth=2, label=protocol)
+        axes[1, 0].set_title("CPU Usage vs Team Size", fontsize=12, fontweight="bold")
+        axes[1, 0].set_xlabel("Number of Agents")
+        axes[1, 0].set_ylabel("CPU Usage (%)")
+        axes[1, 0].legend()
+        axes[1, 0].grid(True, alpha=0.3)
+
+        # Plot 4: Memory Usage vs Agent Count
+        for protocol in df["Protocol"].unique():
+            protocol_df = df[df["Protocol"] == protocol]
+            axes[1, 1].plot(protocol_df["Agent_Count"], protocol_df["Memory_Usage_mb"],
+                           marker='d', linewidth=2, label=protocol)
+        axes[1, 1].set_title("Memory Usage vs Team Size", fontsize=12, fontweight="bold")
+        axes[1, 1].set_xlabel("Number of Agents")
+        axes[1, 1].set_ylabel("Memory Usage (MB)")
+        axes[1, 1].legend()
+        axes[1, 1].grid(True, alpha=0.3)
+
+        plt.suptitle("Protocol Scalability Analysis", fontsize=16, fontweight="bold", y=0.995)
+        plt.tight_layout()
+
+        output_path = os.path.join(self.results_dir, output_file)
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        print(f"Scalability analysis plot saved to {output_path}")
+        plt.close()
+
     def generate_all_visualizations(self):
         """Generate all available visualizations."""
         print("\nGenerating benchmark visualizations...")
@@ -656,6 +820,8 @@ class BenchmarkAnalyzer:
         self.create_resource_usage_plot()
         self.create_performance_radar_chart()
         self.create_protocol_ranking_table()
+        self.create_topology_comparison_plot()
+        self.create_scalability_analysis_plot()
         self.generate_summary_report()
 
         print("\n✅ All visualizations generated successfully!")
@@ -686,6 +852,8 @@ def main():
             "resources",
             "radar",
             "ranking",
+            "topology",
+            "scalability",
             "all",
         ],
         default="all",
@@ -714,6 +882,10 @@ def main():
         analyzer.create_performance_radar_chart()
     elif args.plot == "ranking":
         analyzer.create_protocol_ranking_table()
+    elif args.plot == "topology":
+        analyzer.create_topology_comparison_plot()
+    elif args.plot == "scalability":
+        analyzer.create_scalability_analysis_plot()
 
 
 if __name__ == "__main__":

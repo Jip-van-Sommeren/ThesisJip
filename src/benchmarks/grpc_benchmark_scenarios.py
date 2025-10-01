@@ -8,7 +8,7 @@ of the same formal communication model from the thesis.
 
 import time
 import random
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import concurrent.futures
 from abstract_agent import AgentId
 from communication.grpc.grpc_communication_agent import (
@@ -346,9 +346,10 @@ def create_grpc_benchmark_scenarios() -> CommunicationBenchmark:
     return benchmark
 
 
-def run_grpc_topology_comparison():
+def run_grpc_topology_comparison(
+    benchmark: CommunicationBenchmark,
+):
     """Run gRPC performance comparison across different topology patterns."""
-    benchmark = create_grpc_benchmark_scenarios()
     topologies = [
         TopologyPattern.FULLY_CONNECTED,
         TopologyPattern.STAR,
@@ -370,9 +371,7 @@ def run_grpc_topology_comparison():
         benchmark.print_summary(result)
 
     # Compare results
-    scenario_names = [
-        f"concurrent_messaging_{t.value}" for t in topologies
-    ]
+    scenario_names = [f"concurrent_messaging_{t.value}" for t in topologies]
     comparison = benchmark.compare_scenarios(scenario_names)
 
     print("\n" + "=" * 60)
@@ -387,10 +386,12 @@ def run_grpc_topology_comparison():
     return results
 
 
-def run_grpc_scalability_analysis():
+def run_grpc_scalability_analysis(
+    benchmark: CommunicationBenchmark, agent_counts: Optional[List[int]] = None
+):
     """Run gRPC scalability analysis with increasing agent counts."""
-    benchmark = create_grpc_benchmark_scenarios()
-    agent_counts = [3, 5, 8, 12]
+    if agent_counts is None:
+        agent_counts = [3, 5, 8, 12]
 
     results = {}
 
@@ -445,17 +446,14 @@ if __name__ == "__main__":
     )
     benchmark.print_summary(result3)
 
-    # Export results
+    # Optional: Run extended analysis
+
+    print("\nRunning gRPC topology comparison...")
+    run_grpc_topology_comparison(benchmark)
+
+    print("\nRunning gRPC scalability analysis...")
+    run_grpc_scalability_analysis(benchmark, [5, 10, 15, 20])
+
+    # Export results (after all benchmarks are complete)
     benchmark.export_results("grpc_benchmark_results.json")
     print("\nResults exported to grpc_benchmark_results.json")
-
-    # Optional: Run extended analysis
-    extended_tests = input(
-        "\nRun extended gRPC topology and scalability analysis? (y/n): "
-    )
-    if extended_tests.lower() == "y":
-        print("\nRunning gRPC topology comparison...")
-        run_grpc_topology_comparison()
-
-        print("\nRunning gRPC scalability analysis...")
-        run_grpc_scalability_analysis()

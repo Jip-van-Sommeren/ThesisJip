@@ -464,11 +464,11 @@ class HierarchyBenchmarkAnalyzer:
             # For makespan: lower is better, so invert (max 100 steps = 0 score)
             time_eff = max(0, 100 - (avg_makespan / 100 * 100)) if avg_makespan > 0 else 50
 
-            # For action efficiency: lower is better (max 50 actions = 0 score)
-            action_score = max(0, 100 - (avg_actions / 50 * 100)) if avg_actions > 0 else 50
+            # For action efficiency: lower is better (max 1200 actions = 0 score)
+            action_score = max(0, 100 - (avg_actions / 1200 * 100)) if avg_actions > 0 else 50
 
-            # For messages: lower is better (max 100 messages = 0 score)
-            comm_score = max(0, 100 - (avg_messages / 100 * 100)) if avg_messages > 0 else 50
+            # For messages: lower is better (max 60000 messages = 0 score)
+            comm_score = max(0, 100 - (avg_messages / 60000 * 100)) if avg_messages > 0 else 50
 
             strategy_metrics[strategy] = {
                 "Task Success": np.mean(success_rates),
