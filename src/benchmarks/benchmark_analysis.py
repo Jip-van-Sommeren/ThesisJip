@@ -311,7 +311,6 @@ class BenchmarkAnalyzer:
                     avg_cpu.append(metrics.get("cpu_usage_percent", 0))
                     avg_memory.append(metrics.get("memory_usage_mb", 0))
 
-            # Calculate averages and normalize (lower latency is better, so invert)
             protocol_metrics[protocol] = {
                 "Low Latency": 100
                 - (np.mean(avg_latency) if avg_latency else 0),  # Inverted
@@ -446,9 +445,8 @@ class BenchmarkAnalyzer:
             row["Avg Latency Rank"] = f"{np.mean(latency_ranks):.1f}"
             row["Avg Throughput Rank"] = f"{np.mean(throughput_ranks):.1f}"
             row["Avg Reliability Rank"] = f"{np.mean(reliability_ranks):.1f}"
-            row["Overall Score"] = (
-                f"{np.mean(latency_ranks + throughput_ranks + reliability_ranks):.1f}"
-            )
+            ss = latency_ranks + throughput_ranks + reliability_ranks
+            row["Overall Score"] = f"{np.mean(ss):.1f}"
 
             summary_data.append(row)
 
@@ -491,7 +489,8 @@ class BenchmarkAnalyzer:
                         table[(i + 1, j)].set_facecolor("#FFB6C1")  # Light red
 
         plt.title(
-            "Communication Protocol Performance Rankings\n(Lower ranks are better)",
+            "Communication Protocol Performance Rankings\n\
+                Lower ranks are better)",
             fontsize=16,
             fontweight="bold",
             pad=20,
@@ -522,14 +521,17 @@ class BenchmarkAnalyzer:
                 f"Benchmark Date: {metadata.get('timestamp', 'Unknown')}\n"
             )
             f.write(
-                f"Total Duration: {metadata.get('total_duration_sec', 0):.1f} seconds\n"
+                f"Total Duration: {metadata.get('total_duration_sec', 0):.1f}\
+                    seconds\n"
             )
             f.write(f"Mode: {metadata.get('mode', 'Unknown')}\n")
             f.write(
-                f"Protocols Tested: {', '.join(metadata.get('protocols_tested', []))}\n"
+                f"Protocols Tested:\
+                    {', '.join(metadata.get('protocols_tested', []))}\n"
             )
             f.write(
-                f"Scenarios Tested: {', '.join(metadata.get('scenarios_tested', []))}\n\n"
+                f"Scenarios Tested:\
+                    {', '.join(metadata.get('scenarios_tested', []))}\n\n"
             )
 
             # Protocol comparisons
@@ -551,10 +553,13 @@ class BenchmarkAnalyzer:
                         f"Latency {metrics.get('avg_latency_ms', 0):6.1f}ms | "
                     )
                     f.write(
-                        f"Throughput {metrics.get('throughput_msg_per_sec', 0):6.1f} msg/s | "
+                        f"Throughput\
+                            {metrics.get('throughput_msg_per_sec', 0):6.1f}\
+                                msg/s | "
                     )
                     f.write(
-                        f"Success {metrics.get('success_rate_percent', 0):5.1f}% | "
+                        f"Success\
+                            {metrics.get('success_rate_percent', 0):5.1f}% | "
                     )
                     f.write(
                         f"CPU {metrics.get('cpu_usage_percent', 0):4.1f}% | "
@@ -621,17 +626,21 @@ class BenchmarkAnalyzer:
 
             if best_latency == best_throughput == best_reliability:
                 f.write(
-                    f"• {best_latency.upper()} is the clear winner across all metrics\n"
+                    f"• {best_latency.upper()} is \
+                        the best across all metrics.\n"
                 )
             else:
                 f.write(
-                    f"• For low-latency applications: Use {best_latency.upper()}\n"
+                    f"• For low-latency applications: Use\
+                        {best_latency.upper()}\n"
                 )
                 f.write(
-                    f"• For high-throughput applications: Use {best_throughput.upper()}\n"
+                    f"• For high-throughput applications: Use\
+                        {best_throughput.upper()}\n"
                 )
                 f.write(
-                    f"• For mission-critical reliability: Use {best_reliability.upper()}\n"
+                    f"• For mission-critical reliability: Use\
+                        {best_reliability.upper()}\n"
                 )
 
             f.write("\n" + "=" * 60 + "\n")

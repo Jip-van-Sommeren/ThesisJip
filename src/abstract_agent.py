@@ -64,7 +64,7 @@ class Belief:
             raise ValueError("Confidence must be between 0 and 1")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Goal:
     """Represents an agent goal with type and priority."""
 

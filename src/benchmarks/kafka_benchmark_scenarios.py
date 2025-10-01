@@ -8,9 +8,10 @@ of the same formal communication model from the thesis.
 
 import time
 import random
+import subprocess
+import socket
 from typing import Dict, Any
 import concurrent.futures
-from abstract_agent import AgentId
 from communication.kafka.kafka_communication_agent import (
     ExtendedKafkaCommunicatingAgent,
     KafkaCommunicationEnvironment,
@@ -26,17 +27,99 @@ from benchmarks.communication_benchmark import (
 from communication.kafka.kafka_communication import KafkaMessageType
 
 
-def create_kafka_test_agent(
-    agent_id: str, observable_props: set = None
-) -> ExtendedKafkaCommunicatingAgent:
-    """Create a Kafka test agent with basic configuration."""
-    if observable_props is None:
-        observable_props = {"environment", "messages"}
+def is_kafka_running(host="localhost", port=9092, timeout=2) -> bool:
+    """Check if Kafka broker is accessible."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
 
-    agent_id_obj = AgentId("kafka_benchmark", "test", agent_id)
-    agent = ExtendedKafkaCommunicatingAgent(agent_id_obj, observable_props)
-    agent.initialize_agent()
-    return agent
+
+def start_kafka_docker(wait_time=15) -> bool:
+    """Start Kafka using Docker if not already running."""
+    if is_kafka_running():
+        print("Kafka is already running on localhost:9092")
+        return True
+
+    print("Starting Kafka broker using Docker...")
+    try:
+        # Check if container exists but is stopped
+        result = subprocess.run(
+            ["docker", "ps", "-a", "--filter", "name=kafka-benchmark", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        if "kafka-benchmark" in result.stdout:
+            # Start existing container
+            subprocess.run(["docker", "start", "kafka-benchmark"], check=True)
+        else:
+            # Create and start new container with proper configuration
+            subprocess.run([
+                "docker", "run", "-d",
+                "--name", "kafka-benchmark",
+                "-p", "9092:9092",
+                "-e", "KAFKA_NODE_ID=1",
+                "-e", "KAFKA_PROCESS_ROLES=broker,controller",
+                "-e", "KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093",
+                "-e", "KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092",
+                "-e", "KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER",
+                "-e", "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT",
+                "-e", "KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093",
+                "-e", "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1",
+                "-e", "KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1",
+                "-e", "KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1",
+                "-e", "KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0",
+                "-e", "KAFKA_AUTO_CREATE_TOPICS_ENABLE=true",
+                "-e", "KAFKA_NUM_PARTITIONS=3",
+                "apache/kafka:latest"
+            ], check=True)
+
+        print(f"Waiting {wait_time}s for Kafka to be fully ready...")
+        time.sleep(wait_time)
+
+        # Verify Kafka is responding
+        max_retries = 5
+        for i in range(max_retries):
+            if is_kafka_running():
+                print("✓ Kafka broker is ready")
+                return True
+            if i < max_retries - 1:
+                print(f"  Still waiting... ({i+1}/{max_retries})")
+                time.sleep(3)
+
+        print("✗ Kafka broker failed to start properly")
+        return False
+
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to start Kafka: {e}")
+        print("Please start Kafka manually or install Docker")
+        return False
+    except FileNotFoundError:
+        print("Docker not found. Please install Docker or start Kafka manually")
+        return False
+
+
+def ensure_kafka_running() -> bool:
+    """Ensure Kafka is running, start it if needed."""
+    if is_kafka_running():
+        return True
+
+    print("\n⚠️  Kafka broker not detected on localhost:9092")
+    response = input("Would you like to start Kafka using Docker? (y/n): ")
+
+    if response.lower() == 'y':
+        return start_kafka_docker()
+    else:
+        print("\nPlease start Kafka manually before running benchmarks:")
+        print("  docker run -d --name kafka -p 9092:9092 apache/kafka:latest")
+        return False
+
 
 
 def setup_kafka_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -52,18 +135,17 @@ def setup_kafka_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
         "client_id": "kafka_benchmark_service",
     }
     env = KafkaCommunicationEnvironment(kafka_config)
-    env.start_service()
+    env.setup()
 
     # Create agents
     agents = []
     for i in range(agent_count):
-        agent = create_kafka_test_agent(f"agent_{i}")
+        agent = env.create_agent(f"agent_{i}")
         agents.append(agent)
-        env.register_agent(agent)
 
     # Setup topology
     config = CommunicationConfiguration()
-    config.set_agents([str(agent.id) for agent in agents])
+    config.set_agents([agent.agent_id for agent in agents])
     topology = config.set_topology(topology_pattern)
 
     # Apply topology to environment
@@ -88,8 +170,7 @@ def teardown_kafka_basic_scenario(params: Dict[str, Any]):
     # Stop the Kafka communication service and close connections
     if "environment" in params:
         env = params["environment"]
-        env.close_all_agents()
-        env.stop_service()
+        env.teardown()
 
     # Clear references
     params.clear()
@@ -120,7 +201,7 @@ def test_kafka_point_to_point_latency(
         # Send message via Kafka
         content = {"test_id": message_id, "data": f"kafka_test_data_{i}"}
         success = sender.send_message(
-            str(receiver.id), KafkaMessageType.INFORM, content
+            receiver.agent_id, KafkaMessageType.INFORM, content
         )
 
         if success:
@@ -161,7 +242,7 @@ def test_kafka_broadcast_throughput(
             "broadcast_id": message_id,
             "announcement": f"kafka_broadcast_{i}",
         }
-        result = sender.broadcast_message(content)
+        result = sender.broadcast_message(KafkaMessageType.INFORM, content)
 
         if result.get("status") == "completed":
             # End timing
@@ -206,7 +287,7 @@ def test_kafka_concurrent_messaging(
                 "timestamp": time.time(),
             }
             success = agent.send_message(
-                str(target.id), KafkaMessageType.INFORM, content
+                target.agent_id, KafkaMessageType.INFORM, content
             )
 
             if success:
@@ -261,7 +342,7 @@ def test_kafka_scalability_stress(
 
         while time.time() < end_time:
             target = random.choice(targets)
-            message_id = f"kafka_stress_{agent.id}_{message_count}"
+            message_id = f"kafka_stress_{agent.agent_id}_{message_count}"
 
             # Track timing and throughput
             benchmark.latency_tracker.start_message_timing(message_id)
@@ -270,7 +351,7 @@ def test_kafka_scalability_stress(
             # Send message via Kafka
             content = {"stress_test": True, "count": message_count}
             success = agent.send_message(
-                str(target.id),
+                target.agent_id,
                 random.choice(
                     [KafkaMessageType.INFORM, KafkaMessageType.REQUEST]
                 ),
@@ -426,6 +507,11 @@ def run_kafka_scalability_analysis():
 if __name__ == "__main__":
     print("Kafka Communication Benchmark Suite")
     print("=" * 60)
+
+    # Ensure Kafka is running
+    if not ensure_kafka_running():
+        print("\n✗ Cannot run benchmarks without Kafka broker")
+        exit(1)
 
     # Create Kafka benchmark suite
     benchmark = create_kafka_benchmark_scenarios()

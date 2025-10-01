@@ -1,18 +1,21 @@
 """
 MQTT Benchmark Test Scenarios
-Provides the same benchmark scenarios as REST and gRPC but using MQTT communication.
+Provides the same benchmark scenarios as REST and gRPC but using MQTT
+communication.
 
-Enables direct performance comparison between MQTT and other protocol implementations
+Enables direct performance comparison between MQTT and other protocol
+implementations
 of the same formal communication model from the thesis.
 """
 
 import time
 import random
-from typing import Dict, Any
+import subprocess
+import socket
+import atexit
+from typing import Dict, Any, Optional
 import concurrent.futures
-from abstract_agent import AgentId
 from communication.mqtt.mqtt_communication_agent import (
-    ExtendedMqttCommunicatingAgent,
     MqttCommunicationEnvironment,
 )
 from communication.communication_config import (
@@ -26,17 +29,173 @@ from benchmarks.communication_benchmark import (
 from communication.mqtt.mqtt_communication import MqttMessageType
 
 
-def create_mqtt_test_agent(
-    agent_id: str, observable_props: set = None
-) -> ExtendedMqttCommunicatingAgent:
-    """Create an MQTT test agent with basic configuration."""
-    if observable_props is None:
-        observable_props = {"environment", "messages"}
+# Global variable to track broker container
+_mqtt_broker_container: Optional[str] = None
 
-    agent_id_obj = AgentId("mqtt_benchmark", "test", agent_id)
-    agent = ExtendedMqttCommunicatingAgent(agent_id_obj, observable_props)
-    agent.initialize_agent()
-    return agent
+
+def is_mqtt_running(host="localhost", port=1883, timeout=2) -> bool:
+    """Check if MQTT broker is accessible."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+
+def start_mqtt_docker(wait_time=3) -> bool:
+    """Start MQTT broker (Mosquitto) using Docker if not already running."""
+    global _mqtt_broker_container
+
+    print("[DEBUG] Checking if MQTT is running...")
+    if is_mqtt_running():
+        print("✓ MQTT broker is already running on localhost:1883")
+        return True
+
+    print("Starting MQTT broker (Mosquitto) using Docker...")
+    import sys
+
+    sys.stdout.flush()  # Ensure output is visible immediately
+
+    try:
+        # Check if container exists but is stopped
+        result = subprocess.run(
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--filter",
+                "name=mqtt-benchmark",
+                "--format",
+                "{{.Names}}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        if "mqtt-benchmark" in result.stdout:
+            # Start existing container
+            print("[DEBUG] Found existing container, starting it...")
+            start_result = subprocess.run(
+                ["docker", "start", "mqtt-benchmark"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            print(f"[DEBUG] Start output: {start_result.stdout}")
+            _mqtt_broker_container = "mqtt-benchmark"
+        else:
+            # Create and start new container
+            print("[DEBUG] Creating new container...")
+            run_result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--name",
+                    "mqtt-benchmark",
+                    "-p",
+                    "1883:1883",
+                    "-p",
+                    "9001:9001",
+                    "eclipse-mosquitto:latest",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            print(f"[DEBUG] Container ID: {run_result.stdout.strip()}")
+            _mqtt_broker_container = "mqtt-benchmark"
+
+        print(f"Waiting {wait_time}s for MQTT broker to be ready...")
+        time.sleep(wait_time)
+
+        if is_mqtt_running():
+            print("✓ MQTT broker is ready")
+            return True
+        else:
+            print("✗ MQTT broker failed to start")
+            # Check container logs for debugging
+            try:
+                logs = subprocess.run(
+                    ["docker", "logs", "mqtt-benchmark"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                print(f"[DEBUG] Container logs:\n{logs.stdout}\n{logs.stderr}")
+            except Exception:
+                pass
+            return False
+
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Failed to start MQTT broker: {e}")
+        print(f"[DEBUG] stderr: {e.stderr if hasattr(e, 'stderr') else 'N/A'}")
+        print("Please start MQTT broker manually or install Docker")
+        return False
+    except FileNotFoundError:
+        print(
+            "Docker not found. Please install Docker or start MQTT broker\
+                manually"
+        )
+        return False
+    except Exception as e:
+        print(f"✗ Unexpected error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
+def stop_mqtt_docker():
+    """Stop the MQTT broker Docker container."""
+    global _mqtt_broker_container
+
+    if _mqtt_broker_container:
+        print("\nStopping MQTT broker...")
+        try:
+            subprocess.run(
+                ["docker", "stop", _mqtt_broker_container],
+                capture_output=True,
+                check=True,
+            )
+            print("✓ MQTT broker stopped")
+        except subprocess.CalledProcessError:
+            pass  # Container might already be stopped
+        finally:
+            _mqtt_broker_container = None
+
+
+def ensure_mqtt_running(auto_start=False) -> bool:
+    """Ensure MQTT broker is running, start it if needed."""
+    if is_mqtt_running():
+        return True
+
+    print("\n MQTT broker not detected on localhost:1883")
+
+    if auto_start:
+        return start_mqtt_docker()
+
+    response = input(
+        "Would you like to start MQTT broker using Docker? (y/n): "
+    )
+
+    if response.lower() == "y":
+        success = start_mqtt_docker()
+        if success:
+            # Register cleanup function to stop broker on exit
+            atexit.register(stop_mqtt_docker)
+        return success
+    else:
+        print("\nPlease start MQTT broker manually before running benchmarks:")
+        print(
+            "  docker run -d --name mqtt-benchmark -p\
+                1883:1883 eclipse-mosquitto:latest"
+        )
+        return False
 
 
 def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -53,15 +212,23 @@ def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
         "keepalive": 60,
         "qos": 1,
     }
-    env = MqttCommunicationEnvironment(mqtt_config)
+    env = MqttCommunicationEnvironment(
+        broker_host="localhost", broker_port=1883, mqtt_config=mqtt_config
+    )
     env.start_service()
+
+    # Check if service started successfully
+    if not env.is_running:
+        raise RuntimeError(
+            "MQTT service failed to start.\
+                Ensure MQTT broker is running on localhost:1883"
+        )
 
     # Create agents
     agents = []
     for i in range(agent_count):
-        agent = create_mqtt_test_agent(f"agent_{i}")
+        agent = env.create_agent(f"agent_{i}")
         agents.append(agent)
-        env.register_agent(agent)
 
     # Setup topology
     config = CommunicationConfiguration()
@@ -376,9 +543,7 @@ def run_mqtt_topology_comparison():
         benchmark.print_summary(result)
 
     # Compare results
-    scenario_names = [
-        f"concurrent_messaging_{t.value}" for t in topologies
-    ]
+    scenario_names = [f"concurrent_messaging_{t.value}" for t in topologies]
     comparison = benchmark.compare_scenarios(scenario_names)
 
     print("\n" + "=" * 60)
@@ -429,39 +594,49 @@ if __name__ == "__main__":
     print("MQTT Communication Benchmark Suite")
     print("=" * 60)
 
-    # Create MQTT benchmark suite
-    benchmark = create_mqtt_benchmark_scenarios()
+    # Ensure MQTT broker is running
+    if not ensure_mqtt_running():
+        print("\n✗ Cannot run benchmarks without MQTT broker")
+        exit(1)
 
-    # Run individual MQTT scenarios
-    print("\n1. MQTT Point-to-Point Latency Test")
-    result1 = benchmark.run_scenario(
-        "point_to_point_latency", agent_count=2, message_count=50
-    )
-    benchmark.print_summary(result1)
+    try:
+        # Create MQTT benchmark suite
+        benchmark = create_mqtt_benchmark_scenarios()
 
-    print("\n2. MQTT Broadcast Throughput Test")
-    result2 = benchmark.run_scenario(
-        "broadcast_throughput", agent_count=5, message_count=30
-    )
-    benchmark.print_summary(result2)
+        # Run individual MQTT scenarios
+        print("\n1. MQTT Point-to-Point Latency Test")
+        result1 = benchmark.run_scenario(
+            "point_to_point_latency", agent_count=2, message_count=50
+        )
+        benchmark.print_summary(result1)
 
-    print("\n3. MQTT Concurrent Messaging Test")
-    result3 = benchmark.run_scenario(
-        "concurrent_messaging", agent_count=4, messages_per_agent=10
-    )
-    benchmark.print_summary(result3)
+        print("\n2. MQTT Broadcast Throughput Test")
+        result2 = benchmark.run_scenario(
+            "broadcast_throughput", agent_count=5, message_count=30
+        )
+        benchmark.print_summary(result2)
 
-    # Export results
-    benchmark.export_results("mqtt_benchmark_results.json")
-    print("\nResults exported to mqtt_benchmark_results.json")
+        print("\n3. MQTT Concurrent Messaging Test")
+        result3 = benchmark.run_scenario(
+            "concurrent_messaging", agent_count=4, messages_per_agent=10
+        )
+        benchmark.print_summary(result3)
 
-    # Optional: Run extended analysis
-    extended_tests = input(
-        "\nRun extended MQTT topology and scalability analysis? (y/n): "
-    )
-    if extended_tests.lower() == "y":
-        print("\nRunning MQTT topology comparison...")
-        run_mqtt_topology_comparison()
+        # Export results
+        benchmark.export_results("mqtt_benchmark_results.json")
+        print("\nResults exported to mqtt_benchmark_results.json")
 
-        print("\nRunning MQTT scalability analysis...")
-        run_mqtt_scalability_analysis()
+        # Optional: Run extended analysis
+        extended_tests = input(
+            "\nRun extended MQTT topology and scalability analysis? (y/n): "
+        )
+        if extended_tests.lower() == "y":
+            print("\nRunning MQTT topology comparison...")
+            run_mqtt_topology_comparison()
+
+            print("\nRunning MQTT scalability analysis...")
+            run_mqtt_scalability_analysis()
+
+    finally:
+        # Clean up: stop broker if we started it
+        stop_mqtt_docker()

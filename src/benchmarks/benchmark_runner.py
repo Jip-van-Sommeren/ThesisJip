@@ -14,17 +14,37 @@ import json
 import os
 from typing import Dict, List, Any
 from dataclasses import dataclass, asdict
+from enum import Enum
 from communication.communication_config import TopologyPattern
+
 
 # Import protocol-specific benchmark scenarios
 from benchmarks.rest_benchmark_scenarios import (
     create_benchmark_scenarios as create_rest_scenarios,
 )
 from benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
-from benchmarks.mqtt_benchmark_scenarios import create_mqtt_benchmark_scenarios
+from benchmarks.mqtt_benchmark_scenarios import (
+    create_mqtt_benchmark_scenarios,
+    ensure_mqtt_running,
+    stop_mqtt_docker,
+)
 from benchmarks.kafka_benchmark_scenarios import (
     create_kafka_benchmark_scenarios,
+    ensure_kafka_running,
 )
+from benchmarks.hierarchy_benchmark_scenarios import (
+    HierarchyComparisonBenchmark,
+)
+from benchmarks.hierarchy_strategies import HierarchyType
+
+
+class EnumEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles Enum types."""
+
+    def default(self, obj):
+        if isinstance(obj, Enum):
+            return obj.value
+        return super().default(obj)
 
 
 @dataclass
@@ -40,6 +60,12 @@ class BenchmarkConfig:
     output_dir: str = "results"
     export_csv: bool = True
     export_json: bool = True
+    # Hierarchy benchmark options
+    hierarchy_mode: bool = False
+    hierarchy_types: List[str] = None
+    hierarchy_environments: List[str] = None
+    hierarchy_episodes: int = 10
+    run_ablation: bool = False
 
 
 class ProtocolBenchmarkRunner:
@@ -90,6 +116,9 @@ class ProtocolBenchmarkRunner:
         print(f"Topologies: {[t.value for t in self.config.topologies]}")
         print("=" * 80)
 
+        # Check and start required brokers
+        self._ensure_brokers_running()
+
         start_time = time.time()
 
         for protocol in self.config.protocols:
@@ -121,6 +150,24 @@ class ProtocolBenchmarkRunner:
         self._print_final_summary(total_time)
 
         return self.results
+
+    def _ensure_brokers_running(self):
+        """Ensure required message brokers are running."""
+        protocols = self.config.protocols
+
+        # Check MQTT broker if needed
+        if "mqtt" in protocols:
+            print("\n[MQTT] Checking broker status...")
+            if not ensure_mqtt_running(auto_start=True):
+                print("MQTT broker not available. MQTT benchmarks may fail.")
+                raise RuntimeError("MQTT service failed to start.")
+
+        # Check Kafka broker if needed
+        if "kafka" in protocols:
+            print("\n[Kafka] Checking broker status...")
+            if not ensure_kafka_running():
+                print("Kafka broker not available. Kafka benchmarks may fail.")
+                raise RuntimeError("Kafka service failed to start.")
 
     def _run_protocol_benchmarks(self, protocol: str) -> Dict[str, Any]:
         """Run benchmarks for a specific protocol."""
@@ -313,7 +360,7 @@ class ProtocolBenchmarkRunner:
             self.config.output_dir, f"benchmark_results_{timestamp}.json"
         )
         with open(main_file, "w") as f:
-            json.dump(export_data, f, indent=2)
+            json.dump(export_data, f, indent=2, cls=EnumEncoder)
 
         # Summary comparison file
         summary_file = os.path.join(
@@ -327,6 +374,7 @@ class ProtocolBenchmarkRunner:
                     "protocol_ranking": self._rank_protocols(),
                 },
                 f,
+                cls=EnumEncoder,
                 indent=2,
             )
 
@@ -476,19 +524,28 @@ class ProtocolBenchmarkRunner:
 def main():
     """Main entry point for the benchmark runner."""
     parser = argparse.ArgumentParser(
-        description="Unified Communication Protocol Benchmark Runner",
+        description="Unified Benchmark Runner - Protocols & Hierarchies",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Simple benchmarks for all protocols
+  # Simple protocol benchmarks
   python benchmark_runner.py --simple
 
-  # Extensive benchmarks for specific protocols
+  # Extensive protocol benchmarks
   python benchmark_runner.py --extensive --protocols rest grpc
 
-  # Custom configuration
-  python benchmark_runner.py --protocols mqtt kafka --scenarios
-  point_to_point_latency concurrent_messaging
+  # Hierarchy strategy benchmarks (quick test)
+  python benchmark_runner.py --hierarchy
+
+  # Hierarchy benchmarks with specific strategies
+  python benchmark_runner.py --hierarchy --hierarchy-types tree hybrid
+
+  # Full hierarchy comparison with ablation study
+  python benchmark_runner.py --hierarchy --extensive --hierarchy-ablation
+
+  # Hierarchy benchmarks for specific environments
+  python benchmark_runner.py --hierarchy \\
+      --hierarchy-environments task_distribution fault_recovery
         """,
     )
 
@@ -544,13 +601,114 @@ Examples:
         "--no-json", action="store_true", help="Skip JSON export"
     )
 
+    # Hierarchy benchmark arguments
+    parser.add_argument(
+        "--hierarchy",
+        action="store_true",
+        help="Run hierarchy strategy benchmarks",
+    )
+
+    parser.add_argument(
+        "--hierarchy-types",
+        nargs="+",
+        choices=["tree", "peer_to_peer", "hybrid"],
+        default=["tree", "peer_to_peer", "hybrid"],
+        help="Hierarchy strategies to benchmark (default: all)",
+    )
+
+    parser.add_argument(
+        "--hierarchy-environments",
+        nargs="+",
+        choices=[
+            "task_distribution",
+            "resource_allocation",
+            "collaborative",
+            "fault_recovery",
+            "scalability",
+        ],
+        default=["task_distribution", "resource_allocation", "collaborative"],
+        help=(
+            "Hierarchy environments to test "
+            "(default: task_distribution, resource_allocation, collaborative)"
+        ),
+    )
+
+    parser.add_argument(
+        "--hierarchy-episodes",
+        type=int,
+        default=10,
+        help="Number of episodes per hierarchy benchmark (default: 10)",
+    )
+
+    parser.add_argument(
+        "--hierarchy-ablation",
+        action="store_true",
+        help="Run hierarchy ablation study",
+    )
+
     args = parser.parse_args()
 
     # Default to simple if neither mode specified
-    if not args.simple and not args.extensive:
+    if not args.simple and not args.extensive and not args.hierarchy:
         args.simple = True
 
-    # Create configuration
+    # Run hierarchy benchmarks if requested
+    if args.hierarchy:
+        # Map string hierarchy types to enum
+        hierarchy_type_map = {
+            "tree": HierarchyType.TREE,
+            "peer_to_peer": HierarchyType.PEER_TO_PEER,
+            "hybrid": HierarchyType.HYBRID,
+        }
+        hierarchy_types = [
+            hierarchy_type_map[ht] for ht in args.hierarchy_types
+        ]
+
+        # Create hierarchy benchmark runner
+        hierarchy_runner = HierarchyComparisonBenchmark(
+            output_dir=os.path.join(args.output_dir, "hierarchy")
+        )
+
+        # Determine agent counts
+        if args.extensive:
+            agent_counts = [3, 5, 8, 12]
+        else:
+            agent_counts = [5, 8]
+
+        # Run hierarchy comparison
+        hierarchy_runner.run_comparison(
+            hierarchy_types=hierarchy_types,
+            environment_types=args.hierarchy_environments,
+            agent_counts=agent_counts,
+            num_episodes=args.hierarchy_episodes,
+        )
+
+        # Run ablation study if requested
+        if args.hierarchy_ablation:
+            from benchmarks.hierarchy_benchmark_scenarios import (
+                BenchmarkConfiguration as HierarchyConfig,
+            )
+
+            tree_config = HierarchyConfig(
+                hierarchy_type=HierarchyType.TREE,
+                num_agents=8,
+                environment_type="task_distribution",
+                num_episodes=5,
+            )
+
+            hierarchy_runner.run_ablation_study(
+                base_config=tree_config,
+                ablation_params={
+                    "hierarchy_depth": [1, 2, 3],
+                    "planning_frequency": [1, 5, 10],
+                    "communication_limit": [None, 50, 100],
+                },
+            )
+
+        print("\nHierarchy benchmarks completed!")
+        return None
+
+    # Create configuration for protocol benchmarks
     config = BenchmarkConfig(
         protocols=args.protocols,
         scenarios=args.scenarios,
@@ -561,11 +719,16 @@ Examples:
         export_json=not args.no_json,
     )
 
-    # Run benchmarks
+    # Run protocol benchmarks
     runner = ProtocolBenchmarkRunner(config)
-    results = runner.run_all_benchmarks()
-
-    return results
+    try:
+        results = runner.run_all_benchmarks()
+        return results
+    finally:
+        pass
+        # Cleanup: stop MQTT broker if it was started
+        if "mqtt" in args.protocols:
+            stop_mqtt_docker()
 
 
 if __name__ == "__main__":

@@ -135,9 +135,20 @@ class MqttMailbox:
             return
 
         try:
-            self.client = mqtt.Client(
-                client_id=f"agent_{self.agent_id}_mailbox", clean_session=True
-            )
+            # Support both old and new paho-mqtt API versions
+            try:
+                # Try new API (v2.0+)
+                self.client = mqtt.Client(
+                    mqtt.CallbackAPIVersion.VERSION1,
+                    client_id=f"agent_{self.agent_id}_mailbox",
+                    clean_session=True
+                )
+            except (AttributeError, TypeError):
+                # Fall back to old API
+                self.client = mqtt.Client(
+                    client_id=f"agent_{self.agent_id}_mailbox",
+                    clean_session=True
+                )
 
             # Set up callbacks
             self.client.on_connect = self._on_connect
@@ -150,6 +161,9 @@ class MqttMailbox:
 
             self.client.connect(broker_host, broker_port, keepalive=60)
             self.client.loop_start()
+
+            # Wait briefly for connection to establish
+            time.sleep(0.2)
             self.running = True
 
         except Exception as e:
@@ -157,8 +171,9 @@ class MqttMailbox:
                 f"Could not setup MQTT subscriber for {self.agent_id}: {e}"
             )
 
-    def _on_connect(self, client, userdata, flags, rc):
+    def _on_connect(self, client, userdata, flags, rc, properties=None):
         """Callback for successful MQTT connection."""
+        # Handle both v1 and v2 API (v2 adds properties parameter)
         if rc == 0:
             client.subscribe(self.topic, qos=1)
             logging.info(f"Agent {self.agent_id} subscribed to {self.topic}")
@@ -179,12 +194,42 @@ class MqttMailbox:
                 f"Error processing message for {self.agent_id}: {e}"
             )
 
-    def _on_disconnect(self, client, userdata, rc):
+    def _on_disconnect(self, client, userdata, rc, properties=None):
         """Callback for MQTT disconnection."""
+        # Handle both v1 and v2 API (v2 adds properties parameter)
+        # Common disconnect codes:
+        # 0 = Normal disconnect
+        # 1 = Incorrect protocol version
+        # 2 = Invalid client identifier
+        # 3 = Server unavailable
+        # 4 = Bad username or password
+        # 5 = Not authorized
+        # 7 = No matching subscribers (in v5)
+        # 16 = Connection lost
+
         if rc != 0:
+            reason = {
+                1: "Incorrect protocol version",
+                2: "Invalid client identifier",
+                3: "Server unavailable",
+                4: "Bad username or password",
+                5: "Not authorized",
+                7: "No matching subscribers",
+                16: "Connection lost",
+            }.get(rc, f"Unknown error code {rc}")
+
             logging.warning(
-                f"Unexpected disconnection for agent {self.agent_id}"
+                f"Unexpected disconnection for agent {self.agent_id}: {reason}"
             )
+
+            # Only try to reconnect for transient errors
+            if rc in [3, 16] and self.running:
+                try:
+                    logging.info(f"Attempting to reconnect agent {self.agent_id}...")
+                    time.sleep(0.5)
+                    client.reconnect()
+                except Exception as e:
+                    logging.error(f"Failed to reconnect agent {self.agent_id}: {e}")
 
     def add_message(self, message: MqttMessage):
         """Add message to mailbox (for direct delivery when MQTT
@@ -281,9 +326,20 @@ class MqttService:
             return
 
         try:
-            self.publisher_client = mqtt.Client(
-                client_id="mqtt_service_publisher", clean_session=True
-            )
+            # Support both old and new paho-mqtt API versions
+            try:
+                # Try new API (v2.0+)
+                self.publisher_client = mqtt.Client(
+                    mqtt.CallbackAPIVersion.VERSION1,
+                    client_id="mqtt_service_publisher",
+                    clean_session=True
+                )
+            except (AttributeError, TypeError):
+                # Fall back to old API
+                self.publisher_client = mqtt.Client(
+                    client_id="mqtt_service_publisher",
+                    clean_session=True
+                )
 
             broker_host = self.mqtt_config["broker_host"]
             broker_port = self.mqtt_config["broker_port"]
@@ -294,6 +350,9 @@ class MqttService:
                 keepalive=self.mqtt_config["keepalive"],
             )
             self.publisher_client.loop_start()
+
+            # Wait briefly for connection to establish
+            time.sleep(0.2)
             self.is_running = True
 
         except Exception as e:
@@ -345,13 +404,19 @@ class MqttServer:
         # For MQTT, we don't start a server but verify broker connectivity
         if mqtt:
             try:
-                test_client = mqtt.Client("mqtt_server_test")
+                # Support both old and new paho-mqtt API versions
+                try:
+                    # Try new API (v2.0+)
+                    test_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "mqtt_server_test")
+                except (AttributeError, TypeError):
+                    # Fall back to old API
+                    test_client = mqtt.Client("mqtt_server_test")
+
                 test_client.connect(self.broker_host, self.broker_port, 10)
                 test_client.disconnect()
                 self.is_running = True
                 logging.info(
-                    f"MQTT broker available at\
-                        {self.broker_host}:{self.broker_port}"
+                    f"MQTT broker available at {self.broker_host}:{self.broker_port}"
                 )
             except Exception as e:
                 logging.warning(f"Could not connect to MQTT broker: {e}")

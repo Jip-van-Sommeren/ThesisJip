@@ -50,14 +50,26 @@ class ExtendedKafkaCommunicatingAgent(AbstractAgent):
     def __init__(
         self, agent_id: str, kafka_service: KafkaCommunicationService
     ):
-        super().__init__(agent_id)
+        # Create AgentId from string
+        from abstract_agent import AgentId
+        if isinstance(agent_id, str):
+            agent_id_obj = AgentId(app="kafka_benchmark", type="communicating", instance=agent_id)
+        else:
+            agent_id_obj = agent_id
+
+        # Initialize parent with observable properties
+        observable_properties = {"messages", "message_count", "communication_status"}
+        super().__init__(agent_id_obj, observable_properties)
+
+        # Store string ID for convenience
+        self.agent_id = str(agent_id_obj) if not isinstance(agent_id, str) else agent_id
 
         # Initialize Kafka communication
-        self.kafka_agent = KafkaCommunicatingAgent(agent_id, kafka_service)
+        self.kafka_agent = KafkaCommunicatingAgent(self.agent_id, kafka_service)
         self.kafka_service = kafka_service
 
         # Register agent with the Kafka service
-        self.kafka_service.register_agent(agent_id)
+        self.kafka_service.register_agent(self.agent_id)
 
         # Add communication actions to agent's action set
         self._add_communication_actions()
@@ -65,6 +77,32 @@ class ExtendedKafkaCommunicatingAgent(AbstractAgent):
         # Communication-specific state
         self.message_history: List[KafkaMessage] = []
         self.pending_replies: Dict[str, KafkaMessage] = {}
+
+        # Initialize agent-specific configuration
+        self.initialize_agent()
+
+    def initialize_agent(self):
+        """Initialize agent-specific goals, actions, and rules (required by AbstractAgent)."""
+        from abstract_agent import Goal, GoalType, ReactiveRule
+
+        # Add communication goal
+        comm_goal = Goal(
+            condition="maintain_communication",
+            goal_type=GoalType.PERFORMANCE,
+            priority=1.0
+        )
+        self.add_goal(comm_goal)
+
+        # Add reactive rule for message processing
+        def should_process_messages(state_dict):
+            return state_dict.get("external", {}).get("message_count", "0") != "0"
+
+        message_rule = ReactiveRule(
+            condition=should_process_messages,
+            action="send_message",
+            priority=1.0
+        )
+        self.add_reactive_rule(message_rule)
 
     def _add_communication_actions(self):
         """Add communication actions to the agent's action set Act_A."""
@@ -126,12 +164,17 @@ class ExtendedKafkaCommunicatingAgent(AbstractAgent):
         """Reply to a received message using Kafka."""
         return self.kafka_agent.reply_to_message(original_message, content)
 
-    def perceive(self) -> Dict[str, Any]:
+    def perceive(self, environment_state: Dict = None) -> Dict[str, Any]:
         """
         Enhanced perception that includes Kafka messages.
         Extends the base perceive method with communication input.
         """
-        perception = super().perceive()
+        # Use empty dict if no environment state provided
+        if environment_state is None:
+            environment_state = {}
+
+        # Call parent perceive (which updates beliefs)
+        super().perceive(environment_state)
 
         # Communication perception: retrieve messages from mailbox
         messages = self.receive_messages(clear_mailbox=True)
@@ -144,11 +187,20 @@ class ExtendedKafkaCommunicatingAgent(AbstractAgent):
             if message.message_type == KafkaMessageType.REQUEST:
                 self.pending_replies[message.message_id] = message
 
-        # Add messages to perception
-        perception["messages"] = messages
-        perception["message_count"] = len(messages)
+        # Update beliefs with message information
+        self.state.update_belief(
+            "message_count",
+            str(len(messages)),
+            confidence=1.0,
+            is_internal=False
+        )
 
-        return perception
+        # Return perception dict for backward compatibility
+        return {
+            "messages": messages,
+            "message_count": len(messages),
+            "environment_state": environment_state
+        }
 
     def deliberate(self, perception: Dict[str, Any]) -> Dict[str, Any]:
         """
