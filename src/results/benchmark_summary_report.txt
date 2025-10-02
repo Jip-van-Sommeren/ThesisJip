@@ -1,0 +1,51 @@
+COMMUNICATION PROTOCOL BENCHMARK SUMMARY REPORT
+============================================================
+
+Benchmark Date: 20251002_140857
+Total Duration: 719.5                    seconds
+Mode: extensive
+Protocols Tested:                    rest, grpc, mqtt, kafka
+Scenarios Tested:                    point_to_point_latency, broadcast_throughput, concurrent_messaging, scalability_stress
+
+CROSS-PROTOCOL COMPARISON
+------------------------------
+
+Scenario: Point To Point Latency
+      MQTT: Latency    1.4ms | Throughput                               8.7                                msg/s | Success                            100.0% | CPU  3.8% | Memory 107.2MB
+      GRPC: Latency    2.4ms | Throughput                               8.0                                msg/s | Success                            100.0% | CPU 12.9% | Memory  89.2MB
+     KAFKA: Latency    2.9ms | Throughput                               7.7                                msg/s | Success                            100.0% | CPU 17.8% | Memory 328.8MB
+      REST: Latency    3.4ms | Throughput                               7.4                                msg/s | Success                            100.0% | CPU 17.3% | Memory  61.5MB
+
+Scenario: Broadcast Throughput
+      MQTT: Latency    0.9ms | Throughput                               4.8                                msg/s | Success                            100.0% | CPU  5.0% | Memory 107.9MB
+      GRPC: Latency    1.6ms | Throughput                               4.6                                msg/s | Success                            100.0% | CPU  9.9% | Memory  89.9MB
+      REST: Latency    2.9ms | Throughput                               4.4                                msg/s | Success                            100.0% | CPU 12.3% | Memory  62.7MB
+     KAFKA: Latency   69.8ms | Throughput                               2.3                                msg/s | Success                            100.0% | CPU 31.7% | Memory 335.5MB
+
+Scenario: Concurrent Messaging
+      MQTT: Latency    0.1ms | Throughput                              25.0                                msg/s | Success                            100.0% | CPU 13.0% | Memory 109.0MB
+      GRPC: Latency    0.9ms | Throughput                              25.0                                msg/s | Success                            100.0% | CPU 39.8% | Memory  90.9MB
+      REST: Latency   10.3ms | Throughput                              25.0                                msg/s | Success                            100.0% | CPU 74.2% | Memory  66.1MB
+     KAFKA: Latency   12.5ms | Throughput                              25.0                                msg/s | Success                            100.0% | CPU 49.8% | Memory 320.7MB
+
+Scenario: Scalability Stress
+      MQTT: Latency    0.1ms | Throughput                             932.2                                msg/s | Success                            100.0% | CPU 72.1% | Memory 204.3MB
+      GRPC: Latency    3.5ms | Throughput                             263.2                                msg/s | Success                            100.0% | CPU 170.2% | Memory 100.5MB
+     KAFKA: Latency   13.3ms | Throughput                             121.4                                msg/s | Success                            100.0% | CPU 100.9% | Memory 319.4MB
+      REST: Latency   20.6ms | Throughput                              55.6                                msg/s | Success                            100.0% | CPU 116.9% | Memory  74.0MB
+
+BEST PERFORMING PROTOCOLS BY METRIC
+----------------------------------------
+
+Lowest Latency:     MQTT
+Highest Throughput: MQTT
+Most Reliable:      REST
+
+RECOMMENDATIONS
+---------------
+
+• For low-latency applications: Use                        MQTT
+• For high-throughput applications: Use                        MQTT
+• For mission-critical reliability: Use                        REST
+
+============================================================

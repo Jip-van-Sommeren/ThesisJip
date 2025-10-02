@@ -335,10 +335,27 @@ def test_mqtt_concurrent_messaging(
 
     def mqtt_agent_messaging_task(agent, agent_index):
         nonlocal delivery_failures, timeout_failures
-        targets = [a for a in agents if a != agent]
+
+        # Get valid targets based on topology from configuration
+        config = params.get("config")
+        valid_targets = []
+
+        if config and hasattr(config, "topology"):
+            agent_id_str = str(agent.id)
+            for other_agent in agents:
+                if other_agent != agent:
+                    other_id_str = str(other_agent.id)
+                    if (agent_id_str, other_id_str) in config.topology.links:
+                        valid_targets.append(other_agent)
+
+        if not valid_targets:
+            valid_targets = [a for a in agents if a != agent]
+
+        if not valid_targets:
+            return
 
         for i in range(messages_per_agent):
-            target = random.choice(targets)
+            target = random.choice(valid_targets)
             message_id = f"mqtt_concurrent_{agent_index}_{i}"
 
             # Start timing
@@ -511,9 +528,9 @@ def run_mqtt_topology_comparison(benchmark: CommunicationBenchmark):
         print(f"\nTesting MQTT topology: {topology.value}")
         result = benchmark.run_scenario(
             "concurrent_messaging",
-            agent_count=6,
+            agent_count=20,
             topology_pattern=topology,
-            messages_per_agent=15,
+            messages_per_agent=500,
         )
         results[topology.value] = result
         benchmark.print_summary(result)

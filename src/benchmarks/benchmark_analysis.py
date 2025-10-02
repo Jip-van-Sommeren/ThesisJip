@@ -660,20 +660,18 @@ class BenchmarkAnalyzer:
         topologies = ["fully_connected", "star", "ring", "chain"]
 
         for protocol, protocol_data in self.data.get("protocol_results", {}).items():
-            scenarios = protocol_data.get("scenarios", [])
+            # Check if topology_comparison exists in the protocol data
+            topology_comp = protocol_data.get("topology_comparison", {})
 
-            for scenario in scenarios:
-                scenario_name = scenario.get("name", "")
-                # Check if this is a topology comparison scenario
-                for topo in topologies:
-                    if f"concurrent_messaging_{topo}" == scenario_name:
-                        metrics = scenario.get("metrics", {})
+            if topology_comp:
+                for topo, metrics in topology_comp.items():
+                    if topo in topologies:
                         topology_data.append({
                             "Protocol": protocol.upper(),
                             "Topology": topo.replace("_", " ").title(),
-                            "Avg_Latency_ms": metrics.get("latency", {}).get("avg_ms", 0),
-                            "Throughput_msg_per_sec": metrics.get("throughput", {}).get("avg_msg_per_sec", 0),
-                            "Success_Rate_percent": metrics.get("reliability", {}).get("success_rate", 0) * 100
+                            "Avg_Latency_ms": metrics.get("avg_latency_ms", 0),
+                            "Throughput_msg_per_sec": metrics.get("throughput_msg_per_sec", 0),
+                            "Success_Rate_percent": metrics.get("success_rate_percent", 0)
                         })
 
         if not topology_data:
@@ -725,30 +723,28 @@ class BenchmarkAnalyzer:
 
         # Extract scalability scenarios from protocol results
         scalability_data = []
-        agent_counts = [3, 5, 8, 12, 15, 20]  # Common agent counts
 
         for protocol, protocol_data in self.data.get("protocol_results", {}).items():
-            scenarios = protocol_data.get("scenarios", [])
+            # Look in the scenarios dict for scalability_stress
+            scenarios = protocol_data.get("scenarios", {})
+            scalability_stress = scenarios.get("scalability_stress", {})
 
-            for scenario in scenarios:
-                scenario_name = scenario.get("name", "")
-                # Check if this is a scalability stress scenario
-                if scenario_name.startswith("scalability_stress_"):
-                    try:
-                        # Extract agent count from scenario name
-                        count = int(scenario_name.split("_")[-1])
-                        metrics = scenario.get("metrics", {})
-                        scalability_data.append({
-                            "Protocol": protocol.upper(),
-                            "Agent_Count": count,
-                            "Avg_Latency_ms": metrics.get("latency", {}).get("avg_ms", 0),
-                            "Throughput_msg_per_sec": metrics.get("throughput", {}).get("avg_msg_per_sec", 0),
-                            "Success_Rate_percent": metrics.get("reliability", {}).get("success_rate", 0) * 100,
-                            "CPU_Usage_percent": metrics.get("resources", {}).get("cpu_usage_avg", 0),
-                            "Memory_Usage_mb": metrics.get("resources", {}).get("memory_usage_avg_mb", 0)
-                        })
-                    except (ValueError, IndexError):
-                        continue
+            # Each key in scalability_stress is like "5_agents", "10_agents", etc.
+            for agent_key, metrics in scalability_stress.items():
+                try:
+                    # Extract agent count from key like "5_agents"
+                    count = int(agent_key.split("_")[0])
+                    scalability_data.append({
+                        "Protocol": protocol.upper(),
+                        "Agent_Count": count,
+                        "Avg_Latency_ms": metrics.get("avg_latency_ms", 0),
+                        "Throughput_msg_per_sec": metrics.get("throughput_msg_per_sec", 0),
+                        "Success_Rate_percent": metrics.get("success_rate_percent", 0),
+                        "CPU_Usage_percent": metrics.get("cpu_usage_percent", 0),
+                        "Memory_Usage_mb": metrics.get("memory_usage_mb", 0)
+                    })
+                except (ValueError, IndexError):
+                    continue
 
         if not scalability_data:
             print("No scalability analysis data found")

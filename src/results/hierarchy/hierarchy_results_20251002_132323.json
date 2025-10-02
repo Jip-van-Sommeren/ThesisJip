@@ -1,0 +1,1049 @@
+{
+  "timestamp": "20251002_132323",
+  "benchmarks": [
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 3,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.8947,
+        "normalized_return_std": 0.0051001089312986,
+        "makespan_mean": 35,
+        "makespan_std": 2.309401076758503,
+        "action_efficiency": 70,
+        "wall_clock_per_episode": 0.007549525998183526,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.78125,
+        "preemption_rate": 0.21875,
+        "messages_per_episode": 12578.2,
+        "bytes_per_step": 35937.71428571428,
+        "coordination_latency_mean": 0.00011800670900436885,
+        "coordination_latency_std": 0.00011488354152800013,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.07592121901689097
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 5,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.9312999999999999,
+        "normalized_return_std": 0.0030930028559099016,
+        "makespan_mean": 23.1,
+        "makespan_std": 1.5951314818673865,
+        "action_efficiency": 92.4,
+        "wall_clock_per_episode": 0.004874075402040034,
+        "manager_time_percent": 11.11111111111111,
+        "worker_time_percent": 88.8888888888889,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.78125,
+        "preemption_rate": 0.21875,
+        "messages_per_episode": 8522.0,
+        "bytes_per_step": 36891.77489177489,
+        "coordination_latency_mean": 8.149664378988575e-05,
+        "coordination_latency_std": 9.063618603993242e-05,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.04909428799874149
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 8,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.9436,
+        "normalized_return_std": 0.0014298407059684323,
+        "makespan_mean": 14.6,
+        "makespan_std": 3.1692971530679235,
+        "action_efficiency": 87.6,
+        "wall_clock_per_episode": 0.00333921309793368,
+        "manager_time_percent": 14.285714285714285,
+        "worker_time_percent": 85.71428571428572,
+        "manager_utilization": 200.0,
+        "delegation_success_rate": 0.7575757575757576,
+        "preemption_rate": 0.24242424242424243,
+        "messages_per_episode": 5522.3,
+        "bytes_per_step": 37823.97260273973,
+        "coordination_latency_mean": 9.950442049997829e-05,
+        "coordination_latency_std": 0.0001236717214725935,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.0337166819954291
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 12,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.9437,
+        "normalized_return_std": 0.0009486832980505146,
+        "makespan_mean": 14.6,
+        "makespan_std": 1.9550504398153574,
+        "action_efficiency": 116.8,
+        "wall_clock_per_episode": 0.0033030702004907654,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 400.0,
+        "delegation_success_rate": 0.819672131147541,
+        "preemption_rate": 0.18032786885245902,
+        "messages_per_episode": 5331.5,
+        "bytes_per_step": 36517.12328767123,
+        "coordination_latency_mean": 8.523325145765507e-05,
+        "coordination_latency_std": 0.00010856925454028,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.03334505800739862
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 3,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.0,
+        "normalized_return_mean": 27.685,
+        "normalized_return_std": 0.7457472017305115,
+        "makespan_mean": 0.0,
+        "makespan_std": 0.0,
+        "action_efficiency": 200,
+        "wall_clock_per_episode": 0.02149667480844073,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.8064516129032258,
+        "preemption_rate": 0.1935483870967742,
+        "messages_per_episode": 37600.3,
+        "bytes_per_step": 37600.3,
+        "coordination_latency_mean": 0.00010377680397747706,
+        "coordination_latency_std": 0.00010654125448418407,
+        "total_episodes": 10,
+        "successful_episodes": 0
+      },
+      "execution_time": 0.2159582139865961
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 5,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.0,
+        "normalized_return_mean": 30.495,
+        "normalized_return_std": 0.5770855896466125,
+        "makespan_mean": 0.0,
+        "makespan_std": 0.0,
+        "action_efficiency": 400,
+        "wall_clock_per_episode": 0.021744617700460368,
+        "manager_time_percent": 11.11111111111111,
+        "worker_time_percent": 88.88888888888889,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.8333333333333334,
+        "preemption_rate": 0.16666666666666666,
+        "messages_per_episode": 37750.4,
+        "bytes_per_step": 37750.4,
+        "coordination_latency_mean": 8.495285510434769e-05,
+        "coordination_latency_std": 8.673148298989296e-05,
+        "total_episodes": 10,
+        "successful_episodes": 0
+      },
+      "execution_time": 0.21843387000262737
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 8,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.3,
+        "normalized_return_mean": 21.905,
+        "normalized_return_std": 14.780081378516003,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 439.8,
+        "wall_clock_per_episode": 0.01626982539019082,
+        "manager_time_percent": 14.285714285714288,
+        "worker_time_percent": 85.71428571428572,
+        "manager_utilization": 200.0,
+        "delegation_success_rate": 0.7352941176470589,
+        "preemption_rate": 0.2647058823529412,
+        "messages_per_episode": 27578.4,
+        "bytes_per_step": 37624.01091405184,
+        "coordination_latency_mean": 0.00010696426033973694,
+        "coordination_latency_std": 0.00011214531569324367,
+        "total_episodes": 10,
+        "successful_episodes": 3
+      },
+      "execution_time": 0.16348305897554383
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 12,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.0,
+        "normalized_return_mean": 31.43,
+        "normalized_return_std": 0.4762119042797843,
+        "makespan_mean": 0.0,
+        "makespan_std": 0.0,
+        "action_efficiency": 800,
+        "wall_clock_per_episode": 0.02289550720015541,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 400.0,
+        "delegation_success_rate": 0.7575757575757576,
+        "preemption_rate": 0.24242424242424243,
+        "messages_per_episode": 38977.6,
+        "bytes_per_step": 38977.6,
+        "coordination_latency_mean": 0.00010484484410549086,
+        "coordination_latency_std": 0.0001082414797964988,
+        "total_episodes": 10,
+        "successful_episodes": 0
+      },
+      "execution_time": 0.22989701898768544
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 3,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.9,
+        "normalized_return_mean": 13.675,
+        "normalized_return_std": 8.786898390975814,
+        "makespan_mean": 34.44444444444444,
+        "makespan_std": 2.96273147243853,
+        "action_efficiency": 82,
+        "wall_clock_per_episode": 0.007918977798544802,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.7741935483870968,
+        "preemption_rate": 0.1935483870967742,
+        "messages_per_episode": 13328.0,
+        "bytes_per_step": 32507.317073170732,
+        "coordination_latency_mean": 0.00010130225200555287,
+        "coordination_latency_std": 0.00011514758563973422,
+        "total_episodes": 10,
+        "successful_episodes": 9
+      },
+      "execution_time": 0.07978650100994855
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 5,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.2,
+        "normalized_return_mean": 26.905,
+        "normalized_return_std": 18.28413778236328,
+        "makespan_mean": 22.5,
+        "makespan_std": 0.7071067811865476,
+        "action_efficiency": 338,
+        "wall_clock_per_episode": 0.019068642900674605,
+        "manager_time_percent": 11.111111111111112,
+        "worker_time_percent": 88.8888888888889,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.410958904109589,
+        "preemption_rate": 0.3150684931506849,
+        "messages_per_episode": 33344.9,
+        "bytes_per_step": 39461.420118343194,
+        "coordination_latency_mean": 0.00011046529980376362,
+        "coordination_latency_std": 0.0001186232583061985,
+        "total_episodes": 10,
+        "successful_episodes": 2
+      },
+      "execution_time": 0.19136367700411938
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 8,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.3,
+        "normalized_return_mean": 18.195,
+        "normalized_return_std": 17.61436361483308,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 439.8,
+        "wall_clock_per_episode": 0.01656938729865942,
+        "manager_time_percent": 14.285714285714288,
+        "worker_time_percent": 85.71428571428572,
+        "manager_utilization": 200.0,
+        "delegation_success_rate": 0.42028985507246375,
+        "preemption_rate": 0.2753623188405797,
+        "messages_per_episode": 28864.2,
+        "bytes_per_step": 39378.171896316504,
+        "coordination_latency_mean": 0.00011174461097150708,
+        "coordination_latency_std": 0.0001383356425450611,
+        "total_episodes": 10,
+        "successful_episodes": 3
+      },
+      "execution_time": 0.16640150200692005
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "tree",
+        "num_agents": 12,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.5,
+        "normalized_return_mean": 15.325,
+        "normalized_return_std": 17.556832319957696,
+        "makespan_mean": 12.4,
+        "makespan_std": 2.073644135332772,
+        "action_efficiency": 449.6,
+        "wall_clock_per_episode": 0.011435754800913855,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 400.0,
+        "delegation_success_rate": 0.5806451612903226,
+        "preemption_rate": 0.1935483870967742,
+        "messages_per_episode": 19384.5,
+        "bytes_per_step": 34491.99288256228,
+        "coordination_latency_mean": 8.512403572942211e-05,
+        "coordination_latency_std": 8.083543751039615e-05,
+        "total_episodes": 10,
+        "successful_episodes": 5
+      },
+      "execution_time": 0.1149616039765533
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 3,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.9198,
+        "normalized_return_std": 0.0033598941782277594,
+        "makespan_mean": 24.4,
+        "makespan_std": 3.025814858109391,
+        "action_efficiency": 73.2,
+        "wall_clock_per_episode": 0.003379280903027393,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 1.0,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 5548.2,
+        "bytes_per_step": 22738.524590163935,
+        "coordination_latency_mean": 4.530120446967582e-05,
+        "coordination_latency_std": 4.064840725147256e-05,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.03408872502041049
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 5,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.943,
+        "normalized_return_std": 0.002981423969999685,
+        "makespan_mean": 13.6,
+        "makespan_std": 2.2211108331943574,
+        "action_efficiency": 68,
+        "wall_clock_per_episode": 0.0029210116976173595,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 1.0,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 4433.7,
+        "bytes_per_step": 32600.735294117647,
+        "coordination_latency_mean": 8.329949690960347e-05,
+        "coordination_latency_std": 9.226328008049643e-05,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.02970193699002266
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 8,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.9414,
+        "normalized_return_std": 0.004141926551202411,
+        "makespan_mean": 14.2,
+        "makespan_std": 2.973961069759395,
+        "action_efficiency": 113.6,
+        "wall_clock_per_episode": 0.005234615699737333,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 1.0,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 8207.1,
+        "bytes_per_step": 57796.47887323944,
+        "coordination_latency_mean": 0.00010164108185563236,
+        "coordination_latency_std": 9.566365040991701e-05,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.05302403401583433
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 12,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.943,
+        "normalized_return_std": 0.0027888667551135746,
+        "makespan_mean": 13.7,
+        "makespan_std": 2.263232692902394,
+        "action_efficiency": 164.4,
+        "wall_clock_per_episode": 0.006977904701489024,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 1.0,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 11558.2,
+        "bytes_per_step": 84366.42335766423,
+        "coordination_latency_mean": 0.0001436267007375136,
+        "coordination_latency_std": 0.00018893666695875874,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.0702011639950797
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 3,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.0,
+        "normalized_return_mean": 29.415,
+        "normalized_return_std": 0.3055505050087646,
+        "makespan_mean": 0.0,
+        "makespan_std": 0.0,
+        "action_efficiency": 300,
+        "wall_clock_per_episode": 0.025651637607370503,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 1.0,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 44989.2,
+        "bytes_per_step": 44989.2,
+        "coordination_latency_mean": 3.937173266119013e-05,
+        "coordination_latency_std": 9.49371061613106e-06,
+        "total_episodes": 10,
+        "successful_episodes": 0
+      },
+      "execution_time": 0.25745957798790187
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 5,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.1,
+        "normalized_return_mean": 28.135,
+        "normalized_return_std": 9.715138530492844,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 455.5,
+        "wall_clock_per_episode": 0.03784613119787537,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 1.0,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 68105.3,
+        "bytes_per_step": 74758.83644346871,
+        "coordination_latency_mean": 8.827629964798689e-05,
+        "coordination_latency_std": 9.034008949665024e-05,
+        "total_episodes": 10,
+        "successful_episodes": 1
+      },
+      "execution_time": 0.37936142197577283
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 8,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.2,
+        "normalized_return_mean": 25.31,
+        "normalized_return_std": 13.084252621631343,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 657.6,
+        "wall_clock_per_episode": 0.05200438060273882,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 1.0,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 90644.9,
+        "bytes_per_step": 110273.60097323601,
+        "coordination_latency_mean": 0.00011383118107914925,
+        "coordination_latency_std": 0.00014165008894977127,
+        "total_episodes": 10,
+        "successful_episodes": 2
+      },
+      "execution_time": 0.5210262610053178
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 12,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.2,
+        "normalized_return_mean": 25.105,
+        "normalized_return_std": 12.972694614287178,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 986.4,
+        "wall_clock_per_episode": 0.07803490349906497,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 1.0,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 140818.6,
+        "bytes_per_step": 171312.16545012165,
+        "coordination_latency_mean": 0.0001057601993670687,
+        "coordination_latency_std": 5.136530907448697e-05,
+        "total_episodes": 10,
+        "successful_episodes": 2
+      },
+      "execution_time": 0.7814180220011622
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 3,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.8,
+        "normalized_return_mean": 8.27,
+        "normalized_return_std": 5.865350231088791,
+        "makespan_mean": 22.75,
+        "makespan_std": 1.4880476182856899,
+        "action_efficiency": 114.6,
+        "wall_clock_per_episode": 0.006141473396564834,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 0.86,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 10509.6,
+        "bytes_per_step": 27512.041884816754,
+        "coordination_latency_mean": 3.7055266633008915e-05,
+        "coordination_latency_std": 1.007589197417204e-05,
+        "total_episodes": 10,
+        "successful_episodes": 8
+      },
+      "execution_time": 0.06197667701053433
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 5,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.3,
+        "normalized_return_mean": 18.705,
+        "normalized_return_std": 17.34327359205548,
+        "makespan_mean": 12.666666666666666,
+        "makespan_std": 2.886751345948129,
+        "action_efficiency": 369,
+        "wall_clock_per_episode": 0.02755034190195147,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 0.58,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 48737.2,
+        "bytes_per_step": 66039.56639566396,
+        "coordination_latency_mean": 8.670901763252914e-05,
+        "coordination_latency_std": 0.00010897718356869557,
+        "total_episodes": 10,
+        "successful_episodes": 3
+      },
+      "execution_time": 0.27624017201014794
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 8,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.2,
+        "normalized_return_mean": 23.69,
+        "normalized_return_std": 19.53944443654652,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 657.6,
+        "wall_clock_per_episode": 0.05195042549748905,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 0.56,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 93714.7,
+        "bytes_per_step": 114008.15085158151,
+        "coordination_latency_mean": 0.00010051940043922513,
+        "coordination_latency_std": 0.0001349994327182744,
+        "total_episodes": 10,
+        "successful_episodes": 2
+      },
+      "execution_time": 0.5202376559900586
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "peer_to_peer",
+        "num_agents": 12,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.5,
+        "normalized_return_mean": 20.315,
+        "normalized_return_std": 20.948442662880694,
+        "makespan_mean": 12.4,
+        "makespan_std": 2.1908902300206643,
+        "action_efficiency": 674.4,
+        "wall_clock_per_episode": 0.047696098999585955,
+        "manager_time_percent": 0.0,
+        "worker_time_percent": 100.0,
+        "manager_utilization": 0.0,
+        "delegation_success_rate": 0.8,
+        "preemption_rate": 0.0,
+        "messages_per_episode": 85877.1,
+        "bytes_per_step": 152806.22775800712,
+        "coordination_latency_mean": 0.00010726182081270963,
+        "coordination_latency_std": 0.0001016235489318066,
+        "total_episodes": 10,
+        "successful_episodes": 5
+      },
+      "execution_time": 0.47763690899591893
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 3,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.8924000000000001,
+        "normalized_return_std": 0.00579655069847579,
+        "makespan_mean": 35.9,
+        "makespan_std": 3.9285281382896233,
+        "action_efficiency": 71.8,
+        "wall_clock_per_episode": 0.004253040501498617,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.7142857142857143,
+        "preemption_rate": 0.2857142857142857,
+        "messages_per_episode": 7030.5,
+        "bytes_per_step": 19583.56545961003,
+        "coordination_latency_mean": 7.83616238009386e-05,
+        "coordination_latency_std": 6.566378718595594e-05,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.04286417900584638
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 5,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.9302999999999999,
+        "normalized_return_std": 0.0036832956257496752,
+        "makespan_mean": 22.2,
+        "makespan_std": 0.4216370213557839,
+        "action_efficiency": 88.8,
+        "wall_clock_per_episode": 0.00671782250283286,
+        "manager_time_percent": 11.111111111111109,
+        "worker_time_percent": 88.88888888888889,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.7246376811594203,
+        "preemption_rate": 0.2753623188405797,
+        "messages_per_episode": 11575.4,
+        "bytes_per_step": 52141.44144144144,
+        "coordination_latency_mean": 0.00012244238403805516,
+        "coordination_latency_std": 0.0001298802541170124,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.06750829401426017
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 8,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.9417,
+        "normalized_return_std": 0.0034657049948186385,
+        "makespan_mean": 15,
+        "makespan_std": 2.6666666666666665,
+        "action_efficiency": 105,
+        "wall_clock_per_episode": 0.008661813402432017,
+        "manager_time_percent": 6.666666666666663,
+        "worker_time_percent": 93.33333333333333,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.7246376811594203,
+        "preemption_rate": 0.2753623188405797,
+        "messages_per_episode": 14596.4,
+        "bytes_per_step": 97309.33333333333,
+        "coordination_latency_mean": 0.00018560366571005997,
+        "coordination_latency_std": 0.00022912518755966075,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.08697893199860118
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 12,
+        "environment_type": "task_distribution",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 1.0,
+        "normalized_return_mean": 0.9430999999999999,
+        "normalized_return_std": 0.0026436506745197773,
+        "makespan_mean": 13.9,
+        "makespan_std": 2.5144029554194813,
+        "action_efficiency": 152.9,
+        "wall_clock_per_episode": 0.011896404001163319,
+        "manager_time_percent": 4.347826086956521,
+        "worker_time_percent": 95.65217391304347,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.7936507936507936,
+        "preemption_rate": 0.20634920634920634,
+        "messages_per_episode": 20458.3,
+        "bytes_per_step": 147182.01438848922,
+        "coordination_latency_mean": 0.00027723918329222036,
+        "coordination_latency_std": 0.00038878419029624294,
+        "total_episodes": 10,
+        "successful_episodes": 10
+      },
+      "execution_time": 0.11938539199763909
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 3,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.0,
+        "normalized_return_mean": 27.57,
+        "normalized_return_std": 0.4308905506815704,
+        "makespan_mean": 0.0,
+        "makespan_std": 0.0,
+        "action_efficiency": 200,
+        "wall_clock_per_episode": 0.012504412498674355,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.819672131147541,
+        "preemption_rate": 0.18032786885245902,
+        "messages_per_episode": 20292.0,
+        "bytes_per_step": 20292.0,
+        "coordination_latency_mean": 5.8860131238977756e-05,
+        "coordination_latency_std": 4.4286980724258066e-05,
+        "total_episodes": 10,
+        "successful_episodes": 0
+      },
+      "execution_time": 0.125951778027229
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 5,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.0,
+        "normalized_return_mean": 30.205000000000002,
+        "normalized_return_std": 0.5013592635138117,
+        "makespan_mean": 0.0,
+        "makespan_std": 0.0,
+        "action_efficiency": 400,
+        "wall_clock_per_episode": 0.0309497774054762,
+        "manager_time_percent": 11.11111111111111,
+        "worker_time_percent": 88.88888888888889,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.704225352112676,
+        "preemption_rate": 0.29577464788732394,
+        "messages_per_episode": 53863.8,
+        "bytes_per_step": 53863.8,
+        "coordination_latency_mean": 0.00015193539106154015,
+        "coordination_latency_std": 0.00015481983343117365,
+        "total_episodes": 10,
+        "successful_episodes": 0
+      },
+      "execution_time": 0.31038971300586127
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 8,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.1,
+        "normalized_return_mean": 28.225,
+        "normalized_return_std": 9.743837083567803,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 637.7,
+        "wall_clock_per_episode": 0.05231794709397945,
+        "manager_time_percent": 6.666666666666667,
+        "worker_time_percent": 93.33333333333333,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.746268656716418,
+        "preemption_rate": 0.2537313432835821,
+        "messages_per_episode": 92368.4,
+        "bytes_per_step": 101392.31613611415,
+        "coordination_latency_mean": 0.0002557109851295536,
+        "coordination_latency_std": 0.00030739028256790283,
+        "total_episodes": 10,
+        "successful_episodes": 1
+      },
+      "execution_time": 0.5240685470052995
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 12,
+        "environment_type": "resource_allocation",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.1,
+        "normalized_return_mean": 28.775,
+        "normalized_return_std": 10.045514477173935,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 1002.1,
+        "wall_clock_per_episode": 0.08267363349732477,
+        "manager_time_percent": 4.347826086956564,
+        "worker_time_percent": 95.65217391304344,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.819672131147541,
+        "preemption_rate": 0.18032786885245902,
+        "messages_per_episode": 148182.9,
+        "bytes_per_step": 162659.6048298573,
+        "coordination_latency_mean": 0.000260263859045467,
+        "coordination_latency_std": 0.0004198015501484342,
+        "total_episodes": 10,
+        "successful_episodes": 1
+      },
+      "execution_time": 0.827696369990008
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 3,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.6,
+        "normalized_return_mean": 16.11,
+        "normalized_return_std": 11.974319744074538,
+        "makespan_mean": 33.333333333333336,
+        "makespan_std": 0.5163977794943222,
+        "action_efficiency": 120,
+        "wall_clock_per_episode": 0.007574674003990367,
+        "manager_time_percent": 20.0,
+        "worker_time_percent": 80.0,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.6333333333333333,
+        "preemption_rate": 0.16666666666666666,
+        "messages_per_episode": 12499.6,
+        "bytes_per_step": 20832.666666666668,
+        "coordination_latency_mean": 6.46803923051006e-05,
+        "coordination_latency_std": 5.6249466136373576e-05,
+        "total_episodes": 10,
+        "successful_episodes": 6
+      },
+      "execution_time": 0.076348420989234
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 5,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.7,
+        "normalized_return_mean": 13.23,
+        "normalized_return_std": 10.442599718886523,
+        "makespan_mean": 23.142857142857142,
+        "makespan_std": 1.9518001458970664,
+        "action_efficiency": 184.8,
+        "wall_clock_per_episode": 0.011016706403461285,
+        "manager_time_percent": 11.111111111111112,
+        "worker_time_percent": 88.8888888888889,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.6833333333333333,
+        "preemption_rate": 0.16666666666666666,
+        "messages_per_episode": 18729.0,
+        "bytes_per_step": 40538.96103896104,
+        "coordination_latency_mean": 9.129943126546485e-05,
+        "coordination_latency_std": 9.533380454388012e-05,
+        "total_episodes": 10,
+        "successful_episodes": 7
+      },
+      "execution_time": 0.11080855401814915
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 8,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.4,
+        "normalized_return_mean": 19.86,
+        "normalized_return_std": 19.5808693485362,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 450.8,
+        "wall_clock_per_episode": 0.03862594949605409,
+        "manager_time_percent": 6.666666666666667,
+        "worker_time_percent": 93.33333333333333,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.5384615384615384,
+        "preemption_rate": 0.23076923076923078,
+        "messages_per_episode": 68502.4,
+        "bytes_per_step": 106370.18633540372,
+        "coordination_latency_mean": 0.00020043600058656128,
+        "coordination_latency_std": 0.00026132210304107153,
+        "total_episodes": 10,
+        "successful_episodes": 4
+      },
+      "execution_time": 0.3870501659985166
+    },
+    {
+      "configuration": {
+        "hierarchy_type": "hybrid",
+        "num_agents": 12,
+        "environment_type": "collaborative",
+        "num_episodes": 10
+      },
+      "metrics": {
+        "success_rate": 0.4,
+        "normalized_return_mean": 13.39,
+        "normalized_return_std": 16.408395547537378,
+        "makespan_mean": 11,
+        "makespan_std": 0.0,
+        "action_efficiency": 708.4,
+        "wall_clock_per_episode": 0.05645758370228578,
+        "manager_time_percent": 4.347826086956561,
+        "worker_time_percent": 95.65217391304344,
+        "manager_utilization": 100.0,
+        "delegation_success_rate": 0.5263157894736842,
+        "preemption_rate": 0.12280701754385964,
+        "messages_per_episode": 101417.3,
+        "bytes_per_step": 157480.2795031056,
+        "coordination_latency_mean": 0.0002529888717819833,
+        "coordination_latency_std": 0.0004637510981123816,
+        "total_episodes": 10,
+        "successful_episodes": 4
+      },
+      "execution_time": 0.56538641298539
+    }
+  ]
+}

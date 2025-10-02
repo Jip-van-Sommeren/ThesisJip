@@ -197,9 +197,9 @@ class ProtocolBenchmarkRunner:
                 print(f"Testing {topology.value} topology...")
                 result = benchmark.run_scenario(
                     "concurrent_messaging",
-                    agent_count=6,
+                    agent_count=20,
                     topology_pattern=topology,
-                    messages_per_agent=15,
+                    messages_per_agent=50,
                 )
                 topology_results[topology.value] = self._extract_metrics(
                     result

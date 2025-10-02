@@ -5,5 +5,5 @@
 *.pyc
 *benchmark.json
 .DS_Store
-*/results/*
+# */results/*
 *.md
