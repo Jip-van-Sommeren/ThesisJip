@@ -69,9 +69,10 @@ class ExtendedMqttCommunicatingAgent(AbstractAgent):
             str(agent_id), mqtt_service, mqtt_service.mqtt_config
         )
         self.mqtt_service = mqtt_service
+        self.mailbox = self.mqtt_agent.mailbox
 
         # Register agent with the MQTT service
-        self.mqtt_service.register_agent(str(agent_id))
+        self.mqtt_service.register_agent(str(agent_id), self.mailbox)
 
         # Add communication actions to agent's action set
         self._add_communication_actions()
@@ -284,7 +285,10 @@ class MqttCommunicationEnvironment:
         broker_host: str = "localhost",
         broker_port: int = 1883,
         mqtt_config: Dict[str, Any] = None,
+        latency_mode=None,
     ):
+        from communication.base_communication import LatencyMode
+
         self.broker_host = broker_host
         self.broker_port = broker_port
         self.mqtt_config = mqtt_config or {
@@ -293,6 +297,7 @@ class MqttCommunicationEnvironment:
             "keepalive": 60,
             "qos": 1,
         }
+        self.latency_mode = latency_mode or LatencyMode.SEND_ONLY
 
         self.mqtt_service = None
         self.agents: Dict[str, ExtendedMqttCommunicatingAgent] = {}
@@ -304,7 +309,9 @@ class MqttCommunicationEnvironment:
         if self.is_running:
             return
 
-        self.mqtt_service = MqttCommunicationService(self.mqtt_config)
+        self.mqtt_service = MqttCommunicationService(
+            self.mqtt_config, latency_mode=self.latency_mode
+        )
         self.mqtt_service.start_service()
         self.is_running = self.mqtt_service.is_running
 
@@ -451,6 +458,7 @@ class MqttCommunicationEnvironment:
         agent = ExtendedMqttCommunicatingAgent(
             id_obj, observable_properties, self.mqtt_service
         )
+        agent.mailbox = agent.mqtt_agent.mailbox
 
         self.agents[str(id_obj)] = agent
         return agent

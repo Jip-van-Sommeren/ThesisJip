@@ -6,6 +6,7 @@ for cross-protocol performance comparison.
 """
 
 import json
+import math
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -25,6 +26,7 @@ class BenchmarkAnalyzer:
         self.results_dir = results_dir
         self.data = None
         self.comparison_data = None
+        self.latency_mode = None  # Track latency mode from results
 
         if results_file:
             self.load_results(results_file)
@@ -41,12 +43,17 @@ class BenchmarkAnalyzer:
             self.comparison_data = self.data.get(
                 "cross_protocol_comparison", {}
             )
+            # Extract latency mode from metadata
+            metadata = self.data.get("benchmark_metadata", {})
+            self.latency_mode = metadata.get("latency_mode", "unknown")
             print(f"Loaded results from {results_file}")
+            print(f"Latency mode: {self.latency_mode}")
 
         except Exception as e:
             print(f"Error loading results: {e}")
             self.data = None
             self.comparison_data = None
+            self.latency_mode = None
 
     def load_latest_results(self):
         """Load the most recent benchmark results."""
@@ -75,6 +82,78 @@ class BenchmarkAnalyzer:
 
         return list(self.comparison_data.keys())
 
+    def _format_variant_label(self, protocol: str, variant: str) -> str:
+        protocol_display = protocol.upper()
+        variant = variant or "default"
+        if variant.lower() in {"default", protocol.lower()}:
+            return protocol_display
+        return f"{protocol_display} / {variant}"
+
+    def _iter_scenario_metrics(self):
+        if not self.data:
+            return
+
+        proto_results = self.data.get("protocol_results", {})
+
+        for protocol, proto_data in proto_results.items():
+            variant_map = proto_data.get("variants")
+            if not variant_map:
+                variant_map = {"default": proto_data}
+
+            for variant, variant_data in variant_map.items():
+                scenarios = variant_data.get("scenarios", {})
+                for scenario_name, scenario_metrics in scenarios.items():
+                    if not isinstance(scenario_metrics, dict):
+                        continue
+                    if "avg_latency_ms" in scenario_metrics:
+                        yield (
+                            protocol,
+                            variant,
+                            scenario_name,
+                            scenario_metrics,
+                            variant_data.get("metadata", {}),
+                        )
+                    else:
+                        for label, metrics in scenario_metrics.items():
+                            if (
+                                isinstance(metrics, dict)
+                                and "avg_latency_ms" in metrics
+                            ):
+                                scenario_label = f"{scenario_name}:{label}"
+                                yield (
+                                    protocol,
+                                    variant,
+                                    scenario_label,
+                                    metrics,
+                                    variant_data.get("metadata", {}),
+                                )
+
+    def _iter_concurrency_metrics(self):
+        if not self.data:
+            return
+
+        proto_results = self.data.get("protocol_results", {})
+
+        for protocol, proto_data in proto_results.items():
+            variant_map = proto_data.get("variants")
+            if not variant_map:
+                variant_map = {"default": proto_data}
+
+            for variant, variant_data in variant_map.items():
+                concurrency_matrix = variant_data.get("concurrency_matrix", {})
+                metadata = variant_data.get("metadata", {})
+
+                for concurrency_level, metrics in concurrency_matrix.items():
+                    if not isinstance(metrics, dict):
+                        continue
+                    yield (
+                        protocol,
+                        variant,
+                        concurrency_level,
+                        metrics,
+                        metadata,
+                    )
+
     def create_latency_comparison_plot(
         self, output_file: str = "latency_comparison.png"
     ):
@@ -91,10 +170,16 @@ class BenchmarkAnalyzer:
 
         for scenario, protocol_data in self.comparison_data.items():
             for protocol, metrics in protocol_data.items():
+                avg_lat = metrics.get("avg_latency_ms", 0)
+                p95_lat = metrics.get("p95_latency_ms", 0)
+
+                if avg_lat == 0 and p95_lat == 0:
+                    continue
+
                 protocols.append(protocol.upper())
                 scenarios.append(scenario.replace("_", " ").title())
-                avg_latencies.append(metrics.get("avg_latency_ms", 0))
-                p95_latencies.append(metrics.get("p95_latency_ms", 0))
+                avg_latencies.append(avg_lat)
+                p95_latencies.append(p95_lat)
 
         df = pd.DataFrame(
             {
@@ -112,8 +197,13 @@ class BenchmarkAnalyzer:
         sns.barplot(
             data=df, x="Scenario", y="Avg_Latency_ms", hue="Protocol", ax=ax1
         )
+        mode_label = (
+            f" ({self.latency_mode.replace('_', ' ').title()})"
+            if self.latency_mode
+            else ""
+        )
         ax1.set_title(
-            "Average Message Latency by Protocol",
+            f"Average Message Latency by Protocol{mode_label}",
             fontsize=14,
             fontweight="bold",
         )
@@ -126,7 +216,7 @@ class BenchmarkAnalyzer:
             data=df, x="Scenario", y="P95_Latency_ms", hue="Protocol", ax=ax2
         )
         ax2.set_title(
-            "95th Percentile Message Latency by Protocol",
+            f"95th Percentile Message Latency by Protocol{mode_label}",
             fontsize=14,
             fontweight="bold",
         )
@@ -174,6 +264,12 @@ class BenchmarkAnalyzer:
         # Create subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
+        mode_label = (
+            f" ({self.latency_mode.replace('_', ' ').title()})"
+            if self.latency_mode
+            else ""
+        )
+
         # Throughput plot
         sns.barplot(
             data=df,
@@ -183,7 +279,9 @@ class BenchmarkAnalyzer:
             ax=ax1,
         )
         ax1.set_title(
-            "Message Throughput by Protocol", fontsize=14, fontweight="bold"
+            f"Message Throughput by Protocol{mode_label}",
+            fontsize=14,
+            fontweight="bold",
         )
         ax1.set_ylabel("Throughput (messages/sec)")
         ax1.tick_params(axis="x", rotation=45)
@@ -198,7 +296,9 @@ class BenchmarkAnalyzer:
             ax=ax2,
         )
         ax2.set_title(
-            "Success Rate by Protocol", fontsize=14, fontweight="bold"
+            f"Success Rate by Protocol{mode_label}",
+            fontsize=14,
+            fontweight="bold",
         )
         ax2.set_ylabel("Success Rate (%)")
         ax2.set_ylim(0, 105)
@@ -245,6 +345,12 @@ class BenchmarkAnalyzer:
         # Create subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
+        mode_label = (
+            f" ({self.latency_mode.replace('_', ' ').title()})"
+            if self.latency_mode
+            else ""
+        )
+
         # CPU usage plot
         sns.barplot(
             data=df,
@@ -253,7 +359,11 @@ class BenchmarkAnalyzer:
             hue="Protocol",
             ax=ax1,
         )
-        ax1.set_title("CPU Usage by Protocol", fontsize=14, fontweight="bold")
+        ax1.set_title(
+            f"CPU Usage by Protocol{mode_label}",
+            fontsize=14,
+            fontweight="bold",
+        )
         ax1.set_ylabel("CPU Usage (%)")
         ax1.tick_params(axis="x", rotation=45)
         ax1.grid(True, alpha=0.3)
@@ -263,7 +373,9 @@ class BenchmarkAnalyzer:
             data=df, x="Scenario", y="Memory_Usage_mb", hue="Protocol", ax=ax2
         )
         ax2.set_title(
-            "Memory Usage by Protocol", fontsize=14, fontweight="bold"
+            f"Memory Usage by Protocol{mode_label}",
+            fontsize=14,
+            fontweight="bold",
         )
         ax2.set_ylabel("Memory Usage (MB)")
         ax2.tick_params(axis="x", rotation=45)
@@ -276,6 +388,253 @@ class BenchmarkAnalyzer:
         print(f"Resource usage plot saved to {output_path}")
         plt.close()
 
+    def create_latency_cdf_plot(
+        self,
+        scenarios: Optional[List[str]] = None,
+        output_file: str = "latency_cdf.png",
+    ):
+        """Create CDF plots of latency samples for selected scenarios."""
+
+        records = []
+        scenario_filter = set(scenarios) if scenarios else None
+
+        for (
+            protocol,
+            variant,
+            scenario_name,
+            metrics,
+            _,
+        ) in self._iter_scenario_metrics():
+            if scenario_filter and scenario_name not in scenario_filter:
+                continue
+
+            samples = metrics.get("latency_samples_ms") or []
+            if not samples:
+                continue
+
+            label = self._format_variant_label(protocol, variant)
+            scenario_display = scenario_name.replace("_", " ").title()
+            records.extend(
+                {
+                    "Latency_ms": sample,
+                    "Variant": label,
+                    "Scenario": scenario_display,
+                }
+                for sample in samples
+            )
+
+        if not records:
+            print("No latency sample data available for CDF plot")
+            return
+
+        df = pd.DataFrame(records)
+        df = df.sort_values("Latency_ms")
+
+        scenarios_order = df["Scenario"].unique()
+        num_scenarios = len(scenarios_order)
+        cols = min(3, num_scenarios)
+        rows = math.ceil(num_scenarios / cols)
+
+        fig, axes = plt.subplots(
+            rows,
+            cols,
+            figsize=(cols * 5, rows * 4),
+            squeeze=False,
+        )
+
+        for idx, scenario in enumerate(scenarios_order):
+            r, c = divmod(idx, cols)
+            ax = axes[r][c]
+            subset = df[df["Scenario"] == scenario]
+            sns.ecdfplot(data=subset, x="Latency_ms", hue="Variant", ax=ax)
+            ax.set_title(f"{scenario}")
+            ax.set_xlabel("Latency (ms)")
+            ax.set_ylabel("CDF")
+            ax.grid(True, alpha=0.3)
+            ax.legend_.remove()
+
+        # Hide unused subplots
+        total_axes = rows * cols
+        for idx in range(num_scenarios, total_axes):
+            r, c = divmod(idx, cols)
+            axes[r][c].axis("off")
+
+        # Build legend handles manually because seaborn's ecdfplot drops the Axes legend
+        unique_variants = sorted(df["Variant"].unique())
+        handles = []
+        labels = []
+        palette = sns.color_palette()
+        for idx, variant in enumerate(unique_variants):
+            handle = plt.Line2D(
+                [0],
+                [0],
+                color=palette[idx % len(palette)],
+                label=variant,
+            )
+            handles.append(handle)
+            labels.append(variant)
+        if handles:
+            fig.legend(
+                handles,
+                labels,
+                loc="upper center",
+                ncol=min(4, len(labels)),
+            )
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+        output_path = os.path.join(self.results_dir, output_file)
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        print(f"Latency CDF plot saved to {output_path}")
+        plt.close()
+
+    def create_p99_vs_concurrency_plot(
+        self, output_file: str = "p99_vs_concurrency.png"
+    ):
+        """Plot p99 latency against concurrency levels for each variant."""
+
+        records = []
+        for (
+            protocol,
+            variant,
+            concurrency_level,
+            metrics,
+            _,
+        ) in self._iter_concurrency_metrics():
+            try:
+                concurrency = int(concurrency_level)
+            except (TypeError, ValueError):
+                continue
+
+            p99 = metrics.get("p99_latency_ms")
+            if p99 is None:
+                continue
+
+            label = self._format_variant_label(protocol, variant)
+            records.append(
+                {
+                    "Concurrency": concurrency,
+                    "P99_Latency_ms": p99,
+                    "Variant": label,
+                }
+            )
+
+        if not records:
+            print("No concurrency matrix data available for p99 plot")
+            return
+
+        df = pd.DataFrame(records)
+        df = df.sort_values(["Variant", "Concurrency"])
+
+        plt.figure(figsize=(10, 6))
+        sns.lineplot(
+            data=df,
+            x="Concurrency",
+            y="P99_Latency_ms",
+            hue="Variant",
+            marker="o",
+        )
+        plt.title("P99 Latency vs Concurrent Senders")
+        plt.ylabel("P99 Latency (ms)")
+        plt.grid(True, alpha=0.3)
+        plt.xscale("log", base=2)
+        plt.tight_layout()
+
+        output_path = os.path.join(self.results_dir, output_file)
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        print(f"P99 vs concurrency plot saved to {output_path}")
+        plt.close()
+
+    def create_throughput_vs_payload_plot(
+        self,
+        scenarios: Optional[List[str]] = None,
+        output_file: str = "throughput_vs_payload.png",
+    ):
+        """Plot throughput as a function of payload size."""
+
+        records = []
+        scenario_filter = set(scenarios) if scenarios else None
+
+        for (
+            protocol,
+            variant,
+            scenario_name,
+            metrics,
+            _,
+        ) in self._iter_scenario_metrics():
+            if scenario_filter and scenario_name not in scenario_filter:
+                continue
+
+            payload = metrics.get("payload_size_bytes")
+            throughput = metrics.get("throughput_msg_per_sec")
+            if payload is None or throughput is None:
+                continue
+
+            label = self._format_variant_label(protocol, variant)
+            scenario_display = scenario_name.replace("_", " ").title()
+            records.append(
+                {
+                    "Payload_Bytes": payload,
+                    "Throughput_msg_per_sec": throughput,
+                    "Variant": label,
+                    "Scenario": scenario_display,
+                }
+            )
+
+        if not records:
+            print("No throughput/payload data available for plotting")
+            return
+
+        df = pd.DataFrame(records)
+        df = df.groupby(
+            ["Variant", "Scenario", "Payload_Bytes"], as_index=False
+        ).agg({"Throughput_msg_per_sec": "mean"})
+
+        scenarios_order = df["Scenario"].unique()
+        num_scenarios = len(scenarios_order)
+        cols = min(3, num_scenarios)
+        rows = math.ceil(num_scenarios / cols)
+
+        fig, axes = plt.subplots(
+            rows,
+            cols,
+            figsize=(cols * 5, rows * 4),
+            squeeze=False,
+        )
+
+        for idx, scenario in enumerate(scenarios_order):
+            r, c = divmod(idx, cols)
+            ax = axes[r][c]
+            subset = df[df["Scenario"] == scenario]
+            sns.lineplot(
+                data=subset,
+                x="Payload_Bytes",
+                y="Throughput_msg_per_sec",
+                hue="Variant",
+                marker="o",
+                ax=ax,
+            )
+            ax.set_title(scenario)
+            ax.set_xlabel("Payload Size (bytes)")
+            ax.set_ylabel("Throughput (msg/s)")
+            ax.grid(True, alpha=0.3)
+            ax.legend_.remove()
+
+        total_axes = rows * cols
+        for idx in range(num_scenarios, total_axes):
+            r, c = divmod(idx, cols)
+            axes[r][c].axis("off")
+
+        handles, labels = axes[0][0].get_legend_handles_labels()
+        fig.legend(
+            handles, labels, loc="upper center", ncol=min(4, len(labels))
+        )
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+        output_path = os.path.join(self.results_dir, output_file)
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        print(f"Throughput vs payload plot saved to {output_path}")
+        plt.close()
+
     def create_performance_radar_chart(
         self, output_file: str = "performance_radar.png"
     ):
@@ -284,14 +643,19 @@ class BenchmarkAnalyzer:
             print("No comparison data available")
             return
 
-        protocols = self.get_available_protocols()
-        if not protocols:
+        base_protocols = {
+            protocol.lower(): protocol
+            for protocol in self.get_available_protocols()
+        }
+        if not base_protocols:
             return
 
         # Aggregate metrics across scenarios for each protocol
-        protocol_metrics = {}
+        protocol_metrics = {
+            canonical: {} for canonical in base_protocols.values()
+        }
 
-        for protocol in protocols:
+        for protocol_key, canonical_name in base_protocols.items():
             avg_latency = []
             avg_throughput = []
             avg_success_rate = []
@@ -299,9 +663,15 @@ class BenchmarkAnalyzer:
             avg_memory = []
 
             for scenario, protocol_data in self.comparison_data.items():
-                if protocol in protocol_data:
-                    metrics = protocol_data[protocol]
-                    avg_latency.append(metrics.get("avg_latency_ms", 0))
+                for variant_key, metrics in protocol_data.items():
+                    variant_proto = variant_key.split("::")[0].lower()
+                    if variant_proto != protocol_key:
+                        continue
+
+                    lat = metrics.get("avg_latency_ms", 0)
+                    if lat > 0:
+                        avg_latency.append(lat)
+
                     avg_throughput.append(
                         metrics.get("throughput_msg_per_sec", 0)
                     )
@@ -311,7 +681,7 @@ class BenchmarkAnalyzer:
                     avg_cpu.append(metrics.get("cpu_usage_percent", 0))
                     avg_memory.append(metrics.get("memory_usage_mb", 0))
 
-            protocol_metrics[protocol] = {
+            protocol_metrics[canonical_name] = {
                 "Low Latency": 100
                 - (np.mean(avg_latency) if avg_latency else 0),  # Inverted
                 "High Throughput": (
@@ -327,6 +697,7 @@ class BenchmarkAnalyzer:
             }
 
         # Create radar chart
+        protocols = list(protocol_metrics.keys())
         categories = list(protocol_metrics[protocols[0]].keys())
         num_categories = len(categories)
 
@@ -549,9 +920,13 @@ class BenchmarkAnalyzer:
 
                 for protocol, metrics in sorted_protocols:
                     f.write(f"  {protocol.upper():>8}: ")
-                    f.write(
-                        f"Latency {metrics.get('avg_latency_ms', 0):6.1f}ms | "
-                    )
+
+                    avg_lat = metrics.get("avg_latency_ms", 0)
+                    if avg_lat == 0 and scenario == "broadcast_throughput":
+                        f.write("(Skipped in end_to_end mode) | ")
+                    else:
+                        f.write(f"Latency {avg_lat:6.1f}ms | ")
+
                     f.write(
                         f"Throughput\
                             {metrics.get('throughput_msg_per_sec', 0):6.1f}\
@@ -577,16 +952,31 @@ class BenchmarkAnalyzer:
             all_protocols = self.get_available_protocols()
 
             # Find best overall performers
+            # Helper function to get metrics for a protocol across all variants
+            def get_protocol_metrics(protocol: str, scenario: str, metric_key: str, default_value):
+                """Get all metrics for a protocol (including variants) in a scenario."""
+                metrics = []
+                protocol_lower = protocol.lower()
+                scenario_data = self.comparison_data.get(scenario, {})
+
+                for variant_key, variant_metrics in scenario_data.items():
+                    # Extract base protocol from variant key (e.g., "rest::http1" -> "rest")
+                    base_proto = variant_key.split("::")[0].lower()
+                    if base_proto == protocol_lower:
+                        value = variant_metrics.get(metric_key, default_value)
+                        if value != default_value:  # Skip default values
+                            metrics.append(value)
+
+                return metrics
+
             best_latency = min(
                 all_protocols,
                 key=lambda p: np.mean(
                     [
-                        self.comparison_data[s][p].get(
-                            "avg_latency_ms", float("inf")
-                        )
+                        metric
                         for s in self.get_available_scenarios()
-                        if p in self.comparison_data[s]
-                    ]
+                        for metric in get_protocol_metrics(p, s, "avg_latency_ms", float("inf"))
+                    ] or [float("inf")]  # Fallback if no metrics found
                 ),
             )
 
@@ -594,12 +984,10 @@ class BenchmarkAnalyzer:
                 all_protocols,
                 key=lambda p: np.mean(
                     [
-                        self.comparison_data[s][p].get(
-                            "throughput_msg_per_sec", 0
-                        )
+                        metric
                         for s in self.get_available_scenarios()
-                        if p in self.comparison_data[s]
-                    ]
+                        for metric in get_protocol_metrics(p, s, "throughput_msg_per_sec", 0)
+                    ] or [0]  # Fallback if no metrics found
                 ),
             )
 
@@ -607,12 +995,10 @@ class BenchmarkAnalyzer:
                 all_protocols,
                 key=lambda p: np.mean(
                     [
-                        self.comparison_data[s][p].get(
-                            "success_rate_percent", 0
-                        )
+                        metric
                         for s in self.get_available_scenarios()
-                        if p in self.comparison_data[s]
-                    ]
+                        for metric in get_protocol_metrics(p, s, "success_rate_percent", 0)
+                    ] or [0]  # Fallback if no metrics found
                 ),
             )
 
@@ -659,20 +1045,39 @@ class BenchmarkAnalyzer:
         topology_data = []
         topologies = ["fully_connected", "star", "ring", "chain"]
 
-        for protocol, protocol_data in self.data.get("protocol_results", {}).items():
-            # Check if topology_comparison exists in the protocol data
-            topology_comp = protocol_data.get("topology_comparison", {})
+        for protocol, protocol_data in self.data.get(
+            "protocol_results", {}
+        ).items():
+            variant_map = protocol_data.get("variants", {})
+            if not variant_map:
+                continue
 
-            if topology_comp:
+            multiple_variants = len(variant_map) > 1
+
+            for variant_name, variant_data in variant_map.items():
+                label = (
+                    f"{protocol.upper()} / {variant_name}"
+                    if multiple_variants
+                    else protocol.upper()
+                )
+                topology_comp = variant_data.get("topology_comparison", {})
+
                 for topo, metrics in topology_comp.items():
-                    if topo in topologies:
-                        topology_data.append({
-                            "Protocol": protocol.upper(),
+                    if topo not in topologies:
+                        continue
+                    topology_data.append(
+                        {
+                            "Protocol": label,
                             "Topology": topo.replace("_", " ").title(),
                             "Avg_Latency_ms": metrics.get("avg_latency_ms", 0),
-                            "Throughput_msg_per_sec": metrics.get("throughput_msg_per_sec", 0),
-                            "Success_Rate_percent": metrics.get("success_rate_percent", 0)
-                        })
+                            "Throughput_msg_per_sec": metrics.get(
+                                "throughput_msg_per_sec", 0
+                            ),
+                            "Success_Rate_percent": metrics.get(
+                                "success_rate_percent", 0
+                            ),
+                        }
+                    )
 
         if not topology_data:
             print("No topology comparison data found")
@@ -684,28 +1089,52 @@ class BenchmarkAnalyzer:
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
 
         # Latency by topology
-        sns.barplot(data=df, x="Topology", y="Avg_Latency_ms", hue="Protocol", ax=ax1)
-        ax1.set_title("Latency by Topology Pattern", fontsize=12, fontweight="bold")
+        sns.barplot(
+            data=df, x="Topology", y="Avg_Latency_ms", hue="Protocol", ax=ax1
+        )
+        ax1.set_title(
+            "Latency by Topology Pattern", fontsize=12, fontweight="bold"
+        )
         ax1.set_ylabel("Average Latency (ms)")
         ax1.tick_params(axis="x", rotation=45)
-        ax1.grid(True, alpha=0.3, axis='y')
+        ax1.grid(True, alpha=0.3, axis="y")
 
         # Throughput by topology
-        sns.barplot(data=df, x="Topology", y="Throughput_msg_per_sec", hue="Protocol", ax=ax2)
-        ax2.set_title("Throughput by Topology Pattern", fontsize=12, fontweight="bold")
+        sns.barplot(
+            data=df,
+            x="Topology",
+            y="Throughput_msg_per_sec",
+            hue="Protocol",
+            ax=ax2,
+        )
+        ax2.set_title(
+            "Throughput by Topology Pattern", fontsize=12, fontweight="bold"
+        )
         ax2.set_ylabel("Throughput (msg/s)")
         ax2.tick_params(axis="x", rotation=45)
-        ax2.grid(True, alpha=0.3, axis='y')
+        ax2.grid(True, alpha=0.3, axis="y")
 
         # Success rate by topology
-        sns.barplot(data=df, x="Topology", y="Success_Rate_percent", hue="Protocol", ax=ax3)
-        ax3.set_title("Success Rate by Topology Pattern", fontsize=12, fontweight="bold")
+        sns.barplot(
+            data=df,
+            x="Topology",
+            y="Success_Rate_percent",
+            hue="Protocol",
+            ax=ax3,
+        )
+        ax3.set_title(
+            "Success Rate by Topology Pattern", fontsize=12, fontweight="bold"
+        )
         ax3.set_ylabel("Success Rate (%)")
         ax3.set_ylim(0, 105)
         ax3.tick_params(axis="x", rotation=45)
-        ax3.grid(True, alpha=0.3, axis='y')
+        ax3.grid(True, alpha=0.3, axis="y")
 
-        plt.suptitle("Topology Pattern Performance Comparison", fontsize=16, fontweight="bold")
+        plt.suptitle(
+            "Topology Pattern Performance Comparison",
+            fontsize=16,
+            fontweight="bold",
+        )
         plt.tight_layout()
 
         output_path = os.path.join(self.results_dir, output_file)
@@ -716,35 +1145,58 @@ class BenchmarkAnalyzer:
     def create_scalability_analysis_plot(
         self, output_file: str = "scalability_analysis.png"
     ):
-        """Create scalability analysis plot showing performance vs agent count."""
+        """Create scalability analysis plot showing
+        performance vs agent count"""
         if not self.data:
             print("No data available")
             return
 
-        # Extract scalability scenarios from protocol results
         scalability_data = []
 
-        for protocol, protocol_data in self.data.get("protocol_results", {}).items():
-            # Look in the scenarios dict for scalability_stress
-            scenarios = protocol_data.get("scenarios", {})
-            scalability_stress = scenarios.get("scalability_stress", {})
+        for protocol, protocol_data in self.data.get(
+            "protocol_results", {}
+        ).items():
+            variant_map = protocol_data.get("variants", {})
+            if not variant_map:
+                continue
 
-            # Each key in scalability_stress is like "5_agents", "10_agents", etc.
-            for agent_key, metrics in scalability_stress.items():
-                try:
-                    # Extract agent count from key like "5_agents"
-                    count = int(agent_key.split("_")[0])
-                    scalability_data.append({
-                        "Protocol": protocol.upper(),
-                        "Agent_Count": count,
-                        "Avg_Latency_ms": metrics.get("avg_latency_ms", 0),
-                        "Throughput_msg_per_sec": metrics.get("throughput_msg_per_sec", 0),
-                        "Success_Rate_percent": metrics.get("success_rate_percent", 0),
-                        "CPU_Usage_percent": metrics.get("cpu_usage_percent", 0),
-                        "Memory_Usage_mb": metrics.get("memory_usage_mb", 0)
-                    })
-                except (ValueError, IndexError):
-                    continue
+            multiple_variants = len(variant_map) > 1
+
+            for variant_name, variant_data in variant_map.items():
+                label = (
+                    f"{protocol.upper()} / {variant_name}"
+                    if multiple_variants
+                    else protocol.upper()
+                )
+                scalability_stress = variant_data.get("scenarios", {}).get(
+                    "scalability_stress", {}
+                )
+
+                for agent_key, metrics in scalability_stress.items():
+                    try:
+                        count = int(agent_key.split("_")[0])
+                    except (ValueError, IndexError):
+                        continue
+
+                    scalability_data.append(
+                        {
+                            "Protocol": label,
+                            "Agent_Count": count,
+                            "Avg_Latency_ms": metrics.get("avg_latency_ms", 0),
+                            "Throughput_msg_per_sec": metrics.get(
+                                "throughput_msg_per_sec", 0
+                            ),
+                            "Success_Rate_percent": metrics.get(
+                                "success_rate_percent", 0
+                            ),
+                            "CPU_Usage_percent": metrics.get(
+                                "cpu_usage_percent", 0
+                            ),
+                            "Memory_Usage_mb": metrics.get(
+                                "memory_usage_mb", 0
+                            ),
+                        }
+                    )
 
         if not scalability_data:
             print("No scalability analysis data found")
@@ -752,15 +1204,20 @@ class BenchmarkAnalyzer:
 
         df = pd.DataFrame(scalability_data)
 
-        # Create 2x2 subplot
         fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
-        # Plot 1: Latency vs Agent Count
         for protocol in df["Protocol"].unique():
             protocol_df = df[df["Protocol"] == protocol]
-            axes[0, 0].plot(protocol_df["Agent_Count"], protocol_df["Avg_Latency_ms"],
-                           marker='o', linewidth=2, label=protocol)
-        axes[0, 0].set_title("Latency vs Team Size", fontsize=12, fontweight="bold")
+            axes[0, 0].plot(
+                protocol_df["Agent_Count"],
+                protocol_df["Avg_Latency_ms"],
+                marker="o",
+                linewidth=2,
+                label=protocol,
+            )
+        axes[0, 0].set_title(
+            "Latency vs Team Size", fontsize=12, fontweight="bold"
+        )
         axes[0, 0].set_xlabel("Number of Agents")
         axes[0, 0].set_ylabel("Average Latency (ms)")
         axes[0, 0].legend()
@@ -769,9 +1226,16 @@ class BenchmarkAnalyzer:
         # Plot 2: Throughput vs Agent Count
         for protocol in df["Protocol"].unique():
             protocol_df = df[df["Protocol"] == protocol]
-            axes[0, 1].plot(protocol_df["Agent_Count"], protocol_df["Throughput_msg_per_sec"],
-                           marker='s', linewidth=2, label=protocol)
-        axes[0, 1].set_title("Throughput vs Team Size", fontsize=12, fontweight="bold")
+            axes[0, 1].plot(
+                protocol_df["Agent_Count"],
+                protocol_df["Throughput_msg_per_sec"],
+                marker="s",
+                linewidth=2,
+                label=protocol,
+            )
+        axes[0, 1].set_title(
+            "Throughput vs Team Size", fontsize=12, fontweight="bold"
+        )
         axes[0, 1].set_xlabel("Number of Agents")
         axes[0, 1].set_ylabel("Throughput (msg/s)")
         axes[0, 1].legend()
@@ -780,9 +1244,16 @@ class BenchmarkAnalyzer:
         # Plot 3: CPU Usage vs Agent Count
         for protocol in df["Protocol"].unique():
             protocol_df = df[df["Protocol"] == protocol]
-            axes[1, 0].plot(protocol_df["Agent_Count"], protocol_df["CPU_Usage_percent"],
-                           marker='^', linewidth=2, label=protocol)
-        axes[1, 0].set_title("CPU Usage vs Team Size", fontsize=12, fontweight="bold")
+            axes[1, 0].plot(
+                protocol_df["Agent_Count"],
+                protocol_df["CPU_Usage_percent"],
+                marker="^",
+                linewidth=2,
+                label=protocol,
+            )
+        axes[1, 0].set_title(
+            "CPU Usage vs Team Size", fontsize=12, fontweight="bold"
+        )
         axes[1, 0].set_xlabel("Number of Agents")
         axes[1, 0].set_ylabel("CPU Usage (%)")
         axes[1, 0].legend()
@@ -791,15 +1262,27 @@ class BenchmarkAnalyzer:
         # Plot 4: Memory Usage vs Agent Count
         for protocol in df["Protocol"].unique():
             protocol_df = df[df["Protocol"] == protocol]
-            axes[1, 1].plot(protocol_df["Agent_Count"], protocol_df["Memory_Usage_mb"],
-                           marker='d', linewidth=2, label=protocol)
-        axes[1, 1].set_title("Memory Usage vs Team Size", fontsize=12, fontweight="bold")
+            axes[1, 1].plot(
+                protocol_df["Agent_Count"],
+                protocol_df["Memory_Usage_mb"],
+                marker="d",
+                linewidth=2,
+                label=protocol,
+            )
+        axes[1, 1].set_title(
+            "Memory Usage vs Team Size", fontsize=12, fontweight="bold"
+        )
         axes[1, 1].set_xlabel("Number of Agents")
         axes[1, 1].set_ylabel("Memory Usage (MB)")
         axes[1, 1].legend()
         axes[1, 1].grid(True, alpha=0.3)
 
-        plt.suptitle("Protocol Scalability Analysis", fontsize=16, fontweight="bold", y=0.995)
+        plt.suptitle(
+            "Protocol Scalability Analysis",
+            fontsize=16,
+            fontweight="bold",
+            y=0.995,
+        )
         plt.tight_layout()
 
         output_path = os.path.join(self.results_dir, output_file)
@@ -814,13 +1297,16 @@ class BenchmarkAnalyzer:
         self.create_latency_comparison_plot()
         self.create_throughput_comparison_plot()
         self.create_resource_usage_plot()
+        self.create_latency_cdf_plot()
+        self.create_p99_vs_concurrency_plot()
+        self.create_throughput_vs_payload_plot()
         self.create_performance_radar_chart()
         self.create_protocol_ranking_table()
         self.create_topology_comparison_plot()
         self.create_scalability_analysis_plot()
         self.generate_summary_report()
 
-        print("\n✅ All visualizations generated successfully!")
+        print("\nAll visualizations generated successfully!")
 
 
 def main():
@@ -850,10 +1336,25 @@ def main():
             "ranking",
             "topology",
             "scalability",
+            "latency_cdf",
+            "p99_concurrency",
+            "throughput_payload",
             "all",
         ],
         default="all",
         help="Type of plot to generate (default: all)",
+    )
+
+    parser.add_argument(
+        "--cdf-scenarios",
+        nargs="+",
+        help="Specific scenarios to include in latency CDF plots",
+    )
+
+    parser.add_argument(
+        "--payload-scenarios",
+        nargs="+",
+        help="Scenarios to include in throughput vs payload plots",
     )
 
     args = parser.parse_args()
@@ -882,6 +1383,14 @@ def main():
         analyzer.create_topology_comparison_plot()
     elif args.plot == "scalability":
         analyzer.create_scalability_analysis_plot()
+    elif args.plot == "latency_cdf":
+        analyzer.create_latency_cdf_plot(scenarios=args.cdf_scenarios)
+    elif args.plot == "p99_concurrency":
+        analyzer.create_p99_vs_concurrency_plot()
+    elif args.plot == "throughput_payload":
+        analyzer.create_throughput_vs_payload_plot(
+            scenarios=args.payload_scenarios
+        )
 
 
 if __name__ == "__main__":

@@ -29,6 +29,35 @@ class MessageType(Enum):
     REPLY = "reply"
     BROADCAST = "broadcast"
     ERROR = "error"
+    ACK = "ack"  # Acknowledgment for end-to-end latency measurement
+
+
+class LatencyMode(Enum):
+    """
+    Latency measurement modes for benchmarking.
+
+    SEND_ONLY: Measure only time to send/publish message (no delivery confirmation)
+    - REST: Time to make HTTP request (async, don't wait for response)
+    - gRPC: Time to make RPC call (async, don't wait for response)
+    - MQTT: Time to publish to broker
+    - Kafka: Time to send to producer (no broker ack)
+
+    END_TO_END: Measure protocol-level round-trip including protocol confirmation
+    - REST: HTTP request/response cycle
+    - gRPC: RPC call/response cycle
+    - MQTT: Publish + broker acknowledgment (QoS 1)
+    - Kafka: Send + leader acknowledgment (acks=1)
+
+    APP_ACK: Measure application-level round-trip with explicit receiver acknowledgment
+    - Sender sends message and waits for explicit ACK message from receiver
+    - Receiver processes message and sends ACK back to sender
+    - Measures true end-to-end latency including receiver processing time
+    - Most comprehensive latency measurement (includes network + protocol + processing)
+    """
+
+    SEND_ONLY = "send_only"
+    END_TO_END = "end_to_end"
+    APP_ACK = "app_ack"
 
 
 @dataclass

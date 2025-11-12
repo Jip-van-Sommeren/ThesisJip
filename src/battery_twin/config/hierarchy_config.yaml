@@ -1,0 +1,151 @@
+# Hierarchy Configuration for Battery Digital Twin
+# Structure: OrchestratorAgent as root supervisor (star topology)
+
+hierarchy:
+  root: "orchestrator.1"
+
+  agents:
+    orchestrator.1:
+      type: "bdi"
+      supervisor: null
+      subordinates:
+        - "registry.1"
+        - "telemetry.ingestor.1"
+        - "model.physics.1"
+        - "model.mlresidual.1"
+        - "estimator.state.1"
+        - "estimator.paramid.1"
+        - "monitor.faults.1"
+        - "controller.charge.1"
+      roles: ["orchestrator", "system_manager"]
+      groups: ["system"]
+      observable_properties: []
+
+    registry.1:
+      type: "reactive"
+      supervisor: "orchestrator.1"
+      subordinates: []
+      roles: ["registry", "schema_validator"]
+      groups: ["system"]
+      observable_properties: ["schema_changes", "agent_status"]
+
+    telemetry.ingestor.1:
+      type: "reactive"
+      supervisor: "orchestrator.1"
+      subordinates: []
+      roles: ["data_ingestor", "validator"]
+      groups: ["data_pipeline"]
+      observable_properties: ["raw_telemetry"]
+
+    model.physics.1:
+      type: "hybrid"
+      supervisor: "orchestrator.1"
+      subordinates: []
+      roles: ["model", "predictor"]
+      groups: ["modeling"]
+      observable_properties: ["telemetry", "parameters"]
+
+    model.mlresidual.1:
+      type: "bdi"
+      supervisor: "orchestrator.1"
+      subordinates: []
+      roles: ["model", "corrector"]
+      groups: ["modeling"]
+      observable_properties: ["physics_prediction", "telemetry"]
+
+    estimator.state.1:
+      type: "bdi"
+      supervisor: "orchestrator.1"
+      subordinates: []
+      roles: ["estimator", "filter"]
+      groups: ["estimation"]
+      observable_properties: ["telemetry", "predictions"]
+
+    estimator.paramid.1:
+      type: "bdi"
+      supervisor: "orchestrator.1"
+      subordinates: []
+      roles: ["estimator", "identifier"]
+      groups: ["estimation"]
+      observable_properties: ["telemetry", "state_estimates"]
+
+    monitor.faults.1:
+      type: "reactive"
+      supervisor: "orchestrator.1"
+      subordinates: []
+      roles: ["monitor", "alarm"]
+      groups: ["monitoring"]
+      observable_properties: ["predictions", "telemetry", "state_estimates"]
+
+    controller.charge.1:
+      type: "hybrid"
+      supervisor: "orchestrator.1"
+      subordinates: []
+      roles: ["controller", "optimizer"]
+      groups: ["control"]
+      observable_properties: ["state_estimates", "predictions", "faults"]
+
+# Role definitions
+roles:
+  orchestrator:
+    responsibilities:
+      - name: "system_coordination"
+        priority: 3.0
+      - name: "health_monitoring"
+        priority: 3.0
+      - name: "failure_recovery"
+        priority: 3.0
+    permissions:
+      - "COMMAND_AGENTS"
+      - "RESTART_AGENTS"
+      - "MODIFY_TOPOLOGY"
+
+  data_ingestor:
+    responsibilities:
+      - name: "data_validation"
+        priority: 2.5
+      - name: "data_cleaning"
+        priority: 2.0
+    permissions:
+      - "PUBLISH_TELEMETRY"
+
+  model:
+    responsibilities:
+      - name: "prediction"
+        priority: 2.5
+    permissions:
+      - "PUBLISH_PREDICTIONS"
+      - "ACCESS_STORAGE"
+
+  estimator:
+    responsibilities:
+      - name: "state_estimation"
+        priority: 2.5
+    permissions:
+      - "PUBLISH_ESTIMATES"
+      - "ACCESS_STORAGE"
+
+  monitor:
+    responsibilities:
+      - name: "anomaly_detection"
+        priority: 3.0
+    permissions:
+      - "PUBLISH_ALERTS"
+      - "ESCALATE_FAULTS"
+
+  controller:
+    responsibilities:
+      - name: "setpoint_generation"
+        priority: 2.5
+    permissions:
+      - "PUBLISH_COMMANDS"
+
+  registry:
+    responsibilities:
+      - name: "schema_management"
+        priority: 2.0
+      - name: "agent_directory"
+        priority: 2.0
+    permissions:
+      - "VALIDATE_MESSAGES"
+      - "REJECT_INVALID"

@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-11-06T11:05:22.318566",
+  "duration_seconds": 60.25451326370239,
+  "config": {
+    "battery_id": "BENCH001",
+    "agents_enabled": {
+      "telemetry_ingestor": true,
+      "state_estimator": true,
+      "health_monitor": true,
+      "physics_model": false,
+      "ml_residual": false
+    }
+  },
+  "latency": {
+    "min_ms": 0.08940696716308594,
+    "max_ms": 0.5536079406738281,
+    "mean_ms": 0.17046449172436892,
+    "median_ms": 0.15497207641601562,
+    "p95_ms": 0.29244422912597645,
+    "p99_ms": 0.47448158264160156,
+    "std_ms": 0.07311175723534473
+  },
+  "throughput": {
+    "messages_per_second": 9.907971497292563,
+    "total_messages": 597,
+    "duration_seconds": 60.25451326370239
+  },
+  "resources": {
+    "cpu_percent_avg": 0.4666666666666667,
+    "cpu_percent_max": 4.0,
+    "memory_mb_avg": 622.1114583333333,
+    "memory_mb_max": 622.640625,
+    "memory_percent_avg": 1.9754060333075876
+  },
+  "agents": [
+    {
+      "agent_name": "telemetry_ingestor",
+      "messages_processed": 0,
+      "average_latency_ms": 0.0,
+      "error_count": 0
+    },
+    {
+      "agent_name": "state_estimator",
+      "messages_processed": 0,
+      "average_latency_ms": 0.0,
+      "error_count": 0
+    },
+    {
+      "agent_name": "health_monitor",
+      "messages_processed": 0,
+      "average_latency_ms": 0.0,
+      "error_count": 0
+    }
+  ],
+  "notes": "Benchmark completed successfully"
+}

@@ -1,0 +1,121 @@
+mode: extensive
+latency_mode: app_ack
+output_dir: results/yaml_extensive_demo
+scenarios:
+  - point_to_point_latency
+  - concurrent_messaging
+  - scalability_stress
+agent_counts:
+  - 4
+  - 8
+  - 16
+  - 24
+protocols:
+  rest:
+    variants:
+      http1:
+        parameters:
+          payload_size_bytes: 512
+      http2:
+        parameters:
+          payload_size_bytes: 512
+        concurrency_levels:
+          - 2
+          - 8
+          - 32
+          - 64
+        scenarios:
+          concurrent_messaging:
+            messages_per_agent: 250
+          scalability_stress:
+            stress_duration: 12.0
+  grpc:
+    parameters:
+      grpc_mode: unary
+    variants:
+      unary:
+        scenarios:
+          point_to_point_latency:
+            message_count: 200
+          concurrency_messaging:
+            messages_per_agent: 150
+      streaming:
+        parameters:
+          grpc_mode: streaming
+        concurrency_levels:
+          - 4
+          - 16
+          - 64
+          - 128
+        scenarios:
+          concurrent_messaging:
+            messages_per_agent: 400
+          scalability_stress:
+            stress_duration: 15.0
+  mqtt:
+    variants:
+      qos0:
+        parameters:
+          mqtt_qos: 0
+        scenarios:
+          point_to_point_latency:
+            message_count: 150
+      qos1:
+        parameters:
+          mqtt_qos: 1
+        scenarios:
+          concurrent_messaging:
+            messages_per_agent: 200
+          scalability_stress:
+            stress_duration: 18.0
+      qos2:
+        parameters:
+          mqtt_qos: 2
+        concurrency_levels:
+          - 2
+          - 8
+          - 16
+          - 32
+        scenarios:
+          concurrent_messaging:
+            messages_per_agent: 300
+          scalability_stress:
+            stress_duration: 20.0
+  kafka:
+    variants:
+      acks0_lz4:
+        parameters:
+          kafka_acks: "0"
+          compression_type: lz4
+        scenarios:
+          point_to_point_latency:
+            message_count: 300
+          concurrency_messaging:
+            messages_per_agent: 200
+          scalability_stress:
+            stress_duration: 15.0
+      acks1_lz4:
+        parameters:
+          kafka_acks: "1"
+          compression_type: lz4
+        concurrency_levels:
+          - 4
+          - 16
+          - 64
+          - 128
+        scenarios:
+          concurrent_messaging:
+            messages_per_agent: 400
+          scalability_stress:
+            stress_duration: 20.0
+      acksall_lz4:
+        parameters:
+          kafka_acks: all
+          compression_type: lz4
+        scenarios:
+          point_to_point_latency:
+            message_count: 250
+          concurrent_messaging:
+            messages_per_agent: 250
+          scalability_stress:
+            stress_duration: 25.0

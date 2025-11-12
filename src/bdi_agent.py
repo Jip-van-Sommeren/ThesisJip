@@ -10,7 +10,7 @@ BDI agents have:
 - Suited for reasoning, coordination, optimization, scheduling
 """
 
-from abstract_agent import AbstractAgent, AgentId, Goal
+from src.abstract_agent import AbstractAgent, AgentId, Goal
 from typing import Dict, Set, List, Optional
 from dataclasses import dataclass
 from enum import Enum

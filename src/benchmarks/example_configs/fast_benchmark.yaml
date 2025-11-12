@@ -1,0 +1,35 @@
+# Example benchmark configuration using the YAML matrix system.
+#
+# Run with:
+#   python3 src/benchmarks/benchmark_runner.py --config-file src/benchmarks/example_configs/advanced_matrix.yml
+#
+# You can still add CLI overrides (e.g. --protocols rest kafka) to narrow the run.
+
+mode: simple
+latency_mode: app_ack
+output_dir: results/yaml_matrix_demo
+
+scenarios:
+  - point_to_point_latency
+  - concurrent_messaging
+  - scalability_stress
+
+# Optional override for concurrent benchmark agent counts
+agent_counts: [5, 10, 15]
+
+protocols:
+  kafka:
+    compression_type: "lz4"
+    variants:
+      acks1:
+        parameters:
+          kafka_acks: "1"
+      acksall:
+        parameters:
+          kafka_acks: all
+        concurrency_levels: [4, 16]
+        scenarios:
+          concurrent_messaging:
+            messages_per_agent: 150
+          scalability_stress:
+            stress_duration: 8.0

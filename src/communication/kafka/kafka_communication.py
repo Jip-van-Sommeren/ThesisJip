@@ -19,8 +19,10 @@ from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
+import queue
 from communication.base_communication import (
     MessageType as BaseMessageType,
+    LatencyMode,
 )
 
 from kafka import KafkaProducer, KafkaConsumer, KafkaAdminClient
@@ -36,6 +38,7 @@ class KafkaMessageType(Enum):
     REPLY = "reply"
     BROADCAST = "broadcast"
     ERROR = "error"
+    ACK = "ack"
 
     @classmethod
     def from_base_type(cls, base_type: BaseMessageType) -> "KafkaMessageType":
@@ -46,6 +49,7 @@ class KafkaMessageType(Enum):
             BaseMessageType.REPLY: cls.REPLY,
             BaseMessageType.BROADCAST: cls.BROADCAST,
             BaseMessageType.ERROR: cls.ERROR,
+            BaseMessageType.ACK: cls.ACK,
         }
         return mapping[base_type]
 
@@ -57,6 +61,7 @@ class KafkaMessageType(Enum):
             self.REPLY: BaseMessageType.REPLY,
             self.BROADCAST: BaseMessageType.BROADCAST,
             self.ERROR: BaseMessageType.ERROR,
+            self.ACK: BaseMessageType.ACK,
         }
         return mapping[self]
 
@@ -112,7 +117,11 @@ class KafkaMailbox:
     """
 
     def __init__(
-        self, agent_id: str, kafka_config: Dict[str, Any], max_size: int = 1000
+        self,
+        agent_id: str,
+        kafka_config: Dict[str, Any],
+        max_size: int = 1000,
+        broadcast_topic: Optional[str] = None,
     ):
         self.agent_id = agent_id
         self.kafka_config = kafka_config
@@ -125,14 +134,18 @@ class KafkaMailbox:
 
         # Topic for this agent's mailbox
         self.topic = f"agent_mailbox_{agent_id}"
+        self.broadcast_topic = broadcast_topic
 
         self._setup_consumer()
 
     def _setup_consumer(self):
         """Setup Kafka consumer for this agent's mailbox."""
         try:
+            topics = [self.topic]
+            if self.broadcast_topic:
+                topics.append(self.broadcast_topic)
+
             self.consumer = KafkaConsumer(
-                self.topic,
                 bootstrap_servers=self.kafka_config.get(
                     "bootstrap_servers", ["localhost:9092"]
                 ),
@@ -141,6 +154,9 @@ class KafkaMailbox:
                 auto_offset_reset="latest",
                 group_id=f"agent_{self.agent_id}_consumer",
             )
+
+            if topics:
+                self.consumer.subscribe(topics)
 
             # Start consumer thread
             self.running = True
@@ -187,6 +203,10 @@ class KafkaMailbox:
             if clear:
                 self.messages.clear()
             return messages
+
+    def peek_messages(self) -> List[KafkaMessage]:
+        """Return messages without removing them from the mailbox."""
+        return self.get_messages(clear=False)
 
     def size(self) -> int:
         """Get number of messages in mailbox."""
@@ -251,11 +271,16 @@ class KafkaCommunicationService:
     Manages Kafka topics, producers, and delivery statistics.
     """
 
-    def __init__(self, kafka_config: Dict[str, Any] = None):
+    def __init__(
+        self,
+        kafka_config: Dict[str, Any] = None,
+        latency_mode: LatencyMode = LatencyMode.END_TO_END,
+    ):
         self.kafka_config = kafka_config or {
             "bootstrap_servers": ["localhost:9092"],
             "client_id": "agent_communication_service",
         }
+        self.latency_mode = latency_mode
 
         self.mailboxes: Dict[str, KafkaMailbox] = {}
         self.topology = KafkaCommunicationTopology()
@@ -267,33 +292,97 @@ class KafkaCommunicationService:
         }
         self.lock = threading.Lock()
 
+        raw_acks = self.kafka_config.get("acks", "all")
+        self.producer_acks = self._normalize_acks(raw_acks)
+        self.kafka_config["acks"] = self.producer_acks
+        self.producer_compression = self.kafka_config.get(
+            "compression_type"
+        )
+        self.broadcast_topic = self.kafka_config.get(
+            "broadcast_topic", "agent_broadcast_global"
+        )
+
         self.producer = None
         self.admin_client = None
         self.is_running = False
+        self.broadcast_queue: "queue.Queue[Tuple[str, Dict[str, Any], Optional[str]]]" = queue.Queue()
+        self.broadcast_worker_stop = threading.Event()
+        self.broadcast_worker = threading.Thread(
+            target=self._broadcast_worker, daemon=True
+        )
+        self.broadcast_worker.start()
 
         self._setup_kafka()
+
+    def _normalize_acks(self, acks_value: Any) -> Any:
+        """Normalize producer acks configuration to Kafka client's expected formats."""
+        if isinstance(acks_value, str):
+            lowered = acks_value.strip().lower()
+            if lowered in {"all", "-1"}:
+                return "all"
+            if lowered in {"0", "1"}:
+                return int(lowered)
+        elif isinstance(acks_value, int):
+            if acks_value == -1:
+                return "all"
+            if acks_value in {0, 1}:
+                return acks_value
+        return 1
 
     def _setup_kafka(self):
         """Setup Kafka producer and admin client."""
         try:
-            self.producer = KafkaProducer(
-                bootstrap_servers=self.kafka_config["bootstrap_servers"],
-                value_serializer=lambda x: (
+            producer_kwargs = {
+                "bootstrap_servers": self.kafka_config["bootstrap_servers"],
+                "value_serializer": lambda x: (
                     x.encode("utf-8") if isinstance(x, str) else x
                 ),
-                client_id=self.kafka_config.get(
+                "client_id": self.kafka_config.get(
                     "client_id", "agent_communication"
                 ),
-                retries=3,
-                acks="all",
+                "retries": 3,
+                "acks": self.producer_acks,
+                "linger_ms": 5,
+                "batch_size": 32768,
+                "max_in_flight_requests_per_connection": 5,
+            }
+
+            compression = (
+                str(self.producer_compression).lower()
+                if self.producer_compression is not None
+                else ""
             )
-            client_id_value = (
-                self.kafka_config.get("client_id", "agent_communication"),
+            if compression in {"gzip", "snappy", "lz4"}:
+                producer_kwargs["compression_type"] = compression
+            elif compression not in {"", "none"}:
+                logging.warning(
+                    "Kafka compression_type '%s' is not supported; disabling compression",
+                    compression,
+                )
+
+            self.producer = KafkaProducer(**producer_kwargs)
+            client_id_value = self.kafka_config.get(
+                "client_id", "agent_communication"
             )
             self.admin_client = KafkaAdminClient(
                 bootstrap_servers=self.kafka_config["bootstrap_servers"],
                 client_id=f"{client_id_value}_admin",
             )
+
+            if self.admin_client:
+                try:
+                    broadcast_topic = NewTopic(
+                        name=self.broadcast_topic,
+                        num_partitions=1,
+                        replication_factor=1,
+                    )
+                    self.admin_client.create_topics([broadcast_topic])
+                except TopicAlreadyExistsError:
+                    pass
+                except Exception as e:
+                    logging.warning(
+                        f"Could not create broadcast topic '{self.broadcast_topic}': {e}"
+                    )
 
             self.is_running = True
 
@@ -308,7 +397,9 @@ class KafkaCommunicationService:
         if agent_id not in self.mailboxes:
             # Create mailbox (which includes Kafka consumer setup)
             self.mailboxes[agent_id] = KafkaMailbox(
-                agent_id, self.kafka_config
+                agent_id,
+                self.kafka_config,
+                broadcast_topic=self.broadcast_topic,
             )
 
             # Create Kafka topic for this agent if Kafka is available
@@ -356,7 +447,8 @@ class KafkaCommunicationService:
                 future = self.producer.send(topic, value=message.to_json())
 
                 # Wait for send to complete (with timeout)
-                future.get(timeout=5)
+                if self.latency_mode != LatencyMode.SEND_ONLY:
+                    future.get(timeout=5)
 
             else:
                 # Fallback: direct delivery to mailbox
@@ -385,31 +477,53 @@ class KafkaCommunicationService:
         Broadcast message to all reachable agents: implements send(i,*,m).
         """
         reachable = self.topology.get_reachable_agents(message.sender_id)
-        delivered = 0
-        failed = 0
-        message_ids = []
+        total_targets = len(reachable)
+        if total_targets == 0:
+            return {
+                "status": "completed",
+                "delivered": 0,
+                "failed": 0,
+                "total_targets": 0,
+                "message_ids": [],
+            }
 
-        for receiver_id in reachable:
-            # Create individual message for each receiver
-            individual_message = KafkaMessage(
+        payload_copy = json.loads(json.dumps(message.content))
+
+        delivered = total_targets
+        failed = 0
+        message_ids: List[str] = []
+
+        if self.producer and self.is_running:
+            broadcast_message = KafkaMessage(
                 sender_id=message.sender_id,
-                receiver_id=receiver_id,
+                receiver_id="*",
                 message_type=KafkaMessageType.BROADCAST,
-                content=message.content,
+                content=payload_copy,
                 reply_to=message.reply_to,
             )
-
-            if self.send_message(individual_message):
-                delivered += 1
-                message_ids.append(individual_message.message_id)
-            else:
-                failed += 1
+            future = self.producer.send(
+                self.broadcast_topic, value=broadcast_message.to_json()
+            )
+            if self.latency_mode != LatencyMode.SEND_ONLY:
+                try:
+                    future.get(timeout=5)
+                except Exception as exc:
+                    logging.warning(
+                        f"Broadcast publish failed for {message.sender_id}: {exc}"
+                    )
+                    delivered = 0
+                    failed = total_targets
+            message_ids.append(broadcast_message.message_id)
+        else:
+            self._enqueue_broadcast_task(
+                message.sender_id, payload_copy, message.reply_to
+            )
 
         return {
-            "status": "completed",
+            "status": "completed" if delivered >= failed else "failed",
             "delivered": delivered,
             "failed": failed,
-            "total_targets": len(reachable),
+            "total_targets": total_targets,
             "message_ids": message_ids,
         }
 
@@ -438,6 +552,10 @@ class KafkaCommunicationService:
     def close(self):
         """Close all Kafka connections."""
         self.is_running = False
+        self.broadcast_worker_stop.set()
+        self.broadcast_queue.put(None)
+        if self.broadcast_worker.is_alive():
+            self.broadcast_worker.join(timeout=1.0)
 
         # Close all mailboxes
         for mailbox in self.mailboxes.values():
@@ -447,6 +565,43 @@ class KafkaCommunicationService:
         if self.producer:
             self.producer.flush()
             self.producer.close()
+
+    def _enqueue_broadcast_task(
+        self, sender_id: str, content: Dict[str, Any], reply_to: Optional[str]
+    ):
+        payload = json.loads(json.dumps(content))
+        self.broadcast_queue.put((sender_id, payload, reply_to))
+
+    def _broadcast_worker(self):
+        """Asynchronous worker to deliver broadcast payloads when Kafka broker is unavailable."""
+        while True:
+            try:
+                task = self.broadcast_queue.get(timeout=0.1)
+            except queue.Empty:
+                if self.broadcast_worker_stop.is_set():
+                    break
+                continue
+
+            if task is None:
+                self.broadcast_queue.task_done()
+                break
+
+            sender_id, content, reply_to = task
+            reachable = self.topology.get_reachable_agents(sender_id)
+            for receiver_id in reachable:
+                mailbox = self.mailboxes.get(receiver_id)
+                if not mailbox:
+                    continue
+                message = KafkaMessage(
+                    sender_id=sender_id,
+                    receiver_id=receiver_id,
+                    message_type=KafkaMessageType.BROADCAST,
+                    content=json.loads(json.dumps(content)),
+                    reply_to=reply_to,
+                )
+                mailbox.add_message(message)
+
+            self.broadcast_queue.task_done()
 
 
 class KafkaCommunicatingAgent:

@@ -1,0 +1,33 @@
+# MQTT Topic Structure for Battery Digital Twin
+
+# Topic template variables:
+# {battery_id} - Battery identifier (e.g., B0005)
+# {agent_id} - Agent identifier (e.g., telemetry.ingestor.1)
+
+topics:
+  # Data flow topics - battery-specific
+  raw_telemetry: "battery/{battery_id}/raw"
+  clean_telemetry: "battery/{battery_id}/telemetry"
+  capacity: "battery/{battery_id}/capacity"
+  physics_prediction: "battery/{battery_id}/prediction/physics"
+  ml_correction: "battery/{battery_id}/prediction/ml"
+  hybrid_prediction: "battery/{battery_id}/prediction/hybrid"
+  state_estimate: "battery/{battery_id}/state"
+  parameters: "battery/{battery_id}/parameters"
+  faults: "battery/{battery_id}/faults"
+  control_command: "battery/{battery_id}/control"
+
+  # Agent coordination topics
+  agent_heartbeat: "system/agents/{agent_id}/heartbeat"
+  agent_command: "system/agents/{agent_id}/command"
+  agent_status: "system/agents/{agent_id}/status"
+  agent_response: "system/agents/{agent_id}/response"
+
+  # Registry topics
+  schema_registry: "system/registry/schemas"
+  schema_announce: "system/registry/announce"
+  agent_directory: "system/registry/agents"
+
+  # System-wide topics
+  system_events: "system/events"
+  system_alerts: "system/alerts"

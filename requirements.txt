@@ -16,3 +16,8 @@ pytest-mock
 pandas
 seaborn
 matplotlib
+pyyaml
+torch
+scikit-learn
+scipy
+numpy

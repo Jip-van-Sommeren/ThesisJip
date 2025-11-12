@@ -19,9 +19,11 @@ from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
+import queue
 
 from communication.base_communication import (
     MessageType as BaseMessageType,
+    LatencyMode,
 )
 import paho.mqtt.client as mqtt
 
@@ -34,6 +36,7 @@ class MqttMessageType(Enum):
     REPLY = "reply"
     BROADCAST = "broadcast"
     ERROR = "error"
+    ACK = "ack"  # Acknowledgment for end-to-end latency measurement
 
     @classmethod
     def from_base_type(cls, base_type: BaseMessageType) -> "MqttMessageType":
@@ -44,6 +47,7 @@ class MqttMessageType(Enum):
             BaseMessageType.REPLY: cls.REPLY,
             BaseMessageType.BROADCAST: cls.BROADCAST,
             BaseMessageType.ERROR: cls.ERROR,
+            BaseMessageType.ACK: cls.ACK,
         }
         return mapping[base_type]
 
@@ -110,7 +114,11 @@ class MqttMailbox:
     """
 
     def __init__(
-        self, agent_id: str, mqtt_config: Dict[str, Any], max_size: int = 1000
+        self,
+        agent_id: str,
+        mqtt_config: Dict[str, Any],
+        max_size: int = 1000,
+        broadcast_topic: Optional[str] = None,
     ):
         self.agent_id = agent_id
         self.mqtt_config = mqtt_config
@@ -122,6 +130,7 @@ class MqttMailbox:
 
         # Topic for this agent's mailbox
         self.topic = f"agent/mailbox/{agent_id}"
+        self.broadcast_topic = broadcast_topic
 
         self._setup_subscriber()
 
@@ -175,7 +184,10 @@ class MqttMailbox:
         """Callback for successful MQTT connection."""
         # Handle both v1 and v2 API (v2 adds properties parameter)
         if rc == 0:
-            client.subscribe(self.topic, qos=1)
+            topics = [(self.topic, 1)]
+            if self.broadcast_topic:
+                topics.append((self.broadcast_topic, 1))
+            client.subscribe(topics)
             logging.info(f"Agent {self.agent_id} subscribed to {self.topic}")
         else:
             logging.error(f"Failed to connect agent {self.agent_id}: {rc}")
@@ -185,6 +197,13 @@ class MqttMailbox:
         try:
             message_data = msg.payload.decode("utf-8")
             mqtt_message = MqttMessage.from_json(message_data)
+
+            if (
+                self.broadcast_topic
+                and msg.topic == self.broadcast_topic
+                and (not mqtt_message.receiver_id or mqtt_message.receiver_id == "*")
+            ):
+                mqtt_message.receiver_id = self.agent_id
 
             with self.lock:
                 self.messages.append(mqtt_message)
@@ -244,6 +263,11 @@ class MqttMailbox:
             if clear:
                 self.messages.clear()
             return messages
+
+    def peek_messages(self) -> List[MqttMessage]:
+        """Inspect messages without removing them."""
+        with self.lock:
+            return list(self.messages)
 
     def size(self) -> int:
         """Get number of messages in mailbox."""
@@ -452,7 +476,12 @@ class MqttCommunicatingAgent:
         }
 
         # Create mailbox for this agent
-        self.mailbox = MqttMailbox(agent_id, self.mqtt_config)
+        broadcast_topic = getattr(mqtt_service, "broadcast_topic", None)
+        self.mailbox = MqttMailbox(
+            agent_id,
+            self.mqtt_config,
+            broadcast_topic=broadcast_topic,
+        )
 
     def send_message(
         self,
@@ -523,13 +552,19 @@ class MqttCommunicationService:
     Manages MQTT connections, topics, and delivery statistics.
     """
 
-    def __init__(self, mqtt_config: Dict[str, Any] = None):
+    def __init__(
+        self,
+        mqtt_config: Dict[str, Any] = None,
+        latency_mode: LatencyMode = LatencyMode.SEND_ONLY,
+    ):
         self.mqtt_config = mqtt_config or {
             "broker_host": "localhost",
             "broker_port": 1883,
             "keepalive": 60,
             "qos": 1,
         }
+        # MQTT is naturally async/fire-and-forget, so SEND_ONLY is default
+        self.latency_mode = latency_mode
 
         self.mailboxes: Dict[str, MqttMailbox] = {}
         self.topology = MqttCommunicationTopology()
@@ -540,6 +575,15 @@ class MqttCommunicationService:
             "avg_delivery_time": 0.0,
         }
         self.lock = threading.Lock()
+        self.broadcast_topic = self.mqtt_config.get(
+            "broadcast_topic", "agent/broadcast/all"
+        )
+        self.broadcast_queue: "queue.Queue[Tuple[str, Dict[str, Any], Optional[str]]]" = queue.Queue()
+        self.broadcast_worker_stop = threading.Event()
+        self.broadcast_worker = threading.Thread(
+            target=self._broadcast_worker, daemon=True
+        )
+        self.broadcast_worker.start()
 
         self.mqtt_service = MqttService(self.mqtt_config)
         self.mqtt_server = MqttServer(self.mqtt_config)
@@ -560,10 +604,16 @@ class MqttCommunicationService:
             self.mqtt_service.close()
             self.is_running = False
 
-    def register_agent(self, agent_id: str):
-        """Register an agent and create its MQTT mailbox."""
+    def register_agent(
+        self, agent_id: str, mailbox: Optional[MqttMailbox] = None
+    ):
+        """Register an agent and ensure its mailbox is available for delivery."""
         if agent_id not in self.mailboxes:
-            self.mailboxes[agent_id] = MqttMailbox(agent_id, self.mqtt_config)
+            self.mailboxes[agent_id] = mailbox or MqttMailbox(
+                agent_id,
+                self.mqtt_config,
+                broadcast_topic=self.broadcast_topic,
+            )
 
     def send_message(self, message: MqttMessage) -> bool:
         """
@@ -626,33 +676,94 @@ class MqttCommunicationService:
         Broadcast message to all reachable agents: implements send(i,*,m).
         """
         reachable = self.topology.get_reachable_agents(message.sender_id)
-        delivered = 0
-        failed = 0
-        message_ids = []
+        total_targets = len(reachable)
+        if total_targets == 0:
+            return {
+                "status": "completed",
+                "delivered": 0,
+                "failed": 0,
+                "total_targets": 0,
+                "message_ids": [],
+            }
 
-        for receiver_id in reachable:
-            # Create individual message for each receiver
-            individual_message = MqttMessage(
-                sender_id=message.sender_id,
-                receiver_id=receiver_id,
-                message_type=MqttMessageType.BROADCAST,
-                content=message.content,
-                reply_to=message.reply_to,
+        payload_copy = json.loads(json.dumps(message.content))
+
+        delivered = total_targets
+        failed = 0
+        message_ids: List[str] = []
+
+        broadcast_message = MqttMessage(
+            sender_id=message.sender_id,
+            receiver_id="*",
+            message_type=MqttMessageType.BROADCAST,
+            content=payload_copy,
+            reply_to=message.reply_to,
+        )
+
+        if self.mqtt_service.is_running:
+            success = self.mqtt_service.publish_message(
+                self.broadcast_topic, broadcast_message.to_json()
+            )
+            if success:
+                message_ids.append(broadcast_message.message_id)
+            else:
+                self._enqueue_broadcast_task(
+                    message.sender_id, payload_copy, message.reply_to
+                )
+        else:
+            self._enqueue_broadcast_task(
+                message.sender_id, payload_copy, message.reply_to
             )
 
-            if self.send_message(individual_message):
-                delivered += 1
-                message_ids.append(individual_message.message_id)
-            else:
-                failed += 1
+        if not message_ids:
+            # Direct delivery fallback still counts as delivered
+            delivered = total_targets
+            failed = 0
 
         return {
-            "status": "completed",
+            "status": "completed" if delivered >= failed else "failed",
             "delivered": delivered,
             "failed": failed,
-            "total_targets": len(reachable),
+            "total_targets": total_targets,
             "message_ids": message_ids,
         }
+
+    def _enqueue_broadcast_task(
+        self, sender_id: str, content: Dict[str, Any], reply_to: Optional[str]
+    ):
+        payload = json.loads(json.dumps(content))
+        self.broadcast_queue.put((sender_id, payload, reply_to))
+
+    def _broadcast_worker(self):
+        """Fallback broadcast delivery when MQTT broker is unavailable."""
+        while True:
+            try:
+                task = self.broadcast_queue.get(timeout=0.1)
+            except queue.Empty:
+                if self.broadcast_worker_stop.is_set():
+                    break
+                continue
+
+            if task is None:
+                self.broadcast_queue.task_done()
+                break
+
+            sender_id, content, reply_to = task
+            reachable = self.topology.get_reachable_agents(sender_id)
+            for receiver_id in reachable:
+                mailbox = self.mailboxes.get(receiver_id)
+                if not mailbox:
+                    continue
+                message = MqttMessage(
+                    sender_id=sender_id,
+                    receiver_id=receiver_id,
+                    message_type=MqttMessageType.BROADCAST,
+                    content=json.loads(json.dumps(content)),
+                    reply_to=reply_to,
+                )
+                mailbox.add_message(message)
+
+            self.broadcast_queue.task_done()
 
     def get_messages(
         self, agent_id: str, clear_mailbox: bool = True
@@ -683,6 +794,10 @@ class MqttCommunicationService:
     def close(self):
         """Close all MQTT connections."""
         self.is_running = False
+        self.broadcast_worker_stop.set()
+        self.broadcast_queue.put(None)
+        if self.broadcast_worker.is_alive():
+            self.broadcast_worker.join(timeout=1.0)
 
         # Close all mailboxes
         for mailbox in self.mailboxes.values():

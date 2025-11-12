@@ -14,11 +14,13 @@ class MessageType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     REPLY: _ClassVar[MessageType]
     BROADCAST: _ClassVar[MessageType]
     ERROR: _ClassVar[MessageType]
+    ACK: _ClassVar[MessageType]
 INFORM: MessageType
 REQUEST: MessageType
 REPLY: MessageType
 BROADCAST: MessageType
 ERROR: MessageType
+ACK: MessageType
 
 class Message(_message.Message):
     __slots__ = ("message_id", "sender_id", "receiver_id", "message_type", "content", "timestamp", "reply_to")

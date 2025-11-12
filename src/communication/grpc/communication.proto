@@ -25,6 +25,9 @@ service CommunicationService {
   
   // Get topology information
   rpc GetTopology(TopologyRequest) returns (TopologyResponse);
+
+  // Client-streaming variant for high-throughput message sending
+  rpc StreamMessages(stream SendMessageRequest) returns (StreamSummaryResponse);
 }
 
 // Message types corresponding to the thesis definition
@@ -34,6 +37,7 @@ enum MessageType {
   REPLY = 2;
   BROADCAST = 3;
   ERROR = 4;
+  ACK = 5;  // Acknowledgment for end-to-end latency measurement
 }
 
 // Core message structure representing m ∈ M (Message Space)
@@ -59,6 +63,12 @@ message SendMessageRequest {
 message SendMessageResponse {
   bool success = 1;
   string message_id = 2;
+  optional string error_message = 3;
+}
+
+message StreamSummaryResponse {
+  bool success = 1;
+  repeated string message_ids = 2;
   optional string error_message = 3;
 }
 

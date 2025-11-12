@@ -62,13 +62,19 @@ class ExtendedGrpcCommunicatingAgent(AbstractAgent):
         agent_id: AgentId,
         observable_properties: Set[str],
         grpc_service_address: str = "localhost:50051",
+        communication_mode: str = "unary",
     ):
         super().__init__(agent_id, observable_properties)
+        self.communication_mode = communication_mode.lower()
 
         # Initialize gRPC communication capabilities
         self.grpc_agent = GrpcCommunicatingAgent(
-            str(agent_id), grpc_service_address
+            str(agent_id),
+            grpc_service_address,
+            communication_mode=self.communication_mode,
         )
+        self.mailbox = None
+        self.mailbox = None  # populated by environment registration
 
         # Add communication actions to agent's action set
         self._add_communication_actions()
@@ -277,10 +283,18 @@ class GrpcCommunicationEnvironment:
     """
 
     def __init__(
-        self, service_host: str = "localhost", service_port: int = 50051
+        self,
+        service_host: str = "localhost",
+        service_port: int = 50051,
+        latency_mode=None,
+        communication_mode: str = "unary",
     ):
+        from communication.base_communication import LatencyMode
+
         self.service_host = service_host
         self.service_port = service_port
+        self.latency_mode = latency_mode or LatencyMode.END_TO_END
+        self.communication_mode = communication_mode.lower()
         self.grpc_server = None
         self.agents: Dict[str, ExtendedGrpcCommunicatingAgent] = {}
         self.environment_state: Dict[str, Any] = {}
@@ -292,7 +306,9 @@ class GrpcCommunicationEnvironment:
             return
 
         self.grpc_server = GrpcCommunicationServer(
-            self.service_host, self.service_port
+            self.service_host,
+            self.service_port,
+            latency_mode=self.latency_mode,
         )
         self.grpc_server.start_server()
         self.service_port = self.grpc_server.port
@@ -333,7 +349,15 @@ class GrpcCommunicationEnvironment:
 
         # Update agent's service address
         agent.grpc_agent.service_address = self.get_service_address()
+        agent.grpc_agent.communication_mode = self.communication_mode
+        agent.communication_mode = self.communication_mode
         agent.grpc_agent._connect()
+
+        # Provide direct access to server-side mailbox for benchmarking hooks
+        if self.grpc_server and self.grpc_server.service_impl:
+            agent.mailbox = self.grpc_server.service_impl.mailboxes.get(
+                agent_id_str
+            )
 
     def setup_fully_connected_topology(self):
         """Setup fully connected communication topology."""

@@ -1,0 +1,113 @@
+system:
+  name: "battery_digital_twin"
+  mode: "batch_replay"
+  log_level: "INFO"
+
+mqtt:
+  broker: "localhost"
+  port: 1883
+  qos: 1  # End-to-end delivery
+  keepalive: 60
+  client_id_prefix: "battery_agent_"
+
+storage:
+  enable_time_series: true
+  enable_document_store: true
+  enable_graph_store: true
+  enable_cache: true
+
+  influxdb:
+    host: "localhost"
+    port: 8086
+    database: "battery_metrics"
+    measurement_prefix: "battery_"
+    retention_policy: "30d"
+
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "battery_twin"
+    collections:
+      models: "trained_models"
+      predictions: "predictions"
+      configs: "agent_configs"
+      parameters: "parameter_history"
+      faults: "fault_events"
+
+  neo4j:
+    uri: "bolt://localhost:7687"
+    user: "neo4j"
+    password: "password123"
+    database: "battery_hierarchy"
+
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 1  # Separate from main agent system
+    state_ttl: 3600
+
+data:
+  source: "Digital-Twin-in-python/data/raw/discharge.csv"
+  replay_speed: 1.0  # 1x real-time
+  batch_size: 100
+  batteries: ["B0005"]  # Start with one battery
+
+agents:
+  telemetry_ingestor:
+    validation_rules:
+      voltage_range: [2.5, 4.5]
+      current_range: [-5.0, 5.0]
+      temperature_range: [-10, 60]
+    resampling_rate: 1.0  # seconds
+    outlier_threshold: 3.0  # sigma
+
+  physics_model:
+    model_type: "exponential_degradation"
+    degradation_coefficient: 0.13
+    prediction_horizon: 60  # seconds
+    temperature_ref: 25.0
+
+  ml_residual:
+    architecture: [64, 64]
+    dropout_rate: 0.1
+    learning_rate: 0.001
+    uncertainty_samples: 100
+    retrain_threshold: 0.1  # RMSE increase triggers retraining
+    feature_set: ["physics_pred", "temperature", "cycle", "time"]
+
+  state_estimator:
+    filter_type: "kalman"  # or "particle"
+    state_variables: ["SoC", "SoH", "R0", "R1", "C1"]
+    process_noise: 0.01
+    measurement_noise: 0.05
+
+  parameter_id:
+    window_size: 50  # cycles
+    update_frequency: 10  # cycles
+    min_confidence: 0.8
+
+  fault_detection:
+    residual_threshold: 3.0  # sigma
+    temperature_alarm: 50.0  # Celsius
+    voltage_alarm_low: 2.5
+    voltage_alarm_high: 4.3
+    drift_window: 100  # samples
+
+  control:
+    mode: "rule_based"  # or "mpc"
+    target_soc: 0.8
+    constraints:
+      max_current: 3.0
+      max_voltage: 4.2
+      min_voltage: 2.5
+      max_temperature: 45.0
+    control_frequency: 1.0  # Hz
+
+  orchestrator:
+    heartbeat_timeout: 30  # seconds
+    health_check_interval: 5  # seconds
+    restart_attempts: 3
+
+  registry:
+    schema_validation: true
+    announce_interval: 60  # seconds

@@ -156,6 +156,26 @@ services:
     depends_on:
       - redis
 
+  # Mosquitto - MQTT Broker for Battery Twin
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: battery_mqtt
+    ports:
+      - "1883:1883"  # MQTT
+      - "9001:9001"  # WebSocket
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - agent_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 | grep -v Error || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 volumes:
   influxdb_data:
     driver: local
@@ -172,6 +192,10 @@ volumes:
   redis_data:
     driver: local
   grafana_data:
+    driver: local
+  mosquitto_data:
+    driver: local
+  mosquitto_log:
     driver: local
 
 networks:

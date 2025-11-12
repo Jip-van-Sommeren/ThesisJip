@@ -1,0 +1,49 @@
+mode: extensive
+latency_mode: app_ack
+output_dir: results/all_benchmarks_extensive_app_ack
+agent_counts:
+  - 5
+  - 10
+  - 15
+  - 20
+scenarios:
+  - point_to_point_latency
+  - broadcast_throughput
+  - concurrent_messaging
+  - scalability_stress
+
+protocols:
+  rest:
+    concurrency_levels: [1, 4, 8, 16]
+    variants:
+      http1: {}
+      http2: {}
+
+  grpc:
+    concurrency_levels: [1, 4, 8, 16]
+    variants:
+      unary: {}
+      streaming: {}
+
+  mqtt:
+    concurrency_levels: [1, 4, 8, 16]
+    variants:
+      qos0: {}
+      qos1: {}
+      qos2: {}
+
+  kafka:
+    concurrency_levels: [1, 4, 8, 16]
+    variants:
+      acks0:
+        parameters:
+          kafka_acks: "0"
+          compression_type: lz4
+      acks1:
+        parameters:
+          kafka_acks: "1"
+          compression_type: lz4
+      acksall:
+        parameters:
+          kafka_acks: all
+          compression_type: lz4

@@ -89,9 +89,7 @@ class TaskEffectivenessTracker:
         """Start tracking a new episode."""
         self.episode_counter += 1
         self.current_episode = EpisodeMetrics(
-            episode_id=self.episode_counter,
-            success=False,
-            total_return=0.0
+            episode_id=self.episode_counter, success=False, total_return=0.0
         )
 
     def end_episode(self, success: bool, total_return: float, steps: int):
@@ -118,13 +116,20 @@ class TaskEffectivenessTracker:
             return 0.0, 0.0
 
         normalized_returns = [
-            (ep.total_return - self.r_min) / (self.r_max - self.r_min)
-            if (self.r_max - self.r_min) > 0 else 0.0
+            (
+                (ep.total_return - self.r_min) / (self.r_max - self.r_min)
+                if (self.r_max - self.r_min) > 0
+                else 0.0
+            )
             for ep in self.episodes
         ]
 
         mean_return = statistics.mean(normalized_returns)
-        std_return = statistics.stdev(normalized_returns) if len(normalized_returns) > 1 else 0.0
+        std_return = (
+            statistics.stdev(normalized_returns)
+            if len(normalized_returns) > 1
+            else 0.0
+        )
 
         return mean_return, std_return
 
@@ -134,12 +139,18 @@ class TaskEffectivenessTracker:
         if not successful_episodes:
             return 0.0, 0.0
 
-        makespans = [ep.steps_to_success for ep in successful_episodes if ep.steps_to_success]
+        makespans = [
+            ep.steps_to_success
+            for ep in successful_episodes
+            if ep.steps_to_success
+        ]
         if not makespans:
             return 0.0, 0.0
 
         mean_makespan = statistics.mean(makespans)
-        std_makespan = statistics.stdev(makespans) if len(makespans) > 1 else 0.0
+        std_makespan = (
+            statistics.stdev(makespans) if len(makespans) > 1 else 0.0
+        )
 
         return mean_makespan, std_makespan
 
@@ -166,8 +177,13 @@ class HierarchyOverheadTracker:
         with self.lock:
             self.total_env_steps += 1
 
-    def record_delegation(self, issued: bool = True, completed: bool = False,
-                         failed: bool = False, preempted: bool = False):
+    def record_delegation(
+        self,
+        issued: bool = True,
+        completed: bool = False,
+        failed: bool = False,
+        preempted: bool = False,
+    ):
         """Record delegation event."""
         with self.lock:
             if issued:
@@ -208,7 +224,7 @@ class HierarchyOverheadTracker:
             "preemption_rate": self.get_preemption_rate(),
             "total_delegations": self.delegations_issued,
             "completed_delegations": self.delegations_completed,
-            "preemptions": self.preemptions
+            "preemptions": self.preemptions,
         }
 
 
@@ -219,7 +235,9 @@ class CommunicationCostTracker:
         self.message_count = 0
         self.total_bytes = 0
         self.total_steps = 0
-        self.coordination_events: Dict[str, float] = {}  # task_id -> start_time
+        self.coordination_events: Dict[str, float] = (
+            {}
+        )  # task_id -> start_time
         self.coordination_latencies: List[float] = []
         self.lock = threading.Lock()
 
@@ -270,7 +288,11 @@ class CommunicationCostTracker:
                 return 0.0, 0.0
 
             mean_latency = statistics.mean(self.coordination_latencies)
-            std_latency = statistics.stdev(self.coordination_latencies) if len(self.coordination_latencies) > 1 else 0.0
+            std_latency = (
+                statistics.stdev(self.coordination_latencies)
+                if len(self.coordination_latencies) > 1
+                else 0.0
+            )
 
             return mean_latency, std_latency
 
@@ -278,12 +300,14 @@ class CommunicationCostTracker:
         """Get all communication cost statistics."""
         mean_latency, std_latency = self.get_coordination_latency_stats()
         return {
-            "messages_per_episode": self.get_messages_per_episode(num_episodes),
+            "messages_per_episode": self.get_messages_per_episode(
+                num_episodes
+            ),
             "bytes_per_step": self.get_bytes_per_step(),
             "coordination_latency_mean": mean_latency,
             "coordination_latency_std": std_latency,
             "total_messages": self.message_count,
-            "total_bytes": self.total_bytes
+            "total_bytes": self.total_bytes,
         }
 
 
@@ -303,7 +327,9 @@ class ResourceEfficiencyTracker:
         with self.lock:
             self.current_episode_start = time.perf_counter()
 
-    def end_episode(self, manager_time: float, worker_time: float, primitive_actions: int):
+    def end_episode(
+        self, manager_time: float, worker_time: float, primitive_actions: int
+    ):
         """End episode and record resource usage."""
         with self.lock:
             if self.current_episode_start:
@@ -322,7 +348,7 @@ class ResourceEfficiencyTracker:
                     "wall_clock_per_episode": 0.0,
                     "manager_time_percent": 0.0,
                     "worker_time_percent": 0.0,
-                    "action_efficiency": 0.0
+                    "action_efficiency": 0.0,
                 }
 
             avg_wall_clock = statistics.mean(self.wall_clock_times)
@@ -330,16 +356,28 @@ class ResourceEfficiencyTracker:
             avg_worker_time = statistics.mean(self.worker_times)
             total_compute = avg_manager_time + avg_worker_time
 
-            manager_percent = (avg_manager_time / total_compute * 100) if total_compute > 0 else 0.0
-            worker_percent = (avg_worker_time / total_compute * 100) if total_compute > 0 else 0.0
+            manager_percent = (
+                (avg_manager_time / total_compute * 100)
+                if total_compute > 0
+                else 0.0
+            )
+            worker_percent = (
+                (avg_worker_time / total_compute * 100)
+                if total_compute > 0
+                else 0.0
+            )
 
-            avg_actions = statistics.mean(self.primitive_actions) if self.primitive_actions else 0.0
+            avg_actions = (
+                statistics.mean(self.primitive_actions)
+                if self.primitive_actions
+                else 0.0
+            )
 
             return {
                 "wall_clock_per_episode": avg_wall_clock,
                 "manager_time_percent": manager_percent,
                 "worker_time_percent": worker_percent,
-                "action_efficiency": avg_actions
+                "action_efficiency": avg_actions,
             }
 
 
@@ -357,12 +395,14 @@ class RobustnessTracker:
         """Record a fault injection event."""
         with self.lock:
             self.active_faults[fault_id] = time.perf_counter()
-            self.fault_events.append({
-                "fault_id": fault_id,
-                "fault_type": fault_type,
-                "severity": severity,
-                "timestamp": time.time()
-            })
+            self.fault_events.append(
+                {
+                    "fault_id": fault_id,
+                    "fault_type": fault_type,
+                    "severity": severity,
+                    "timestamp": time.time(),
+                }
+            )
 
     def record_recovery(self, fault_id: str, performance_drop: float):
         """Record recovery from a fault."""
@@ -376,14 +416,22 @@ class RobustnessTracker:
     def get_stats(self) -> Dict[str, float]:
         """Get robustness statistics."""
         with self.lock:
-            avg_recovery = statistics.mean(self.recovery_times) if self.recovery_times else 0.0
-            avg_degradation = statistics.mean(self.performance_degradation) if self.performance_degradation else 0.0
+            avg_recovery = (
+                statistics.mean(self.recovery_times)
+                if self.recovery_times
+                else 0.0
+            )
+            avg_degradation = (
+                statistics.mean(self.performance_degradation)
+                if self.performance_degradation
+                else 0.0
+            )
 
             return {
                 "fault_count": len(self.fault_events),
                 "avg_recovery_time": avg_recovery,
                 "avg_performance_degradation": avg_degradation,
-                "unrecovered_faults": len(self.active_faults)
+                "unrecovered_faults": len(self.active_faults),
             }
 
 
@@ -415,18 +463,28 @@ class HierarchyBenchmarkTracker:
         self.worker_action_time = 0.0
         self.current_episode_metrics = self.task_tracker.current_episode
 
-    def end_episode(self, success: bool, total_return: float, steps: int, primitive_actions: int):
+    def end_episode(
+        self,
+        success: bool,
+        total_return: float,
+        steps: int,
+        primitive_actions: int,
+    ):
         """End current episode and finalize metrics."""
         self.task_tracker.end_episode(success, total_return, steps)
         self.resource_tracker.end_episode(
             self.manager_action_time,
             self.worker_action_time,
-            primitive_actions
+            primitive_actions,
         )
 
         if self.current_episode_metrics and self.episode_start_time:
-            self.current_episode_metrics.wall_clock_time = time.perf_counter() - self.episode_start_time
-            self.current_episode_metrics.manager_time = self.manager_action_time
+            self.current_episode_metrics.wall_clock_time = (
+                time.perf_counter() - self.episode_start_time
+            )
+            self.current_episode_metrics.manager_time = (
+                self.manager_action_time
+            )
             self.current_episode_metrics.worker_time = self.worker_action_time
             self.current_episode_metrics.primitive_actions = primitive_actions
 
@@ -450,10 +508,17 @@ class HierarchyBenchmarkTracker:
             self.current_episode_metrics.total_messages += 1
             self.current_episode_metrics.total_bytes += message_bytes
 
-    def record_delegation(self, issued: bool = False, completed: bool = False,
-                         failed: bool = False, preempted: bool = False):
+    def record_delegation(
+        self,
+        issued: bool = False,
+        completed: bool = False,
+        failed: bool = False,
+        preempted: bool = False,
+    ):
         """Record a delegation event."""
-        self.hierarchy_tracker.record_delegation(issued, completed, failed, preempted)
+        self.hierarchy_tracker.record_delegation(
+            issued, completed, failed, preempted
+        )
         if self.current_episode_metrics:
             if issued:
                 self.current_episode_metrics.delegations_issued += 1
@@ -486,7 +551,9 @@ class HierarchyBenchmarkTracker:
 
         # Task effectiveness
         success_rate = self.task_tracker.get_success_rate()
-        norm_return_mean, norm_return_std = self.task_tracker.get_normalized_return()
+        norm_return_mean, norm_return_std = (
+            self.task_tracker.get_normalized_return()
+        )
         makespan_mean, makespan_std = self.task_tracker.get_makespan_stats()
 
         # Hierarchy overhead
@@ -516,7 +583,9 @@ class HierarchyBenchmarkTracker:
             coordination_latency_mean=comm_stats["coordination_latency_mean"],
             coordination_latency_std=comm_stats["coordination_latency_std"],
             total_episodes=num_episodes,
-            successful_episodes=int(success_rate * num_episodes) if num_episodes > 0 else 0
+            successful_episodes=(
+                int(success_rate * num_episodes) if num_episodes > 0 else 0
+            ),
         )
 
     def export_results(self) -> Dict[str, Any]:
@@ -528,28 +597,28 @@ class HierarchyBenchmarkTracker:
                 "task_effectiveness": {
                     "success_rate": aggregated.success_rate,
                     "normalized_return_mean": aggregated.normalized_return_mean,
-                    "normalized_return_std": aggregated.normalized_return_std
+                    "normalized_return_std": aggregated.normalized_return_std,
                 },
                 "time_efficiency": {
                     "makespan_mean": aggregated.makespan_mean,
                     "makespan_std": aggregated.makespan_std,
                     "action_efficiency": aggregated.action_efficiency,
-                    "wall_clock_per_episode": aggregated.wall_clock_per_episode
+                    "wall_clock_per_episode": aggregated.wall_clock_per_episode,
                 },
                 "hierarchy_overhead": {
                     "manager_utilization": aggregated.manager_utilization,
                     "delegation_success_rate": aggregated.delegation_success_rate,
                     "preemption_rate": aggregated.preemption_rate,
                     "manager_time_percent": aggregated.manager_time_percent,
-                    "worker_time_percent": aggregated.worker_time_percent
+                    "worker_time_percent": aggregated.worker_time_percent,
                 },
                 "communication_cost": {
                     "messages_per_episode": aggregated.messages_per_episode,
                     "bytes_per_step": aggregated.bytes_per_step,
                     "coordination_latency_mean": aggregated.coordination_latency_mean,
-                    "coordination_latency_std": aggregated.coordination_latency_std
+                    "coordination_latency_std": aggregated.coordination_latency_std,
                 },
-                "robustness": self.robustness_tracker.get_stats()
+                "robustness": self.robustness_tracker.get_stats(),
             },
             "episode_count": aggregated.total_episodes,
             "successful_episodes": aggregated.successful_episodes,
@@ -563,8 +632,8 @@ class HierarchyBenchmarkTracker:
                     "primitive_actions": ep.primitive_actions,
                     "messages": ep.total_messages,
                     "delegations": ep.delegations_issued,
-                    "delegations_completed": ep.delegations_completed
+                    "delegations_completed": ep.delegations_completed,
                 }
                 for ep in self.task_tracker.episodes
-            ]
+            ],
         }

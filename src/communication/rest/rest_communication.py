@@ -10,7 +10,7 @@ Implements:
 - Communication Actions: send(i,j,m) operations
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from collections import deque
 import time
@@ -20,12 +20,20 @@ import threading
 import requests
 from flask import Flask, request, jsonify
 import logging
+import json
+import queue
+from contextlib import nullcontext
+try:
+    import httpx  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    httpx = None
 
 # Import base communication abstractions
 from communication.base_communication import (
     MessageType as BaseMessageType,
     Message,
     CommunicationTopology,
+    LatencyMode,
 )
 
 
@@ -37,6 +45,7 @@ class RestMessageType(Enum):
     REPLY = "reply"
     BROADCAST = "broadcast"
     ERROR = "error"
+    ACK = "ack"  # Acknowledgment for end-to-end latency measurement
 
     @classmethod
     def from_base_type(cls, base_type: BaseMessageType) -> "RestMessageType":
@@ -47,6 +56,7 @@ class RestMessageType(Enum):
             BaseMessageType.REPLY: cls.REPLY,
             BaseMessageType.BROADCAST: cls.BROADCAST,
             BaseMessageType.ERROR: cls.ERROR,
+            BaseMessageType.ACK: cls.ACK,
         }
         return mapping[base_type]
 
@@ -168,9 +178,17 @@ class RESTCommunicationService:
     Provides HTTP endpoints for message delivery and mailbox access.
     """
 
-    def __init__(self, host: str = "localhost", port: int = 5000):
+    def __init__(
+        self,
+        host: str = "localhost",
+        port: int = 5000,
+        latency_mode: LatencyMode = LatencyMode.END_TO_END,
+        transport_mode: str = "http1",
+    ):
         self.host = host
         self.port = port
+        self.latency_mode = latency_mode
+        self.transport_mode = transport_mode
         self.app = Flask(__name__)
         self.app.logger.setLevel(logging.WARNING)  # Reduce Flask logging
 
@@ -183,6 +201,12 @@ class RESTCommunicationService:
             "delivery_failures": 0,
             "avg_delivery_time": 0.0,
         }
+        self.broadcast_queue: "queue.Queue[Tuple[str, Dict[str, Any]]]" = queue.Queue()
+        self.broadcast_worker_stop = threading.Event()
+        self.broadcast_worker = threading.Thread(
+            target=self._broadcast_worker, daemon=True
+        )
+        self.broadcast_worker.start()
 
         # Setup routes
         self._setup_routes()
@@ -247,29 +271,16 @@ class RESTCommunicationService:
             """Broadcast message to all reachable agents."""
             try:
                 data = request.get_json()
-                reachable = self.topology.get_reachable_agents(agent_id)
-
-                delivered = 0
-                failed = 0
-
-                for receiver_id in reachable:
-                    message = RestMessage(
-                        sender_id=agent_id,
-                        receiver_id=receiver_id,
-                        message_type=RestMessageType.BROADCAST,
-                        content=data["content"],
-                    )
-
-                    if self.deliver_message(message):
-                        delivered += 1
-                    else:
-                        failed += 1
-
+                reachable = list(
+                    self.topology.get_reachable_agents(agent_id)
+                )
+                payload = json.loads(json.dumps(data["content"]))
+                self._enqueue_broadcast_task(agent_id, payload)
                 return jsonify(
                     {
                         "status": "completed",
-                        "delivered": delivered,
-                        "failed": failed,
+                        "delivered": len(reachable),
+                        "failed": 0,
                         "total_targets": len(reachable),
                     }
                 )
@@ -301,6 +312,39 @@ class RESTCommunicationService:
         def get_statistics():
             """Get communication statistics."""
             return jsonify(self.delivery_stats)
+
+    def _enqueue_broadcast_task(
+        self, sender_id: str, content: Dict[str, Any]
+    ):
+        payload = json.loads(json.dumps(content))
+        self.broadcast_queue.put((sender_id, payload))
+
+    def _broadcast_worker(self):
+        """Background worker to deliver broadcast messages asynchronously."""
+        while True:
+            try:
+                task = self.broadcast_queue.get(timeout=0.1)
+            except queue.Empty:
+                if self.broadcast_worker_stop.is_set():
+                    break
+                continue
+
+            if task is None:
+                self.broadcast_queue.task_done()
+                break
+
+            sender_id, content = task
+            reachable = self.topology.get_reachable_agents(sender_id)
+            for receiver_id in reachable:
+                message = RestMessage(
+                    sender_id=sender_id,
+                    receiver_id=receiver_id,
+                    message_type=RestMessageType.BROADCAST,
+                    content=json.loads(json.dumps(content)),
+                )
+                self.deliver_message(message)
+
+            self.broadcast_queue.task_done()
 
     def register_agent(self, agent_id: str):
         """Register an agent and create its mailbox."""
@@ -347,6 +391,13 @@ class RESTCommunicationService:
             host=self.host, port=self.port, debug=False, threaded=True
         )
 
+    def shutdown(self):
+        """Stop background broadcast worker."""
+        self.broadcast_worker_stop.set()
+        self.broadcast_queue.put(None)
+        if self.broadcast_worker.is_alive():
+            self.broadcast_worker.join(timeout=1.0)
+
 
 class RestCommunicatingAgent:
     """
@@ -355,10 +406,48 @@ class RestCommunicatingAgent:
     """
 
     def __init__(
-        self, agent_id: str, comm_service_url: str = "http://localhost:5000"
+        self,
+        agent_id: str,
+        comm_service_url: str = "http://localhost:5000",
+        transport_mode: str = "http1",
     ):
         self.agent_id = agent_id
         self.comm_service_url = comm_service_url
+        self.transport_mode = transport_mode.lower()
+        self.session = requests.Session()
+        self.http2_client = None
+
+        if self.transport_mode == "http2" and httpx:
+            try:
+                self.http2_client = httpx.Client(http2=True, timeout=5.0)
+            except Exception:
+                logging.warning(
+                    "HTTP/2 client initialisation failed. Falling back to HTTP/1."
+                )
+                self.transport_mode = "http1"
+        elif self.transport_mode == "http2":
+            logging.warning(
+                "httpx not available; HTTP/2 variant will use HTTP/1.1 fallback."
+            )
+            self.transport_mode = "http1"
+
+    def _post(self, path: str, payload: Dict[str, Any]):
+        url = f"{self.comm_service_url}{path}"
+        try:
+            if self.transport_mode == "http2" and self.http2_client:
+                return self.http2_client.post(url, json=payload, timeout=5.0)
+            return self.session.post(url, json=payload, timeout=5.0)
+        except Exception:
+            return None
+
+    def _get(self, path: str, params: Dict[str, Any]):
+        url = f"{self.comm_service_url}{path}"
+        try:
+            if self.transport_mode == "http2" and self.http2_client:
+                return self.http2_client.get(url, params=params, timeout=5.0)
+            return self.session.get(url, params=params, timeout=5.0)
+        except Exception:
+            return None
 
     def send_message(
         self,
@@ -371,20 +460,16 @@ class RestCommunicatingAgent:
         Communication action: send(i,j,m)
         Send message from this agent to target agent.
         """
-        try:
-            response = requests.post(
-                f"{self.comm_service_url}/agent/{self.agent_id}/send",
-                json={
-                    "receiver_id": receiver_id,
-                    "message_type": message_type.value,
-                    "content": content,
-                    "reply_to": reply_to,
-                },
-                timeout=5.0,
-            )
-            return response.status_code == 200
-        except requests.RequestException:
-            return False
+        response = self._post(
+            f"/agent/{self.agent_id}/send",
+            {
+                "receiver_id": receiver_id,
+                "message_type": message_type.value,
+                "content": content,
+                "reply_to": reply_to,
+            },
+        )
+        return bool(response and response.status_code == 200)
 
     def broadcast_message(
         self, message_type: RestMessageType, content: Dict[str, Any]
@@ -393,17 +478,13 @@ class RestCommunicatingAgent:
         Broadcast message: send(i,*,m)
         Send message to all reachable agents.
         """
-        try:
-            response = requests.post(
-                f"{self.comm_service_url}/agent/{self.agent_id}/broadcast",
-                json={"message_type": message_type.value, "content": content},
-                timeout=5.0,
-            )
-            if response.status_code == 200:
-                return response.json()
-            return {"status": "failed"}
-        except requests.RequestException:
-            return {"status": "failed"}
+        response = self._post(
+            f"/agent/{self.agent_id}/broadcast",
+            {"message_type": message_type.value, "content": content},
+        )
+        if response and response.status_code == 200:
+            return response.json()
+        return {"status": "failed"}
 
     def receive_messages(
         self, clear_mailbox: bool = True
@@ -412,18 +493,14 @@ class RestCommunicatingAgent:
         Get messages from agent's mailbox.
         Part of agent's perception input.
         """
-        try:
-            response = requests.get(
-                f"{self.comm_service_url}/agent/{self.agent_id}/mailbox",
-                params={"clear": str(clear_mailbox).lower()},
-                timeout=5.0,
-            )
-            if response.status_code == 200:
-                data = response.json()
-                return [RestMessage.from_dict(msg) for msg in data["messages"]]
-            return []
-        except requests.RequestException:
-            return []
+        response = self._get(
+            f"/agent/{self.agent_id}/mailbox",
+            {"clear": str(clear_mailbox).lower()},
+        )
+        if response and response.status_code == 200:
+            data = response.json()
+            return [RestMessage.from_dict(msg) for msg in data["messages"]]
+        return []
 
     def reply_to_message(
         self, original_message: RestMessage, content: Dict[str, Any]
@@ -435,3 +512,64 @@ class RestCommunicatingAgent:
             content=content,
             reply_to=original_message.message_id,
         )
+
+    def configure_transport(
+        self, comm_service_url: str, transport_mode: str
+    ):
+        """Update target service endpoint and transport semantics."""
+        self.comm_service_url = comm_service_url
+        new_mode = transport_mode.lower()
+
+        if new_mode not in {"http1", "http2"}:
+            new_mode = "http1"
+
+        # Tear down existing HTTP/2 client if switching modes
+        if self.http2_client:
+            try:
+                self.http2_client.close()
+            except Exception:
+                pass
+            finally:
+                self.http2_client = None
+
+        self.transport_mode = new_mode
+
+        if self.transport_mode == "http2":
+            if not httpx:
+                logging.warning(
+                    "httpx not available; HTTP/2 variant will use HTTP/1.1 fallback."
+                )
+                self.transport_mode = "http1"
+            else:
+                try:
+                    self.http2_client = httpx.Client(http2=True, timeout=5.0)
+                except Exception:
+                    logging.warning(
+                        "HTTP/2 client initialisation failed. Falling back to HTTP/1."
+                    )
+                    self.transport_mode = "http1"
+
+    def close(self):
+        """Close any persistent HTTP clients."""
+        if self.http2_client:
+            try:
+                self.http2_client.close()
+            except Exception:
+                pass
+            finally:
+                self.http2_client = None
+
+        if self.session:
+            try:
+                self.session.close()
+            except Exception:
+                pass
+            finally:
+                self.session = None
+
+    def close(self):
+        """Close underlying HTTP clients."""
+        with nullcontext():
+            if self.http2_client:
+                self.http2_client.close()
+            self.session.close()

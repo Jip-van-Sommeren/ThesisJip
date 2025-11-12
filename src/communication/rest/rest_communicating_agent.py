@@ -64,13 +64,16 @@ class ExtendedRestCommunicatingAgent(AbstractAgent):
         agent_id: AgentId,
         observable_properties: Set[str],
         comm_service_url: str = "http://localhost:5000",
+        transport_mode: str = "http1",
     ):
         super().__init__(agent_id, observable_properties)
 
         # Initialize communication capabilities
         self.comm_agent = RestCommunicatingAgent(
-            str(agent_id), comm_service_url
+            str(agent_id), comm_service_url, transport_mode=transport_mode
         )
+        self.transport_mode = transport_mode.lower()
+        self.mailbox = None
 
         # Add communication actions to agent's action set
         self._add_communication_actions()
@@ -272,10 +275,18 @@ class RestCommunicationEnvironment:
     """
 
     def __init__(
-        self, service_host: str = "localhost", service_port: int = 5000
+        self,
+        service_host: str = "localhost",
+        service_port: int = 5000,
+        latency_mode=None,
+        transport_mode: str = "http1",
     ):
+        from communication.base_communication import LatencyMode
+
         self.service_host = service_host
         self.service_port = service_port
+        self.latency_mode = latency_mode or LatencyMode.END_TO_END
+        self.transport_mode = transport_mode
         self.comm_service = None
         self.agents: Dict[str, ExtendedRestCommunicatingAgent] = {}
         self.environment_state: Dict[str, Any] = {}
@@ -302,7 +313,12 @@ class RestCommunicationEnvironment:
             raise RuntimeError("No available ports found")
 
         self.service_port = port
-        self.comm_service = RESTCommunicationService(self.service_host, port)
+        self.comm_service = RESTCommunicationService(
+            self.service_host,
+            port,
+            latency_mode=self.latency_mode,
+            transport_mode=self.transport_mode,
+        )
 
         # Start communication service in background
         self.service_thread = threading.Thread(
@@ -317,11 +333,16 @@ class RestCommunicationEnvironment:
     def stop_service(self):
         """Stop the communication service."""
         if self.is_running and self.comm_service:
+            try:
+                self.comm_service.shutdown()
+            except Exception:
+                pass
             # Flask doesn't have a clean shutdown method, so we set a flag
             self.is_running = False
             # In a production environment, you'd use a proper WSGI server
             # that supports graceful shutdown
             print(f"Communication service on port {self.service_port} stopped")
+        self.comm_service = None
 
     def get_service_url(self) -> str:
         """Get the service URL."""
@@ -339,7 +360,13 @@ class RestCommunicationEnvironment:
         self.comm_service.register_agent(agent_id_str)
 
         # Update agent's communication service URL
-        agent.comm_agent.comm_service_url = self.get_service_url()
+        agent.comm_agent.configure_transport(
+            self.get_service_url(), self.transport_mode
+        )
+        agent.transport_mode = self.transport_mode
+
+        # Provide direct mailbox access for benchmark instrumentation
+        agent.mailbox = self.comm_service.mailboxes.get(agent_id_str)
 
     def setup_fully_connected_topology(self):
         """Setup fully connected communication topology."""

@@ -3,11 +3,12 @@ Hierarchy Strategy Implementations
 Implements three coordination strategies for multi-agent systems:
 1. Tree Hierarchy: Traditional manager-worker with centralized control
 2. Peer-to-Peer: Fully distributed with consensus-based coordination
-3. Hybrid: Tree structure for task allocation + peer communication for execution
+3. Hybrid: Tree structure for task allocation + peer communication for
+execution
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Set, Optional, Any, Tuple
+from typing import Dict, List, Set, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import time
@@ -16,6 +17,7 @@ import random
 
 class HierarchyType(Enum):
     """Types of hierarchy strategies."""
+
     TREE = "tree"
     PEER_TO_PEER = "peer_to_peer"
     HYBRID = "hybrid"
@@ -24,6 +26,7 @@ class HierarchyType(Enum):
 @dataclass
 class AgentState:
     """State of an agent in the hierarchy."""
+
     agent_id: str
     role: str  # "manager" or "worker"
     current_task: Optional[str] = None
@@ -38,6 +41,7 @@ class AgentState:
 @dataclass
 class Task:
     """Represents a task to be completed."""
+
     task_id: str
     task_type: str
     complexity: float = 1.0
@@ -52,9 +56,12 @@ class Task:
 @dataclass
 class Message:
     """Communication message between agents."""
+
     sender: str
     receiver: str
-    message_type: str  # command, delegation, report, query, response, vote, proposal
+    message_type: (
+        str  # command, delegation, report, query, response, vote, proposal
+    )
     content: Dict[str, Any]
     timestamp: float = field(default_factory=time.time)
     priority: int = 5
@@ -101,8 +108,12 @@ class HierarchyStrategy(ABC):
 
     def get_stats(self) -> Dict[str, Any]:
         """Get hierarchy statistics."""
-        completed_tasks = sum(1 for t in self.tasks.values() if t.status == "completed")
-        active_tasks = sum(1 for t in self.tasks.values() if t.status == "in_progress")
+        completed_tasks = sum(
+            1 for t in self.tasks.values() if t.status == "completed"
+        )
+        active_tasks = sum(
+            1 for t in self.tasks.values() if t.status == "in_progress"
+        )
 
         return {
             "total_agents": self.num_agents,
@@ -111,7 +122,7 @@ class HierarchyStrategy(ABC):
             "completed_tasks": completed_tasks,
             "active_tasks": active_tasks,
             "messages_sent": len(self.message_queue),
-            "steps": self.step_count
+            "steps": self.step_count,
         }
 
 
@@ -131,7 +142,9 @@ class TreeHierarchy(HierarchyStrategy):
         self.managers: Set[str] = set()
         self.workers: Set[str] = set()
         self.delegation_map: Dict[str, str] = {}  # task_id -> agent_id
-        self.manager_planning_frequency = 1  # Manager acts every step by default
+        self.manager_planning_frequency = (
+            1  # Manager acts every step by default
+        )
 
     def initialize_hierarchy(self) -> Dict[str, AgentState]:
         """Initialize tree hierarchy with levels."""
@@ -139,7 +152,6 @@ class TreeHierarchy(HierarchyStrategy):
         self.managers.clear()
         self.workers.clear()
 
-        # Calculate agents per level
         if self.hierarchy_depth == 1:
             # Flat: 1 manager, rest workers
             num_managers = 1
@@ -150,32 +162,24 @@ class TreeHierarchy(HierarchyStrategy):
             # 3+ levels: exponential distribution
             num_managers = max(1, self.num_agents // 2)
 
-        # Create root manager
         root_id = "agent_0"
         self.agents[root_id] = AgentState(
-            agent_id=root_id,
-            role="manager",
-            subordinates=set()
+            agent_id=root_id, role="manager", subordinates=set()
         )
         self.managers.add(root_id)
 
-        # Create subordinate agents
         agents_created = 1
         if self.hierarchy_depth == 1:
-            # All others are workers reporting to root
             for i in range(1, self.num_agents):
                 worker_id = f"agent_{i}"
                 self.agents[worker_id] = AgentState(
-                    agent_id=worker_id,
-                    role="worker",
-                    supervisor=root_id
+                    agent_id=worker_id, role="worker", supervisor=root_id
                 )
                 self.agents[root_id].subordinates.add(worker_id)
                 self.workers.add(worker_id)
                 agents_created += 1
 
         elif self.hierarchy_depth == 2:
-            # Create middle managers
             num_middle = min(num_managers - 1, (self.num_agents - 1) // 2)
             for i in range(1, num_middle + 1):
                 manager_id = f"agent_{i}"
@@ -183,22 +187,23 @@ class TreeHierarchy(HierarchyStrategy):
                     agent_id=manager_id,
                     role="manager",
                     supervisor=root_id,
-                    subordinates=set()
+                    subordinates=set(),
                 )
                 self.agents[root_id].subordinates.add(manager_id)
                 self.managers.add(manager_id)
                 agents_created += 1
 
-            # Assign workers to middle managers
             manager_list = list(self.managers - {root_id})
             for i in range(agents_created, self.num_agents):
                 worker_id = f"agent_{i}"
                 # Assign to a middle manager (round-robin)
-                supervisor = manager_list[(i - agents_created) % len(manager_list)] if manager_list else root_id
+                supervisor = (
+                    manager_list[(i - agents_created) % len(manager_list)]
+                    if manager_list
+                    else root_id
+                )
                 self.agents[worker_id] = AgentState(
-                    agent_id=worker_id,
-                    role="worker",
-                    supervisor=supervisor
+                    agent_id=worker_id, role="worker", supervisor=supervisor
                 )
                 self.agents[supervisor].subordinates.add(worker_id)
                 self.workers.add(worker_id)
@@ -215,7 +220,7 @@ class TreeHierarchy(HierarchyStrategy):
                     agent_id=manager_id,
                     role="manager",
                     supervisor=root_id,
-                    subordinates=set()
+                    subordinates=set(),
                 )
                 self.agents[root_id].subordinates.add(manager_id)
                 self.managers.add(manager_id)
@@ -225,11 +230,11 @@ class TreeHierarchy(HierarchyStrategy):
             # Create level 3 workers
             for i in range(agents_created, self.num_agents):
                 worker_id = f"agent_{i}"
-                supervisor = level2_managers[(i - agents_created) % len(level2_managers)]
+                supervisor = level2_managers[
+                    (i - agents_created) % len(level2_managers)
+                ]
                 self.agents[worker_id] = AgentState(
-                    agent_id=worker_id,
-                    role="worker",
-                    supervisor=supervisor
+                    agent_id=worker_id, role="worker", supervisor=supervisor
                 )
                 self.agents[supervisor].subordinates.add(worker_id)
                 self.workers.add(worker_id)
@@ -243,8 +248,10 @@ class TreeHierarchy(HierarchyStrategy):
 
         # Find available worker (or delegate to sub-manager)
         available_workers = [
-            aid for aid in self.workers
-            if self.agents[aid].is_active and self.agents[aid].current_task is None
+            aid
+            for aid in self.workers
+            if self.agents[aid].is_active
+            and self.agents[aid].current_task is None
         ]
 
         if not available_workers:
@@ -265,7 +272,7 @@ class TreeHierarchy(HierarchyStrategy):
             receiver=assigned_worker,
             message_type="delegation",
             content={"task_id": task.task_id, "task_type": task.task_type},
-            priority=7
+            priority=7,
         )
         self.send_message(delegation_msg)
 
@@ -293,6 +300,7 @@ class TreeHierarchy(HierarchyStrategy):
                 if task:
                     # Small chance of task failure (5%)
                     import random
+
                     if random.random() < 0.05 and worker.task_progress < 0.5:
                         # Task fails early - needs reassignment
                         task.status = "pending"
@@ -316,8 +324,8 @@ class TreeHierarchy(HierarchyStrategy):
                                 message_type="report",
                                 content={
                                     "task_id": task.task_id,
-                                    "status": "completed"
-                                }
+                                    "status": "completed",
+                                },
                             )
                             self.send_message(report_msg)
                             actions_taken["messages"] += 1
@@ -333,17 +341,21 @@ class TreeHierarchy(HierarchyStrategy):
 
         # Check for pending tasks that need reassignment
         pending_tasks = [
-            task for task in self.tasks.values()
+            task
+            for task in self.tasks.values()
             if task.status == "pending" and task.assigned_to is None
         ]
 
         for task in pending_tasks:
             # Try to reassign
             available_workers = [
-                aid for aid in self.workers
-                if (self.agents[aid].is_active and
-                    self.agents[aid].current_task is None and
-                    self.agents[aid].supervisor == manager_id)
+                aid
+                for aid in self.workers
+                if (
+                    self.agents[aid].is_active
+                    and self.agents[aid].current_task is None
+                    and self.agents[aid].supervisor == manager_id
+                )
             ]
 
             if available_workers:
@@ -361,9 +373,9 @@ class TreeHierarchy(HierarchyStrategy):
                     content={
                         "task_id": task.task_id,
                         "task_type": task.task_type,
-                        "reassigned": True
+                        "reassigned": True,
                     },
-                    priority=8
+                    priority=8,
                 )
                 self.send_message(delegation_msg)
 
@@ -376,7 +388,7 @@ class TreeHierarchy(HierarchyStrategy):
                     sender=manager_id,
                     receiver=subordinate_id,
                     message_type="query",
-                    content={"query_type": "status"}
+                    content={"query_type": "status"},
                 )
                 self.send_message(query_msg)
 
@@ -423,7 +435,9 @@ class PeerToPeerHierarchy(HierarchyStrategy):
     def __init__(self, num_agents: int, consensus_threshold: float = 0.5):
         super().__init__(num_agents, HierarchyType.PEER_TO_PEER)
         self.consensus_threshold = consensus_threshold
-        self.pending_votes: Dict[str, Dict[str, bool]] = {}  # proposal_id -> {agent_id: vote}
+        self.pending_votes: Dict[str, Dict[str, bool]] = (
+            {}
+        )  # proposal_id -> {agent_id: vote}
         self.shared_beliefs: Dict[str, Any] = {}
 
     def initialize_hierarchy(self) -> Dict[str, AgentState]:
@@ -436,9 +450,7 @@ class PeerToPeerHierarchy(HierarchyStrategy):
         for agent_id in all_agent_ids:
             peers = set(all_agent_ids) - {agent_id}
             self.agents[agent_id] = AgentState(
-                agent_id=agent_id,
-                role="peer",
-                peers=peers
+                agent_id=agent_id, role="peer", peers=peers
             )
 
         return self.agents
@@ -450,8 +462,10 @@ class PeerToPeerHierarchy(HierarchyStrategy):
 
         # Find available agents
         available_agents = [
-            aid for aid in self.agents
-            if self.agents[aid].is_active and self.agents[aid].current_task is None
+            aid
+            for aid in self.agents
+            if self.agents[aid].is_active
+            and self.agents[aid].current_task is None
         ]
 
         if not available_agents:
@@ -470,8 +484,8 @@ class PeerToPeerHierarchy(HierarchyStrategy):
                     content={
                         "proposal_id": proposal_id,
                         "task_id": task.task_id,
-                        "candidate": candidate
-                    }
+                        "candidate": candidate,
+                    },
                 )
                 self.send_message(proposal_msg)
 
@@ -479,7 +493,7 @@ class PeerToPeerHierarchy(HierarchyStrategy):
         votes = {}
         for agent_id in self.agents:
             if self.agents[agent_id].is_active:
-                # Vote based on simple heuristic (accept if candidate is available)
+                # Vote based on simple heuristic
                 vote = self.agents[candidate].current_task is None
                 votes[agent_id] = vote
 
@@ -525,6 +539,7 @@ class PeerToPeerHierarchy(HierarchyStrategy):
                 task = self.tasks.get(agent.current_task)
                 if task:
                     import random
+
                     # Small chance of task failure (5%)
                     if random.random() < 0.05 and agent.task_progress < 0.5:
                         # Task fails - needs consensus to reassign
@@ -548,8 +563,8 @@ class PeerToPeerHierarchy(HierarchyStrategy):
                                     message_type="report",
                                     content={
                                         "task_id": task.task_id,
-                                        "status": "completed"
-                                    }
+                                        "status": "completed",
+                                    },
                                 )
                                 self.send_message(completion_msg)
                                 actions_taken["messages"] += 1
@@ -558,7 +573,8 @@ class PeerToPeerHierarchy(HierarchyStrategy):
 
         # Check for pending tasks that need re-allocation
         pending_tasks = [
-            task for task in self.tasks.values()
+            task
+            for task in self.tasks.values()
             if task.status == "pending" and task.assigned_to is None
         ]
 
@@ -582,7 +598,7 @@ class PeerToPeerHierarchy(HierarchyStrategy):
                     sender=agent_id,
                     receiver="broadcast",
                     message_type="state_sync",
-                    content={"beliefs": self.agents[agent_id].beliefs}
+                    content={"beliefs": self.agents[agent_id].beliefs},
                 )
                 self.send_message(state_msg)
 
@@ -614,7 +630,8 @@ class PeerToPeerHierarchy(HierarchyStrategy):
 class HybridHierarchy(HierarchyStrategy):
     """
     Hybrid Strategy
-    Combines tree hierarchy for task allocation with peer-to-peer for execution.
+    Combines tree hierarchy for task allocation with peer-to-peer for
+    execution.
     - Tree structure for strategic planning and task allocation
     - Peer communication among workers for tactical coordination
     - Managers coordinate, workers collaborate
@@ -625,7 +642,9 @@ class HybridHierarchy(HierarchyStrategy):
         self.hierarchy_depth = hierarchy_depth
         self.managers: Set[str] = set()
         self.workers: Set[str] = set()
-        self.worker_peer_network: Dict[str, Set[str]] = {}  # worker_id -> peer_workers
+        self.worker_peer_network: Dict[str, Set[str]] = (
+            {}
+        )  # worker_id -> peer_workers
 
     def initialize_hierarchy(self) -> Dict[str, AgentState]:
         """Initialize hybrid hierarchy."""
@@ -635,13 +654,10 @@ class HybridHierarchy(HierarchyStrategy):
         self.worker_peer_network.clear()
 
         # Create tree structure (similar to TreeHierarchy)
-        num_managers = max(1, self.num_agents // 4)
         root_id = "agent_0"
 
         self.agents[root_id] = AgentState(
-            agent_id=root_id,
-            role="manager",
-            subordinates=set()
+            agent_id=root_id, role="manager", subordinates=set()
         )
         self.managers.add(root_id)
 
@@ -652,7 +668,7 @@ class HybridHierarchy(HierarchyStrategy):
                 agent_id=worker_id,
                 role="worker",
                 supervisor=root_id,
-                peers=set()  # Will be populated below
+                peers=set(),  # Will be populated below
             )
             self.agents[root_id].subordinates.add(worker_id)
             self.workers.add(worker_id)
@@ -672,8 +688,10 @@ class HybridHierarchy(HierarchyStrategy):
         root_id = "agent_0"
 
         available_workers = [
-            aid for aid in self.workers
-            if self.agents[aid].is_active and self.agents[aid].current_task is None
+            aid
+            for aid in self.workers
+            if self.agents[aid].is_active
+            and self.agents[aid].current_task is None
         ]
 
         if not available_workers:
@@ -693,7 +711,7 @@ class HybridHierarchy(HierarchyStrategy):
             receiver=assigned_worker,
             message_type="delegation",
             content={"task_id": task.task_id, "task_type": task.task_type},
-            priority=7
+            priority=7,
         )
         self.send_message(delegation_msg)
 
@@ -704,7 +722,7 @@ class HybridHierarchy(HierarchyStrategy):
                     sender=assigned_worker,
                     receiver=peer_id,
                     message_type="collaboration_request",
-                    content={"task_id": task.task_id, "help_needed": False}
+                    content={"task_id": task.task_id, "help_needed": False},
                 )
                 self.send_message(collab_msg)
 
@@ -713,7 +731,12 @@ class HybridHierarchy(HierarchyStrategy):
     def process_step(self) -> Dict[str, Any]:
         """Process step with hybrid coordination."""
         self.step_count += 1
-        actions_taken = {"manager": 0, "worker": 0, "peer_comm": 0, "messages": 0}
+        actions_taken = {
+            "manager": 0,
+            "worker": 0,
+            "peer_comm": 0,
+            "messages": 0,
+        }
 
         # Manager monitors and coordinates
         for manager_id in self.managers:
@@ -731,6 +754,7 @@ class HybridHierarchy(HierarchyStrategy):
                 task = self.tasks.get(worker.current_task)
                 if task:
                     import random
+
                     # Small chance of task failure (5%)
                     if random.random() < 0.05 and worker.task_progress < 0.5:
                         # Task fails - manager will reassign
@@ -759,8 +783,8 @@ class HybridHierarchy(HierarchyStrategy):
                                 message_type="report",
                                 content={
                                     "task_id": task.task_id,
-                                    "status": "completed"
-                                }
+                                    "status": "completed",
+                                },
                             )
                             self.send_message(report_msg)
                             actions_taken["messages"] += 1
@@ -774,8 +798,8 @@ class HybridHierarchy(HierarchyStrategy):
                                         message_type="peer_update",
                                         content={
                                             "task_id": task.task_id,
-                                            "status": "completed"
-                                        }
+                                            "status": "completed",
+                                        },
                                     )
                                     self.send_message(peer_msg)
 
@@ -790,16 +814,20 @@ class HybridHierarchy(HierarchyStrategy):
 
         # Check for pending tasks that need reassignment
         pending_tasks = [
-            task for task in self.tasks.values()
+            task
+            for task in self.tasks.values()
             if task.status == "pending" and task.assigned_to is None
         ]
 
         for task in pending_tasks:
             # Try to reassign to available worker
             available_workers = [
-                aid for aid in self.workers
-                if (self.agents[aid].is_active and
-                    self.agents[aid].current_task is None)
+                aid
+                for aid in self.workers
+                if (
+                    self.agents[aid].is_active
+                    and self.agents[aid].current_task is None
+                )
             ]
 
             if available_workers:
@@ -809,7 +837,6 @@ class HybridHierarchy(HierarchyStrategy):
                 task.status = "in_progress"
                 self.agents[worker_id].current_task = task.task_id
 
-                # Send delegation
                 delegation_msg = Message(
                     sender=manager_id,
                     receiver=worker_id,
@@ -817,33 +844,34 @@ class HybridHierarchy(HierarchyStrategy):
                     content={
                         "task_id": task.task_id,
                         "task_type": task.task_type,
-                        "reassigned": True
+                        "reassigned": True,
                     },
-                    priority=8
+                    priority=8,
                 )
                 self.send_message(delegation_msg)
 
-        # Check overall progress
         active_subordinates = [
-            sid for sid in manager.subordinates
+            sid
+            for sid in manager.subordinates
             if self.agents[sid].is_active and self.agents[sid].current_task
         ]
 
-        # Update shared beliefs
         manager.beliefs["active_workers"] = len(active_subordinates)
 
     def _worker_peer_coordinate(self, worker_id: str):
         """Worker coordinates with peers."""
         worker = self.agents[worker_id]
 
-        # Share progress with peers
         for peer_id in worker.peers:
             if self.agents[peer_id].is_active:
                 progress_msg = Message(
                     sender=worker_id,
                     receiver=peer_id,
                     message_type="progress_update",
-                    content={"task_id": worker.current_task, "progress": worker.task_progress}
+                    content={
+                        "task_id": worker.current_task,
+                        "progress": worker.task_progress,
+                    },
                 )
                 self.send_message(progress_msg)
 
@@ -856,7 +884,6 @@ class HybridHierarchy(HierarchyStrategy):
         agent.is_active = False
 
         if agent.role == "worker":
-            # Task reassignment handled by manager
             if agent.current_task:
                 task = self.tasks.get(agent.current_task)
                 if task:
@@ -864,14 +891,11 @@ class HybridHierarchy(HierarchyStrategy):
                     task.status = "pending"
                     agent.current_task = None
 
-            # Update peer network
             for peer_id in agent.peers:
                 self.agents[peer_id].peers.discard(agent_id)
 
         elif agent.role == "manager":
-            # Promote a worker or handle through upper management
             if agent.subordinates:
-                # Reassign subordinates (simplified: assign to root if exists)
                 root_id = "agent_0"
                 if root_id != agent_id and root_id in self.agents:
                     for sub_id in agent.subordinates:
@@ -882,9 +906,7 @@ class HybridHierarchy(HierarchyStrategy):
 
 
 def create_hierarchy_strategy(
-    hierarchy_type: HierarchyType,
-    num_agents: int,
-    **kwargs
+    hierarchy_type: HierarchyType, num_agents: int, **kwargs
 ) -> HierarchyStrategy:
     """Factory function to create hierarchy strategy."""
 

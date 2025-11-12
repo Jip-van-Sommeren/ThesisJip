@@ -1,0 +1,40 @@
+# Test Configuration for Battery Digital Twin
+#
+# Minimal configuration for integration testing
+
+# Battery identification
+battery_id: "TEST001"
+
+# MQTT Broker Configuration
+mqtt_broker: "localhost"
+mqtt_port: 1883
+mqtt_keepalive: 30
+
+# Storage Configuration - DISABLED for testing
+enable_storage: false
+storage_config_path: null
+
+# Agent Enable Flags - Core agents only
+enable_telemetry_ingestor: true
+enable_state_estimator: true
+enable_health_monitor: true
+enable_physics_model: false
+enable_ml_residual: false
+
+# Extended Kalman Filter Configuration
+ekf_initial_soc: 0.9
+ekf_initial_soh: 1.0
+ekf_capacity_nominal: 2.5
+
+# Health Monitoring Configuration
+health_initial_soh: 1.0
+health_initial_r0: 0.01
+health_eol_threshold: 0.8
+
+# Logging Configuration
+log_level: "DEBUG"
+log_file: null  # Console only for tests
+
+# Performance Monitoring - Faster intervals for testing
+enable_metrics: true
+metrics_interval: 2.0

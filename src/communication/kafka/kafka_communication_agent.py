@@ -70,6 +70,7 @@ class ExtendedKafkaCommunicatingAgent(AbstractAgent):
 
         # Register agent with the Kafka service
         self.kafka_service.register_agent(self.agent_id)
+        self.mailbox = None
 
         # Add communication actions to agent's action set
         self._add_communication_actions()
@@ -326,11 +327,14 @@ class KafkaCommunicationEnvironment:
     configuration.
     """
 
-    def __init__(self, kafka_config: Dict[str, Any] = None):
+    def __init__(self, kafka_config: Dict[str, Any] = None, latency_mode=None):
+        from communication.base_communication import LatencyMode
+
         self.kafka_config = kafka_config or {
             "bootstrap_servers": ["localhost:9092"],
             "client_id": "kafka_communication_environment",
         }
+        self.latency_mode = latency_mode or LatencyMode.END_TO_END
         self.kafka_service = None
         self.agents: Dict[str, ExtendedKafkaCommunicatingAgent] = {}
 
@@ -338,10 +342,12 @@ class KafkaCommunicationEnvironment:
         """Setup Kafka communication environment."""
         # config parameter reserved for future configuration options
         # Create Kafka communication service
-        self.kafka_service = KafkaCommunicationService(self.kafka_config)
+        self.kafka_service = KafkaCommunicationService(
+            self.kafka_config, latency_mode=self.latency_mode
+        )
 
-        # Wait for Kafka service to be ready
-        time.sleep(0.5)
+        # Minimal wait for Kafka service to be ready (optimized for benchmarks)
+        time.sleep(0.05)  # 50ms instead of 500ms
 
     def create_agent(self, agent_id: str) -> ExtendedKafkaCommunicatingAgent:
         """Create a Kafka communicating agent."""
@@ -349,12 +355,14 @@ class KafkaCommunicationEnvironment:
             raise RuntimeError("Environment not set up. Call setup() first.")
 
         agent = ExtendedKafkaCommunicatingAgent(agent_id, self.kafka_service)
+        agent.mailbox = self.kafka_service.mailboxes.get(agent.agent_id)
         self.agents[agent_id] = agent
         return agent
 
     def register_agent(self, agent: ExtendedKafkaCommunicatingAgent):
         """Register an existing agent with the environment."""
         self.agents[agent.agent_id] = agent
+        agent.mailbox = self.kafka_service.mailboxes.get(agent.agent_id)
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get Kafka communication statistics."""

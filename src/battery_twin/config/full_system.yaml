@@ -1,0 +1,42 @@
+# Full Battery Digital Twin Configuration
+#
+# This configuration enables ALL agents for complete functionality:
+# Telemetry → State Estimation → Health Monitoring
+#          → Physics Model + ML Residual → Hybrid Predictions
+
+# Battery identification
+battery_id: "B0005"
+
+# MQTT Broker Configuration
+mqtt_broker: "localhost"
+mqtt_port: 1883
+mqtt_keepalive: 60
+
+# Storage Configuration
+enable_storage: true
+storage_config_path: "src/battery_twin/config/storage_config.yaml"
+
+# Agent Enable Flags - ALL ENABLED
+enable_telemetry_ingestor: true
+enable_state_estimator: true
+enable_health_monitor: true
+enable_physics_model: true
+enable_ml_residual: true
+
+# Extended Kalman Filter Configuration
+ekf_initial_soc: 0.8
+ekf_initial_soh: 1.0
+ekf_capacity_nominal: 2.0
+
+# Health Monitoring Configuration
+health_initial_soh: 1.0
+health_initial_r0: 0.01
+health_eol_threshold: 0.8
+
+# Logging Configuration
+log_level: "DEBUG"
+log_file: "logs/battery_twin.log"
+
+# Performance Monitoring
+enable_metrics: true
+metrics_interval: 5.0

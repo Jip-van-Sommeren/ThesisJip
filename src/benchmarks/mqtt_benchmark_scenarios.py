@@ -10,10 +10,12 @@ of the same formal communication model from the thesis.
 
 import time
 import random
+import threading
 import subprocess
 import socket
 from typing import Dict, Any, List, Optional
 import concurrent.futures
+from benchmarks.communication_benchmark import generate_payload
 from communication.mqtt.mqtt_communication_agent import (
     MqttCommunicationEnvironment,
 )
@@ -26,10 +28,18 @@ from benchmarks.communication_benchmark import (
     BenchmarkScenario,
 )
 from communication.mqtt.mqtt_communication import MqttMessageType
+from communication.base_communication import MessageType
 
 
 # Global variable to track broker container
 _mqtt_broker_container: Optional[str] = None
+
+
+def _is_ack_message(message) -> bool:
+    msg_type = getattr(message, "message_type", None)
+    if hasattr(msg_type, "value"):
+        msg_type = msg_type.value
+    return msg_type == MessageType.ACK.value
 
 
 def is_mqtt_running(host="localhost", port=1883, timeout=2) -> bool:
@@ -172,25 +182,48 @@ def ensure_mqtt_running() -> bool:
 
 
 def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Setup for basic MQTT latency/throughput scenarios."""
+    """Setup for basic MQTT latency/throughput scenarios.
+
+    Default latency_mode is 'end_to_end' for fair comparison across all protocols.
+    MQTT uses QoS 1 (at-least-once delivery) for comparable durability to Kafka acks=1.
+    """
     agent_count = params.get("agent_count", 5)
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
     )
+    latency_mode = params.get("latency_mode", "end_to_end")
+    mqtt_qos = int(params.get("mqtt_qos", 1))
 
     # Ensure MQTT broker is running before creating environment
     if not ensure_mqtt_running():
         raise RuntimeError("Failed to start MQTT broker")
 
+    # Import LatencyMode enum
+    from communication.base_communication import LatencyMode
+
+    # Convert string to enum
+    if latency_mode == "send_only":
+        latency_mode_enum = LatencyMode.SEND_ONLY
+    elif latency_mode == "app_ack":
+        latency_mode_enum = LatencyMode.APP_ACK
+    else:
+        latency_mode_enum = LatencyMode.END_TO_END
+
     # Create MQTT communication environment
+    # QoS 1 configuration for fair benchmark comparison:
+    # - QoS 1: At-least-once delivery with broker acknowledgment
+    # - This provides similar durability guarantees to Kafka acks=1
     mqtt_config = {
         "broker_host": "localhost",
         "broker_port": 1883,
         "keepalive": 60,
-        "qos": 1,
+        "qos": mqtt_qos,
     }
     env = MqttCommunicationEnvironment(
-        broker_host="localhost", broker_port=1883, mqtt_config=mqtt_config
+        broker_host="localhost",
+        broker_port=1883,
+        mqtt_config=mqtt_config,
+        latency_mode=latency_mode_enum,
     )
     env.start_service()
 
@@ -205,6 +238,10 @@ def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
     agents = []
     for i in range(agent_count):
         agent = env.create_agent(f"agent_{i}")
+        if getattr(agent, "mailbox", None) is None and hasattr(
+            agent, "mqtt_agent"
+        ):
+            agent.mailbox = agent.mqtt_agent.mailbox
         agents.append(agent)
 
     # Setup topology
@@ -241,12 +278,40 @@ def teardown_mqtt_basic_scenario(params: Dict[str, Any]):
     params.clear()
 
 
+def _wait_for_ack(agent, message_id: str, timeout: float = 5.0) -> bool:
+    """Wait for ACK message with matching message_id.
+
+    Args:
+        agent: Agent to check for ACK
+        message_id: Expected message ID in ACK
+        timeout: Maximum time to wait in seconds
+
+    Returns:
+        True if ACK received, False if timeout
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        # Check mailbox for ACK messages
+        messages = agent.mailbox.peek_messages()
+        for msg in messages:
+            if (
+                _is_ack_message(msg)
+                and msg.content.get("ack_for") == message_id
+            ):
+                agent.mailbox.get_messages(clear=True)
+                return True
+        time.sleep(0.001)  # Small polling interval
+    return False
+
+
 def test_mqtt_point_to_point_latency(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test basic point-to-point message latency via MQTT."""
     agents = params["agents"]
     message_count = params.get("message_count", 100)
+    payload_size = params.get("payload_size_bytes", 100)
+    latency_mode = params.get("latency_mode", "end_to_end")
 
     if len(agents) < 2:
         return {"delivery_failures": message_count}
@@ -255,6 +320,32 @@ def test_mqtt_point_to_point_latency(
     receiver = agents[1]
 
     delivery_failures = 0
+    ack_timeouts = 0
+
+    # In app_ack mode, start a receiver thread that sends ACKs
+    stop_ack_thread = threading.Event()
+    ack_thread = None
+
+    def receiver_ack_loop():
+        """Background thread to send ACKs for received messages."""
+        while not stop_ack_thread.is_set():
+            messages = receiver.mailbox.peek_messages()
+            for msg in messages:
+                if _is_ack_message(msg):
+                    continue
+
+                ack_content = {"ack_for": msg.content.get("test_id")}
+                receiver.send_message(
+                    str(sender.id), MqttMessageType.ACK, ack_content
+                )
+
+            if messages:
+                receiver.mailbox.get_messages(clear=True)
+            time.sleep(0.001)
+
+    if latency_mode == "app_ack":
+        ack_thread = threading.Thread(target=receiver_ack_loop, daemon=True)
+        ack_thread.start()
 
     for i in range(message_count):
         message_id = f"mqtt_latency_test_{i}"
@@ -263,23 +354,39 @@ def test_mqtt_point_to_point_latency(
         benchmark.latency_tracker.start_message_timing(message_id)
         benchmark.throughput_tracker.record_message()
 
-        # Send message via MQTT
-        content = {"test_id": message_id, "data": f"mqtt_test_data_{i}"}
+        # Send message via MQTT with specified payload size
+        payload_data = generate_payload(payload_size)
+        content = {"test_id": message_id, "data": payload_data}
         success = sender.send_message(
             str(receiver.id), MqttMessageType.INFORM, content
         )
 
         if success:
-            # Simulate processing time and end timing
-            time.sleep(0.001)  # 1ms processing simulation
-            benchmark.latency_tracker.end_message_timing(message_id)
+            if latency_mode == "app_ack":
+                # Wait for ACK from receiver
+                if _wait_for_ack(sender, message_id):
+                    benchmark.latency_tracker.end_message_timing(message_id)
+                else:
+                    ack_timeouts += 1
+                    delivery_failures += 1
+            else:
+                # End timing immediately after send (send_only or end_to_end)
+                benchmark.latency_tracker.end_message_timing(message_id)
         else:
             delivery_failures += 1
 
-        # Small delay between messages
+        # Small delay between messages (simulates realistic pacing)
         time.sleep(0.01)
 
-    return {"delivery_failures": delivery_failures}
+    # Stop ACK thread
+    if ack_thread:
+        stop_ack_thread.set()
+        ack_thread.join(timeout=1.0)
+
+    return {
+        "delivery_failures": delivery_failures,
+        "ack_timeouts": ack_timeouts,
+    }
 
 
 def test_mqtt_broadcast_throughput(
@@ -288,36 +395,112 @@ def test_mqtt_broadcast_throughput(
     """Test MQTT broadcast message throughput."""
     agents = params["agents"]
     message_count = params.get("message_count", 50)
+    payload_size = params.get("payload_size_bytes", 100)
+    latency_mode = params.get("latency_mode", "end_to_end")
 
     if len(agents) < 1:
         return {"delivery_failures": message_count}
 
     sender = agents[0]
+    receivers = agents[1:]  # All other agents are receivers
     delivery_failures = 0
+    ack_timeouts = 0
+
+    # In app_ack mode, start receiver threads that send ACKs
+    stop_ack_threads = threading.Event()
+    ack_threads = []
+
+    def receiver_ack_loop(receiver):
+        """ACK loop for broadcast; preserve ACKs in local mailbox."""
+        while not stop_ack_threads.is_set():
+            inbox = receiver.mailbox.get_messages(clear=True)
+            if not inbox:
+                time.sleep(0.001)
+                continue
+
+            for msg in inbox:
+                if _is_ack_message(msg):
+                    receiver.mailbox.add_message(msg)
+                    continue
+
+                ack_content = {"ack_for": msg.content.get("broadcast_id")}
+                receiver.send_message(
+                    str(sender.id), MqttMessageType.ACK, ack_content
+                )
+
+    if latency_mode == "app_ack" and receivers:
+        for receiver in receivers:
+            thread = threading.Thread(
+                target=receiver_ack_loop, args=(receiver,), daemon=True
+            )
+            thread.start()
+            ack_threads.append(thread)
 
     for i in range(message_count):
         message_id = f"mqtt_broadcast_test_{i}"
 
-        # Start timing
-        benchmark.latency_tracker.start_message_timing(message_id)
+        # Track throughput
         benchmark.throughput_tracker.record_message()
 
-        # Send broadcast via MQTT
+        # Start timing
+        benchmark.latency_tracker.start_message_timing(message_id)
+
+        # Send broadcast via MQTT with specified payload size
+        payload_data = generate_payload(payload_size)
         content = {
             "broadcast_id": message_id,
-            "announcement": f"mqtt_broadcast_{i}",
+            "announcement": payload_data,
         }
         result = sender.broadcast_message(content)
 
         if result.get("status") == "completed":
-            # End timing
-            benchmark.latency_tracker.end_message_timing(message_id)
+            if latency_mode == "app_ack" and receivers:
+                # Wait for ACKs from all receivers
+                expected_acks = len(receivers)
+                received_acks = 0
+                timeout_start = time.time()
+                timeout = 5.0
+
+                while (
+                    received_acks < expected_acks
+                    and time.time() - timeout_start < timeout
+                ):
+                    messages = sender.mailbox.peek_messages()
+                    for msg in messages:
+                        if (
+                            _is_ack_message(msg)
+                            and msg.content.get("ack_for") == message_id
+                        ):
+                            received_acks += 1
+                    if received_acks < expected_acks:
+                        time.sleep(0.001)
+
+                # Clear ACK messages from mailbox
+                sender.mailbox.get_messages(clear=True)
+
+                if received_acks >= expected_acks:
+                    benchmark.latency_tracker.end_message_timing(message_id)
+                else:
+                    ack_timeouts += 1
+                    delivery_failures += 1
+            else:
+                # End timing (send-only or end_to_end semantics)
+                benchmark.latency_tracker.end_message_timing(message_id)
         else:
             delivery_failures += 1
 
         time.sleep(0.02)  # Slight delay between broadcasts
 
-    return {"delivery_failures": delivery_failures}
+    # Stop ACK threads
+    if ack_threads:
+        stop_ack_threads.set()
+        for thread in ack_threads:
+            thread.join(timeout=1.0)
+
+    return {
+        "delivery_failures": delivery_failures,
+        "ack_timeouts": ack_timeouts,
+    }
 
 
 def test_mqtt_concurrent_messaging(
@@ -326,15 +509,57 @@ def test_mqtt_concurrent_messaging(
     """Test concurrent MQTT messaging between multiple agents."""
     agents = params["agents"]
     messages_per_agent = params.get("messages_per_agent", 20)
+    payload_size = params.get("payload_size_bytes", 100)
+    latency_mode = params.get("latency_mode", "end_to_end")
 
     if len(agents) < 2:
         return {"delivery_failures": messages_per_agent * len(agents)}
 
     delivery_failures = 0
     timeout_failures = 0
+    ack_timeouts = 0
+
+    # In app_ack mode, start receiver threads for all agents
+    stop_ack_threads = threading.Event()
+    ack_threads = []
+
+    def receiver_ack_loop(receiver):
+        """ACK loop for concurrent messaging; keep ACKs available locally."""
+        while not stop_ack_threads.is_set():
+            inbox = receiver.mailbox.get_messages(clear=True)
+            if not inbox:
+                time.sleep(0.001)
+                continue
+
+            for msg in inbox:
+                if _is_ack_message(msg):
+                    receiver.mailbox.add_message(msg)
+                    continue
+
+                msg_id = (
+                    str(msg.content.get("sender", ""))
+                    + "_"
+                    + str(msg.content.get("message_num", ""))
+                )
+                full_msg_id = f"mqtt_concurrent_{msg_id}"
+                ack_content = {"ack_for": full_msg_id}
+                receiver.send_message(
+                    msg.sender_id, MqttMessageType.ACK, ack_content
+                )
+
+    if latency_mode == "app_ack":
+        for agent in agents:
+            thread = threading.Thread(
+                target=receiver_ack_loop, args=(agent,), daemon=True
+            )
+            thread.start()
+            ack_threads.append(thread)
+
+    concurrency_limit = params.get("concurrent_senders", len(agents))
+    active_agents = agents[: max(1, min(concurrency_limit, len(agents)))]
 
     def mqtt_agent_messaging_task(agent, agent_index):
-        nonlocal delivery_failures, timeout_failures
+        nonlocal delivery_failures, timeout_failures, ack_timeouts
 
         # Get valid targets based on topology from configuration
         config = params.get("config")
@@ -362,10 +587,12 @@ def test_mqtt_concurrent_messaging(
             benchmark.latency_tracker.start_message_timing(message_id)
             benchmark.throughput_tracker.record_message()
 
-            # Send message via MQTT
+            # Send message via MQTT with specified payload size
+            payload_data = generate_payload(payload_size)
             content = {
                 "sender": agent_index,
                 "message_num": i,
+                "data": payload_data,
                 "timestamp": time.time(),
             }
             success = agent.send_message(
@@ -373,8 +600,18 @@ def test_mqtt_concurrent_messaging(
             )
 
             if success:
-                # End timing
-                benchmark.latency_tracker.end_message_timing(message_id)
+                if latency_mode == "app_ack":
+                    # Wait for ACK from receiver
+                    if _wait_for_ack(agent, message_id):
+                        benchmark.latency_tracker.end_message_timing(
+                            message_id
+                        )
+                    else:
+                        ack_timeouts += 1
+                        delivery_failures += 1
+                else:
+                    # End timing (send_only or end_to_end)
+                    benchmark.latency_tracker.end_message_timing(message_id)
             else:
                 delivery_failures += 1
 
@@ -383,10 +620,10 @@ def test_mqtt_concurrent_messaging(
 
     # Run concurrent MQTT messaging
     with concurrent.futures.ThreadPoolExecutor(
-        max_workers=len(agents)
+        max_workers=len(active_agents)
     ) as executor:
         futures = []
-        for i, agent in enumerate(agents):
+        for i, agent in enumerate(active_agents):
             future = executor.submit(mqtt_agent_messaging_task, agent, i)
             futures.append(future)
 
@@ -398,9 +635,16 @@ def test_mqtt_concurrent_messaging(
             if not future.done():
                 timeout_failures += 1
 
+    # Stop ACK threads
+    if ack_threads:
+        stop_ack_threads.set()
+        for thread in ack_threads:
+            thread.join(timeout=1.0)
+
     return {
         "delivery_failures": delivery_failures,
         "timeout_failures": timeout_failures,
+        "ack_timeouts": ack_timeouts,
     }
 
 
@@ -410,28 +654,71 @@ def test_mqtt_scalability_stress(
     """Test MQTT system under high message load for scalability."""
     agents = params["agents"]
     stress_duration = params.get("stress_duration", 5.0)  # seconds
+    payload_size = params.get("payload_size_bytes", 100)
+    latency_mode = params.get("latency_mode", "end_to_end")
 
     if len(agents) < 2:
         return {"delivery_failures": 1000}
 
     delivery_failures = 0
     message_count = 0
+    ack_timeouts = 0
+
+    # In app_ack mode, start receiver threads for all agents
+    stop_ack_threads = threading.Event()
+    ack_threads = []
+
+    def receiver_ack_loop(receiver):
+        """ACK loop for stress; re-queue ACKs to avoid losses."""
+        while not stop_ack_threads.is_set():
+            inbox = receiver.mailbox.get_messages(clear=True)
+            if not inbox:
+                time.sleep(0.001)
+                continue
+
+            for msg in inbox:
+                if _is_ack_message(msg):
+                    receiver.mailbox.add_message(msg)
+                    continue
+
+                msg_count = msg.content.get("count")
+                if msg_count is None:
+                    continue
+                full_msg_id = f"mqtt_stress_{msg.sender_id}_{msg_count}"
+                ack_content = {"ack_for": full_msg_id}
+                receiver.send_message(
+                    msg.sender_id, MqttMessageType.ACK, ack_content
+                )
+
+    if latency_mode == "app_ack":
+        for agent in agents:
+            thread = threading.Thread(
+                target=receiver_ack_loop, args=(agent,), daemon=True
+            )
+            thread.start()
+            ack_threads.append(thread)
 
     def mqtt_stress_messaging_task(agent):
-        nonlocal delivery_failures, message_count
+        nonlocal delivery_failures, message_count, ack_timeouts
         end_time = time.time() + stress_duration
         targets = [a for a in agents if a != agent]
+        local_count = 0
 
         while time.time() < end_time:
             target = random.choice(targets)
-            message_id = f"mqtt_stress_{agent.id}_{message_count}"
+            message_id = f"mqtt_stress_{agent.id}_{local_count}"
 
             # Track timing and throughput
             benchmark.latency_tracker.start_message_timing(message_id)
             benchmark.throughput_tracker.record_message()
 
-            # Send message via MQTT
-            content = {"stress_test": True, "count": message_count}
+            # Send message via MQTT with specified payload size
+            payload_data = generate_payload(payload_size)
+            content = {
+                "stress_test": True,
+                "count": local_count,
+                "data": payload_data,
+            }
             success = agent.send_message(
                 str(target.id),
                 random.choice(
@@ -441,10 +728,21 @@ def test_mqtt_scalability_stress(
             )
 
             if success:
-                benchmark.latency_tracker.end_message_timing(message_id)
+                if latency_mode == "app_ack":
+                    # Wait for ACK from receiver
+                    if _wait_for_ack(agent, message_id, timeout=2.0):
+                        benchmark.latency_tracker.end_message_timing(
+                            message_id
+                        )
+                    else:
+                        ack_timeouts += 1
+                        delivery_failures += 1
+                else:
+                    benchmark.latency_tracker.end_message_timing(message_id)
             else:
                 delivery_failures += 1
 
+            local_count += 1
             message_count += 1
 
             # Minimal delay for high throughput
@@ -460,15 +758,25 @@ def test_mqtt_scalability_stress(
         ]
         concurrent.futures.wait(futures, timeout=stress_duration + 5)
 
+    # Stop ACK threads
+    if ack_threads:
+        stop_ack_threads.set()
+        for thread in ack_threads:
+            thread.join(timeout=1.0)
+
     return {
         "delivery_failures": delivery_failures,
         "total_stress_messages": message_count,
+        "ack_timeouts": ack_timeouts,
     }
 
 
-def create_mqtt_benchmark_scenarios() -> CommunicationBenchmark:
+def create_mqtt_benchmark_scenarios(
+    latency_mode: str = "end_to_end",
+) -> CommunicationBenchmark:
     """Create and configure all MQTT benchmark scenarios."""
     benchmark = CommunicationBenchmark()
+    benchmark.latency_mode = latency_mode  # Store for use in scenarios
 
     # Scenario 1: MQTT Point-to-Point Latency
     mqtt_latency_scenario = BenchmarkScenario(

@@ -15,8 +15,10 @@ import threading
 import time
 import uuid
 import socket
+import json
+import queue
 from concurrent import futures
-from typing import Dict, List, Set, Tuple, Optional, Any
+from typing import Dict, List, Set, Tuple, Optional, Any, Iterable
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
@@ -28,6 +30,7 @@ from . import communication_pb2_grpc
 # Import existing communication models for compatibility
 from communication.base_communication import (
     MessageType as BaseMessageType,
+    LatencyMode,
 )
 
 
@@ -39,6 +42,7 @@ class GrpcMessageType(Enum):
     REPLY = communication_pb2.REPLY
     BROADCAST = communication_pb2.BROADCAST
     ERROR = communication_pb2.ERROR
+    ACK = communication_pb2.ACK
 
     @classmethod
     def from_base_type(cls, base_type: BaseMessageType) -> "GrpcMessageType":
@@ -48,6 +52,7 @@ class GrpcMessageType(Enum):
             BaseMessageType.REQUEST: cls.REQUEST,
             BaseMessageType.REPLY: cls.REPLY,
             BaseMessageType.BROADCAST: cls.BROADCAST,
+            BaseMessageType.ACK: cls.ACK,
             BaseMessageType.ERROR: cls.ERROR,
         }
         return mapping[base_type]
@@ -153,6 +158,11 @@ class GrpcMailbox:
                 self.messages.clear()
             return messages
 
+    def peek_messages(self) -> List[GrpcMessage]:
+        """Inspect messages without removing them."""
+        with self.lock:
+            return list(self.messages)
+
     def size(self) -> int:
         """Get number of messages in mailbox."""
         with self.lock:
@@ -210,7 +220,8 @@ class CommunicationServiceImpl(
     Implements the formal communication model via gRPC RPCs.
     """
 
-    def __init__(self):
+    def __init__(self, latency_mode=None):
+        self.latency_mode = latency_mode or LatencyMode.END_TO_END
         self.mailboxes: Dict[str, GrpcMailbox] = {}
         self.topology = GrpcCommunicationTopology()
         self.delivery_stats = {
@@ -220,6 +231,12 @@ class CommunicationServiceImpl(
             "avg_delivery_time": 0.0,
         }
         self.lock = threading.Lock()
+        self.broadcast_queue: "queue.Queue[Tuple[str, int, Dict[str, str]]]" = queue.Queue()
+        self.broadcast_worker_stop = threading.Event()
+        self.broadcast_worker = threading.Thread(
+            target=self._broadcast_worker, daemon=True
+        )
+        self.broadcast_worker.start()
 
     def RegisterAgent(self, request, context):
         """Register an agent and create its mailbox."""
@@ -235,93 +252,32 @@ class CommunicationServiceImpl(
         """
         Send message from one agent to another: implements send(i,j,m).
         """
-        start_time = time.time()
+        success, message_id, error_message = self._deliver_request(request)
+        response_kwargs = {
+            "success": success,
+            "message_id": message_id,
+        }
+        if not success and error_message:
+            response_kwargs["error_message"] = error_message
 
-        with self.lock:
-            self.delivery_stats["messages_sent"] += 1
-
-        # Check if communication is allowed
-        if not self.topology.can_communicate(
-            request.sender_id, request.receiver_id
-        ):
-            with self.lock:
-                self.delivery_stats["delivery_failures"] += 1
-            return communication_pb2.SendMessageResponse(
-                success=False,
-                message_id="",
-                error_message="Communication not allowed",
-            )
-
-        # Check if receiver exists
-        if request.receiver_id not in self.mailboxes:
-            with self.lock:
-                self.delivery_stats["delivery_failures"] += 1
-            return communication_pb2.SendMessageResponse(
-                success=False,
-                message_id="",
-                error_message="Receiver not found",
-            )
-
-        # Create message
-        message = GrpcMessage(
-            sender_id=request.sender_id,
-            receiver_id=request.receiver_id,
-            message_type=GrpcMessageType(request.message_type),
-            content=dict(request.content),
-            reply_to=(
-                request.reply_to if request.HasField("reply_to") else None
-            ),
-        )
-
-        # Deliver message
-        self.mailboxes[request.receiver_id].add_message(message)
-
-        # Update stats
-        delivery_time = time.time() - start_time
-        with self.lock:
-            self.delivery_stats["messages_delivered"] += 1
-            old_avg = self.delivery_stats["avg_delivery_time"]
-            count = self.delivery_stats["messages_delivered"]
-            self.delivery_stats["avg_delivery_time"] = (
-                old_avg * (count - 1) + delivery_time
-            ) / count
-
-        return communication_pb2.SendMessageResponse(
-            success=True, message_id=message.message_id
-        )
+        return communication_pb2.SendMessageResponse(**response_kwargs)
 
     def BroadcastMessage(self, request, context):
         """
         Broadcast message to all reachable agents: implements send(i,*,m).
         """
-        reachable = self.topology.get_reachable_agents(request.sender_id)
-        delivered = 0
-        failed = 0
-        message_ids = []
-
-        for receiver_id in reachable:
-            # Create individual send request
-            send_request = communication_pb2.SendMessageRequest(
-                sender_id=request.sender_id,
-                receiver_id=receiver_id,
-                message_type=request.message_type,
-                content=request.content,
-            )
-
-            # Use internal send method
-            response = self.SendMessage(send_request, context)
-            if response.success:
-                delivered += 1
-                message_ids.append(response.message_id)
-            else:
-                failed += 1
+        reachable = list(self.topology.get_reachable_agents(request.sender_id))
+        payload = dict(request.content)
+        self._enqueue_broadcast_task(
+            request.sender_id, request.message_type, payload
+        )
 
         return communication_pb2.BroadcastMessageResponse(
             success=True,
-            delivered=delivered,
-            failed=failed,
+            delivered=len(reachable),
+            failed=0,
             total_targets=len(reachable),
-            message_ids=message_ids,
+            message_ids=[],
         )
 
     def GetMessages(self, request, context):
@@ -357,6 +313,47 @@ class CommunicationServiceImpl(
             avg_delivery_time=stats["avg_delivery_time"],
         )
 
+    def _enqueue_broadcast_task(
+        self, sender_id: str, message_type: int, content: Dict[str, str]
+    ):
+        payload = json.loads(json.dumps(content))
+        self.broadcast_queue.put((sender_id, message_type, payload))
+
+    def _broadcast_worker(self):
+        """Asynchronously deliver broadcast messages to subscribers."""
+        while True:
+            try:
+                task = self.broadcast_queue.get(timeout=0.1)
+            except queue.Empty:
+                if self.broadcast_worker_stop.is_set():
+                    break
+                continue
+
+            if task is None:
+                self.broadcast_queue.task_done()
+                break
+
+            sender_id, message_type, content = task
+            reachable = self.topology.get_reachable_agents(sender_id)
+            for receiver_id in reachable:
+                send_request = communication_pb2.SendMessageRequest(
+                    sender_id=sender_id,
+                    receiver_id=receiver_id,
+                    message_type=message_type,
+                )
+                for key, value in content.items():
+                    send_request.content[key] = value
+                self._deliver_request(send_request)
+
+            self.broadcast_queue.task_done()
+
+    def shutdown(self):
+        """Stop background workers gracefully."""
+        self.broadcast_worker_stop.set()
+        self.broadcast_queue.put(None)
+        if self.broadcast_worker.is_alive():
+            self.broadcast_worker.join(timeout=1.0)
+
     def GetTopology(self, request, context):
         """Get current communication topology."""
         links = []
@@ -372,17 +369,92 @@ class CommunicationServiceImpl(
             links=links, total_links=len(links)
         )
 
+    def StreamMessages(self, request_iterator, context):
+        """Handle client-streaming message delivery."""
+        success = True
+        message_ids = []
+        first_error: Optional[str] = None
+
+        for request in request_iterator:
+            delivered, message_id, error_message = self._deliver_request(
+                request
+            )
+            if message_id:
+                message_ids.append(message_id)
+            if not delivered:
+                success = False
+                if first_error is None:
+                    first_error = error_message or "Unknown delivery error"
+
+        response_kwargs = {
+            "success": success,
+            "message_ids": message_ids,
+        }
+        if not success and first_error:
+            response_kwargs["error_message"] = first_error
+
+        return communication_pb2.StreamSummaryResponse(**response_kwargs)
+
+    def _deliver_request(
+        self, request: communication_pb2.SendMessageRequest
+    ) -> Tuple[bool, str, Optional[str]]:
+        """Core delivery routine shared across RPC variants."""
+        start_time = time.time()
+
+        with self.lock:
+            self.delivery_stats["messages_sent"] += 1
+
+        if not self.topology.can_communicate(
+            request.sender_id, request.receiver_id
+        ):
+            with self.lock:
+                self.delivery_stats["delivery_failures"] += 1
+            return False, "", "Communication not allowed"
+
+        if request.receiver_id not in self.mailboxes:
+            with self.lock:
+                self.delivery_stats["delivery_failures"] += 1
+            return False, "", "Receiver not found"
+
+        message = GrpcMessage(
+            sender_id=request.sender_id,
+            receiver_id=request.receiver_id,
+            message_type=GrpcMessageType(request.message_type),
+            content=dict(request.content),
+            reply_to=(
+                request.reply_to if request.HasField("reply_to") else None
+            ),
+        )
+
+        self.mailboxes[request.receiver_id].add_message(message)
+
+        delivery_time = time.time() - start_time
+        with self.lock:
+            self.delivery_stats["messages_delivered"] += 1
+            old_avg = self.delivery_stats["avg_delivery_time"]
+            count = self.delivery_stats["messages_delivered"]
+            self.delivery_stats["avg_delivery_time"] = (
+                old_avg * (count - 1) + delivery_time
+            ) / count
+
+        return True, message.message_id, None
+
 
 class GrpcCommunicationServer:
     """
     gRPC communication server that manages the service.
     """
 
-    def __init__(self, host: str = "localhost", port: int = 50051):
+    def __init__(
+        self, host: str = "localhost", port: int = 50051, latency_mode=None
+    ):
         self.host = host
         self.port = port
+        self.latency_mode = latency_mode or LatencyMode.END_TO_END
         self.server = None
-        self.service_impl = CommunicationServiceImpl()
+        self.service_impl = CommunicationServiceImpl(
+            latency_mode=self.latency_mode
+        )
         self.is_running = False
 
     def start_server(self):
@@ -423,6 +495,7 @@ class GrpcCommunicationServer:
             self.server.stop(grace=1.0)
             self.is_running = False
             print(f"gRPC communication server on port {self.port} stopped")
+        self.service_impl.shutdown()
 
     def get_service_address(self) -> str:
         """Get the service address."""
@@ -436,16 +509,26 @@ class GrpcCommunicatingAgent:
     """
 
     def __init__(
-        self, agent_id: str, service_address: str = "localhost:50051"
+        self,
+        agent_id: str,
+        service_address: str = "localhost:50051",
+        communication_mode: str = "unary",
     ):
         self.agent_id = agent_id
         self.service_address = service_address
+        self.communication_mode = communication_mode.lower()
         self.channel = None
         self.stub = None
+        self.stream_lock = threading.Lock()
         self._connect()
 
     def _connect(self):
         """Connect to the gRPC service."""
+        if self.channel:
+            try:
+                self.channel.close()
+            except Exception:
+                pass
         self.channel = grpc.insecure_channel(self.service_address)
         self.stub = communication_pb2_grpc.CommunicationServiceStub(
             self.channel
@@ -475,6 +558,9 @@ class GrpcCommunicatingAgent:
 
             if reply_to:
                 request.reply_to = reply_to
+
+            if self.communication_mode == "streaming":
+                return self._stream_messages([request])
 
             response = self.stub.SendMessage(request, timeout=5.0)
             return response.success
@@ -539,3 +625,23 @@ class GrpcCommunicatingAgent:
         """Close the gRPC channel."""
         if self.channel:
             self.channel.close()
+            self.channel = None
+        self.stub = None
+
+    def _stream_messages(
+        self, requests: Iterable[communication_pb2.SendMessageRequest]
+    ) -> bool:
+        """Send one or more messages using the StreamMessages RPC."""
+
+        def request_iter():
+            for req in requests:
+                yield req
+
+        try:
+            with self.stream_lock:
+                response = self.stub.StreamMessages(
+                    request_iter(), timeout=5.0
+                )
+            return response.success
+        except grpc.RpcError:
+            return False

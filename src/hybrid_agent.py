@@ -10,7 +10,7 @@ Hybrid agents combine:
 - Both short-term perceptual data and structured internal models
 """
 
-from abstract_agent import AbstractAgent, AgentId, Goal, ReactiveRule, Action
+from abstract_agent import AbstractAgent, AgentId, Goal, ReactiveRule, Action, ActionType
 from bdi_agent import Intention, IntentionStatus
 from typing import Dict, Set, List
 from enum import Enum
@@ -88,7 +88,7 @@ class HybridAgent(AbstractAgent):
         self.add_action(
             Action(
                 action_id="emergency_stop",
-                action_type=AbstractAgent.__dict__["ActionType"].TRANSIENT,
+                action_type=ActionType.TRANSIENT,
                 preconditions=lambda env: True,
                 effects=lambda env: {**env, "emergency_stop": True},
             )
@@ -98,7 +98,7 @@ class HybridAgent(AbstractAgent):
         self.add_action(
             Action(
                 action_id="noop",
-                action_type=AbstractAgent.__dict__["ActionType"].TRANSIENT,
+                action_type=ActionType.TRANSIENT,
                 preconditions=lambda env: True,
                 effects=lambda env: env,
             )
