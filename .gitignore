@@ -7,3 +7,6 @@
 .DS_Store
 */results/
 /Digital-Twin-in-python
+CLAUDE.md
+/.claude
+/.pytest_cache
