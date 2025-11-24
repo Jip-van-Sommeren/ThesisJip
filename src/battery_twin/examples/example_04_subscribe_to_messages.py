@@ -30,7 +30,7 @@ async def main():
     logger.info("EXAMPLE 4: Subscribe to MQTT Messages")
     logger.info("=" * 80)
 
-    battery_id = 'B0005'
+    battery_id = "B0005"
 
     # Message counters
     telemetry_count = 0
@@ -41,9 +41,7 @@ async def main():
     # Step 1: Connect to MQTT
     logger.info("Connecting to MQTT broker...")
     mqtt_config = MqttConfig(
-        broker="localhost",
-        port=1883,
-        client_id_prefix="example_subscriber_"
+        broker="localhost", port=1883, client_id_prefix="example_subscriber_"
     )
     mqtt_bridge = MqttBridge(mqtt_config)
     await mqtt_bridge.connect()
@@ -56,11 +54,13 @@ async def main():
         telemetry_count += 1
 
         data = json.loads(message)
-        logger.info(f"[TELEMETRY #{telemetry_count}] "
-                   f"Cycle {data['cycle']}: "
-                   f"V={data['voltage']:.3f}V, "
-                   f"I={data['current']:.3f}A, "
-                   f"T={data['temperature']:.1f}°C")
+        logger.info(
+            f"[TELEMETRY #{telemetry_count}] "
+            f"Cycle {data['cycle']}: "
+            f"V={data['voltage']:.3f}V, "
+            f"I={data['current']:.3f}A, "
+            f"T={data['temperature']:.1f}°C"
+        )
 
     def on_state_estimate(message: str):
         """Handle incoming state estimate messages."""
@@ -68,12 +68,14 @@ async def main():
         state_estimate_count += 1
 
         data = json.loads(message)
-        logger.success(f"[STATE #{state_estimate_count}] "
-                      f"Cycle {data['cycle']}: "
-                      f"SoC={data['soc']:.1%}, "
-                      f"SoH={data['soh']:.1%}, "
-                      f"R0={data['r0']:.4f}Ω, "
-                      f"Confidence={data['confidence_level']}")
+        logger.success(
+            f"[STATE #{state_estimate_count}] "
+            f"Cycle {data['cycle']}: "
+            f"SoC={data['soc']:.1%}, "
+            f"SoH={data['soh']:.1%}, "
+            f"R0={data['r0']:.4f}Ω, "
+            f"Confidence={data['confidence_level']}"
+        )
 
     def on_health_report(message: str):
         """Handle incoming health report messages."""
@@ -81,10 +83,12 @@ async def main():
         health_report_count += 1
 
         data = json.loads(message)
-        logger.warning(f"[HEALTH #{health_report_count}] "
-                      f"Status={data['health_status']}, "
-                      f"Risk={data['risk_level']}, "
-                      f"RUL={data.get('rul_cycles', 'N/A')} cycles")
+        logger.warning(
+            f"[HEALTH #{health_report_count}] "
+            f"Status={data['health_status']}, "
+            f"Risk={data['risk_level']}, "
+            f"RUL={data.get('rul_cycles', 'N/A')} cycles"
+        )
 
     def on_prediction(message: str):
         """Handle incoming prediction messages."""
@@ -92,8 +96,10 @@ async def main():
         prediction_count += 1
 
         data = json.loads(message)
-        logger.info(f"[PREDICTION #{prediction_count}] "
-                   f"Capacity={data.get('predicted_capacity', 'N/A'):.3f}Ah")
+        logger.info(
+            f"[PREDICTION #{prediction_count}] "
+            f"Capacity={data.get('predicted_capacity', 'N/A'):.3f}Ah"
+        )
 
     # Step 3: Subscribe to topics
     logger.info("\nSubscribing to topics...")
@@ -130,7 +136,9 @@ async def main():
     logger.info(f"State Estimates: {state_estimate_count}")
     logger.info(f"Health Reports: {health_report_count}")
     logger.info(f"Predictions: {prediction_count}")
-    logger.info(f"Total Messages: {telemetry_count + state_estimate_count + health_report_count + prediction_count}")
+    logger.info(
+        f"Total Messages: {telemetry_count + state_estimate_count + health_report_count + prediction_count}"
+    )
 
     # Step 6: Disconnect
     logger.info("\nDisconnecting...")

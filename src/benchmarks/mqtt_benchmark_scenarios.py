@@ -278,7 +278,7 @@ def teardown_mqtt_basic_scenario(params: Dict[str, Any]):
     params.clear()
 
 
-def _wait_for_ack(agent, message_id: str, timeout: float = 5.0) -> bool:
+def _wait_for_ack(agent, message_id: str, timeout: float = 0.5) -> bool:
     """Wait for ACK message with matching message_id.
 
     Args:
@@ -601,8 +601,9 @@ def test_mqtt_concurrent_messaging(
 
             if success:
                 if latency_mode == "app_ack":
-                    # Wait for ACK from receiver
-                    if _wait_for_ack(agent, message_id):
+                    # Wait for ACK from receiver (configurable, default 0.5s)
+                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id
                         )
@@ -730,7 +731,8 @@ def test_mqtt_scalability_stress(
             if success:
                 if latency_mode == "app_ack":
                     # Wait for ACK from receiver
-                    if _wait_for_ack(agent, message_id, timeout=2.0):
+                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id
                         )

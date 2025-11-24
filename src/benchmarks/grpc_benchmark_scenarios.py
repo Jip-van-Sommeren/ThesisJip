@@ -136,7 +136,7 @@ def teardown_grpc_basic_scenario(params: Dict[str, Any]):
     params.clear()
 
 
-def _wait_for_ack(agent, message_id: str, timeout: float = 5.0) -> bool:
+def _wait_for_ack(agent, message_id: str, timeout: float = 0.5) -> bool:
     """Wait for ACK message with matching message_id.
 
     Args:
@@ -313,7 +313,8 @@ def test_grpc_broadcast_throughput(
                 expected_acks = len(receivers)
                 received_acks = 0
                 timeout_start = time.time()
-                timeout = 5.0
+                ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                timeout = ack_timeout
 
                 while received_acks < expected_acks and time.time() - timeout_start < timeout:
                     messages = sender.mailbox.peek_messages()
@@ -448,8 +449,9 @@ def test_grpc_concurrent_messaging(
 
             if success:
                 if latency_mode == "app_ack":
-                    # Wait for ACK from receiver
-                    if _wait_for_ack(agent, message_id):
+                    # Wait for ACK from receiver (configurable)
+                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(message_id)
                     else:
                         ack_timeouts += 1
@@ -573,7 +575,8 @@ def test_grpc_scalability_stress(
             if success:
                 if latency_mode == "app_ack":
                     # Wait for ACK from receiver
-                    if _wait_for_ack(agent, message_id, timeout=2.0):
+                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(message_id)
                     else:
                         ack_timeouts += 1

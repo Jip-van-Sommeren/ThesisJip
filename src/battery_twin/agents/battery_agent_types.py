@@ -13,14 +13,7 @@ from typing import Set, Optional
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-# Import from src root
-import sys
-from pathlib import Path
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "src"))
 
 from abstract_agent import AgentId
 from bdi_agent import BDIAgent
@@ -28,7 +21,9 @@ from reactive_agent import ReactiveAgent
 from hybrid_agent import HybridAgent
 from src.battery_twin.agents.base_battery_agent import BaseBatteryAgent
 from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
-from src.battery_twin.storage.battery_storage_manager import BatteryStorageManager
+from src.battery_twin.storage.battery_storage_manager import (
+    BatteryStorageManager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +46,7 @@ class BatteryBDIAgent(BDIAgent, BaseBatteryAgent):
         mqtt_bridge: Optional[MqttBridge] = None,
         storage_manager: Optional[BatteryStorageManager] = None,
         mqtt_config: Optional[MqttConfig] = None,
-        enable_heartbeat: bool = True
+        enable_heartbeat: bool = True,
     ):
         """
         Initialize BDI battery agent.
@@ -73,7 +68,7 @@ class BatteryBDIAgent(BDIAgent, BaseBatteryAgent):
             mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
             mqtt_config=mqtt_config,
-            enable_heartbeat=enable_heartbeat
+            enable_heartbeat=enable_heartbeat,
         )
 
         logger.info(f"Initialized BatteryBDIAgent: {agent_id}")
@@ -107,7 +102,7 @@ class BatteryReactiveAgent(ReactiveAgent, BaseBatteryAgent):
         mqtt_bridge: Optional[MqttBridge] = None,
         storage_manager: Optional[BatteryStorageManager] = None,
         mqtt_config: Optional[MqttConfig] = None,
-        enable_heartbeat: bool = True
+        enable_heartbeat: bool = True,
     ):
         """
         Initialize Reactive battery agent.
@@ -129,7 +124,7 @@ class BatteryReactiveAgent(ReactiveAgent, BaseBatteryAgent):
             mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
             mqtt_config=mqtt_config,
-            enable_heartbeat=enable_heartbeat
+            enable_heartbeat=enable_heartbeat,
         )
 
         logger.info(f"Initialized BatteryReactiveAgent: {agent_id}")
@@ -163,7 +158,7 @@ class BatteryHybridAgent(HybridAgent, BaseBatteryAgent):
         mqtt_bridge: Optional[MqttBridge] = None,
         storage_manager: Optional[BatteryStorageManager] = None,
         mqtt_config: Optional[MqttConfig] = None,
-        enable_heartbeat: bool = True
+        enable_heartbeat: bool = True,
     ):
         """
         Initialize Hybrid battery agent.
@@ -185,7 +180,7 @@ class BatteryHybridAgent(HybridAgent, BaseBatteryAgent):
             mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
             mqtt_config=mqtt_config,
-            enable_heartbeat=enable_heartbeat
+            enable_heartbeat=enable_heartbeat,
         )
 
         logger.info(f"Initialized BatteryHybridAgent: {agent_id}")
@@ -202,7 +197,7 @@ class BatteryHybridAgent(HybridAgent, BaseBatteryAgent):
 
 
 __all__ = [
-    'BatteryBDIAgent',
-    'BatteryReactiveAgent',
-    'BatteryHybridAgent',
+    "BatteryBDIAgent",
+    "BatteryReactiveAgent",
+    "BatteryHybridAgent",
 ]

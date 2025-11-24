@@ -84,19 +84,34 @@ class ResourceAllocationEnvironment(HierarchyEnvironment):
     """
 
     def __init__(
-        self, num_agents: int, num_resources: int = 3, max_steps: int = 100
+        self,
+        num_agents: int,
+        num_resources: int = 3,
+        max_steps: int = 100,
+        *,
+        completion_threshold: float = 0.9,
+        over_allocation_tolerance: float = 0.05,
     ):
         super().__init__(num_agents, max_steps)
         self.num_resources = num_resources
         self.resource_capacity: Dict[str, int] = {}
         self.resource_usage: Dict[str, int] = {}
+        self.task_requirements: Dict[str, Dict[str, int]] = {}
+        self.active_allocations: Set[str] = set()
+        self.completed_task_ids: Set[str] = set()
+        self.over_allocation_violation = False
+        self.completion_threshold = completion_threshold
+        self.over_allocation_tolerance = over_allocation_tolerance
         self.r_max = 100.0  # Perfect allocation
 
     def reset(self) -> EnvironmentState:
         """Reset environment."""
         self.state = EnvironmentState()
         self.tasks = []
-
+        self.task_requirements = {}
+        self.active_allocations = set()
+        self.completed_task_ids = set()
+        self.over_allocation_violation = False
         # Initialize resources
         self.resource_capacity = {
             f"resource_{i}": random.randint(10, 20)
@@ -110,7 +125,7 @@ class ResourceAllocationEnvironment(HierarchyEnvironment):
     def generate_tasks(self, num_tasks: int) -> List[Task]:
         """Generate resource allocation tasks."""
         self.tasks = []
-
+        self.task_requirements = {}
         for i in range(num_tasks):
             required_resources = {}
             for resource_name in random.sample(
@@ -127,6 +142,7 @@ class ResourceAllocationEnvironment(HierarchyEnvironment):
             )
             task.subtasks = [f"{k}:{v}" for k, v in required_resources.items()]
             self.tasks.append(task)
+            self.task_requirements[task.task_id] = required_resources
 
         return self.tasks
 
@@ -140,28 +156,42 @@ class ResourceAllocationEnvironment(HierarchyEnvironment):
         # Process hierarchy step
         hierarchy.process_step()
 
-        # Check resource allocation and task completion
-        completed_tasks = []
+        # Track resource allocations based on task state
         for task in self.tasks:
+            requirements = self.task_requirements.get(task.task_id, {})
+
+            if (
+                task.status == "in_progress"
+                and task.task_id not in self.active_allocations
+            ):
+                if self._can_allocate(requirements):
+                    self._allocate_resources(task.task_id, requirements)
+                else:
+                    # Penalize attempting to exceed capacity
+                    reward -= 2.0
+                    self.over_allocation_violation = True
+
+            if (
+                task.status not in {"in_progress"}
+                and task.task_id in self.active_allocations
+            ):
+                self._release_resources(task.task_id)
+
             if (
                 task.status == "completed"
-                and task.task_id not in completed_tasks
+                and task.task_id not in self.completed_task_ids
             ):
-                # Award reward for task completion
                 reward += 10.0
-                completed_tasks.append(task.task_id)
-
-                # Update resource utilization
-                for req in task.subtasks:
-                    resource_name, amount = req.split(":")
-                    self.resource_usage[resource_name] = (
-                        self.resource_usage.get(resource_name, 0) + int(amount)
-                    )
+                self.completed_task_ids.add(task.task_id)
+                if task.task_id in self.active_allocations:
+                    self._release_resources(task.task_id)
 
         # Penalty for resource over-allocation
         for resource_name, usage in self.resource_usage.items():
-            if usage > self.resource_capacity[resource_name]:
+            capacity = self.resource_capacity[resource_name]
+            if usage > capacity * (1 + self.over_allocation_tolerance):
                 reward -= 5.0
+                self.over_allocation_violation = True
 
         # Bonus for efficient utilization
         total_capacity = sum(self.resource_capacity.values())
@@ -182,14 +212,39 @@ class ResourceAllocationEnvironment(HierarchyEnvironment):
 
     def check_success(self) -> bool:
         """Success if all tasks completed without over-allocation."""
-        all_completed = all(task.status == "completed" for task in self.tasks)
+        total_tasks = len(self.tasks)
+        if total_tasks == 0:
+            return True
 
-        no_over_allocation = all(
-            self.resource_usage[name] <= self.resource_capacity[name]
-            for name in self.resource_capacity
+        completion_rate = len(self.completed_task_ids) / total_tasks
+        return (
+            completion_rate >= self.completion_threshold
+            and not self.over_allocation_violation
         )
 
-        return all_completed and no_over_allocation
+    def _can_allocate(self, requirements: Dict[str, int]) -> bool:
+        """Check if resources can be allocated within tolerance."""
+        for resource, amount in requirements.items():
+            capacity = self.resource_capacity.get(resource, 0)
+            current = self.resource_usage.get(resource, 0)
+            if current + amount > capacity * (1 + self.over_allocation_tolerance):
+                return False
+        return True
+
+    def _allocate_resources(self, task_id: str, requirements: Dict[str, int]):
+        """Allocate resources for a task."""
+        for resource, amount in requirements.items():
+            self.resource_usage[resource] = self.resource_usage.get(resource, 0) + amount
+        self.active_allocations.add(task_id)
+
+    def _release_resources(self, task_id: str):
+        """Release resources when a task stops using them."""
+        requirements = self.task_requirements.get(task_id, {})
+        for resource, amount in requirements.items():
+            self.resource_usage[resource] = max(
+                0, self.resource_usage.get(resource, 0) - amount
+            )
+        self.active_allocations.discard(task_id)
 
 
 class TaskDistributionEnvironment(HierarchyEnvironment):
@@ -285,12 +340,20 @@ class CollaborativeProblemSolving(HierarchyEnvironment):
         num_agents: int,
         problem_complexity: int = 3,
         max_steps: int = 150,
+        *,
+        success_threshold: float = 0.9,
+        dependency_penalty: float = 5.0,
+        max_dependency_violation_rate: float = 0.4,
     ):
         super().__init__(num_agents, max_steps)
         self.problem_complexity = problem_complexity
         self.problem_graph: Dict[str, List[str]] = (
             {}
         )  # task_id -> dependencies
+        self.success_threshold = success_threshold
+        self.dependency_penalty = dependency_penalty
+        self.out_of_order_requeues = 0
+        self.max_dependency_violation_rate = max_dependency_violation_rate
         self.r_max = 100.0
 
     def reset(self) -> EnvironmentState:
@@ -298,6 +361,7 @@ class CollaborativeProblemSolving(HierarchyEnvironment):
         self.state = EnvironmentState()
         self.tasks = []
         self.problem_graph = {}
+        self.out_of_order_requeues = 0
         return self.state
 
     def generate_tasks(self, num_tasks: int) -> List[Task]:
@@ -341,22 +405,21 @@ class CollaborativeProblemSolving(HierarchyEnvironment):
 
         # Check task completion with dependency validation
         for task in self.tasks:
-            if task.status == "completed":
-                # Check if dependencies were satisfied
-                dependencies = self.problem_graph.get(task.task_id, [])
-                deps_satisfied = all(
-                    hierarchy.tasks.get(dep_id, Task("", "")).status
-                    == "completed"
-                    for dep_id in dependencies
-                )
+            deps_satisfied = self._dependencies_satisfied(task.task_id, hierarchy)
 
+            if task.status == "in_progress" and not deps_satisfied:
+                # Pause progress until dependencies are satisfied
+                self._reset_task_assignment(hierarchy, task, requeue=True)
+                reward -= self.dependency_penalty / 2
+                continue
+
+            if task.status == "completed":
                 if deps_satisfied:
-                    # Correct completion
                     reward += 15.0
                 else:
-                    # Completed out of order - penalty
-                    reward -= 10.0
-                    task.status = "failed"
+                    reward -= self.dependency_penalty
+                    self._reset_task_assignment(hierarchy, task, requeue=True)
+                    self.out_of_order_requeues += 1
 
         self.state.total_return += reward
 
@@ -368,15 +431,50 @@ class CollaborativeProblemSolving(HierarchyEnvironment):
         return self.state, reward, done
 
     def check_success(self) -> bool:
-        """Success if all tasks completed in valid order."""
-        all_completed = all(
-            task.status == "completed" or task.status == "failed"
-            for task in self.tasks
+        """Success if sufficient tasks complete respecting dependencies."""
+        total = len(self.tasks)
+        if total == 0:
+            return True
+
+        completed = sum(1 for task in self.tasks if task.status == "completed")
+        completion_rate = completed / total
+
+        if completion_rate < self.success_threshold:
+            return False
+
+        allowed_requeues = max(
+            1, int(self.max_dependency_violation_rate * total)
+        )
+        return self.out_of_order_requeues <= allowed_requeues
+
+    def _dependencies_satisfied(
+        self, task_id: str, hierarchy: HierarchyStrategy
+    ) -> bool:
+        """Check whether dependencies are complete."""
+        dependencies = self.problem_graph.get(task_id, [])
+        if not dependencies:
+            return True
+        return all(
+            hierarchy.tasks.get(dep_id, Task("", "")).status == "completed"
+            for dep_id in dependencies
         )
 
-        no_failures = all(task.status != "failed" for task in self.tasks)
-
-        return all_completed and no_failures
+    def _reset_task_assignment(
+        self,
+        hierarchy: HierarchyStrategy,
+        task: Task,
+        *,
+        requeue: bool = False,
+    ):
+        """Reset task state and free worker when dependencies are not met."""
+        assigned_agent = task.assigned_to
+        if assigned_agent and assigned_agent in hierarchy.agents:
+            hierarchy.agents[assigned_agent].current_task = None
+        if requeue:
+            task.status = "pending"
+            task.assigned_to = None
+            task.start_time = None
+            task.end_time = None
 
 
 class FaultRecoveryEnvironment(HierarchyEnvironment):
@@ -581,8 +679,16 @@ def create_environment(
     if env_type == "resource_allocation":
         num_resources = kwargs.get("num_resources", 3)
         max_steps = kwargs.get("max_steps", 100)
+        completion_threshold = kwargs.get("completion_threshold", 0.9)
+        over_allocation_tolerance = kwargs.get(
+            "over_allocation_tolerance", 0.05
+        )
         return ResourceAllocationEnvironment(
-            num_agents, num_resources, max_steps
+            num_agents,
+            num_resources,
+            max_steps,
+            completion_threshold=completion_threshold,
+            over_allocation_tolerance=over_allocation_tolerance,
         )
 
     elif env_type == "task_distribution":
@@ -592,7 +698,17 @@ def create_environment(
     elif env_type == "collaborative":
         complexity = kwargs.get("problem_complexity", 3)
         max_steps = kwargs.get("max_steps", 150)
-        return CollaborativeProblemSolving(num_agents, complexity, max_steps)
+        success_threshold = kwargs.get("success_threshold", 0.9)
+        dependency_penalty = kwargs.get("dependency_penalty", 5.0)
+        violation_rate = kwargs.get("dependency_violation_rate", 0.4)
+        return CollaborativeProblemSolving(
+            num_agents,
+            complexity,
+            max_steps,
+            success_threshold=success_threshold,
+            dependency_penalty=dependency_penalty,
+            max_dependency_violation_rate=violation_rate,
+        )
 
     elif env_type == "fault_recovery":
         failure_prob = kwargs.get("failure_probability", 0.1)

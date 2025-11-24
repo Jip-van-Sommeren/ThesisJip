@@ -25,23 +25,24 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 from enum import Enum
-import time
 import numpy as np
 from loguru import logger
 
 from src.abstract_agent import AgentId, Goal, GoalType
 from src.battery_twin.agents.battery_agent_types import BatteryBDIAgent
 from src.battery_twin.communication.mqtt_bridge import MqttBridge
-from src.battery_twin.storage.battery_storage_manager import BatteryStorageManager
+from src.battery_twin.storage.battery_storage_manager import (
+    BatteryStorageManager,
+)
 from src.battery_twin.models.extended_kalman_filter import (
     ExtendedKalmanFilter,
     EKFConfig,
-    EKFMeasurement
+    EKFMeasurement,
 )
 from src.battery_twin.communication.message_schemas import (
     TelemetryMessage,
     StateEstimateMessage,
-    MessageFactory
+    MessageFactory,
 )
 from src.battery_twin.models.physics_degradation_model import (
     DegradationParameters,
@@ -51,6 +52,7 @@ from src.battery_twin.models.physics_degradation_model import (
 
 class FilterHealth(Enum):
     """Filter health status."""
+
     HEALTHY = "healthy"
     WARNING = "warning"
     DIVERGED = "diverged"
@@ -59,14 +61,16 @@ class FilterHealth(Enum):
 
 class ConfidenceLevel(Enum):
     """Confidence level for state estimates."""
-    HIGH = "high"          # Uncertainty < threshold_low
-    MEDIUM = "medium"      # threshold_low <= uncertainty < threshold_high
-    LOW = "low"            # uncertainty >= threshold_high
+
+    HIGH = "high"  # Uncertainty < threshold_low
+    MEDIUM = "medium"  # threshold_low <= uncertainty < threshold_high
+    LOW = "low"  # uncertainty >= threshold_high
 
 
 @dataclass
 class StateEstimate:
     """Container for state estimates with metadata."""
+
     cycle: int
     timestamp: float
     soc: float
@@ -117,7 +121,7 @@ class StateEstimatorAgent(BatteryBDIAgent):
         max_innovation: float = 0.5,  # Volts
         process_noise_adjustment_factor: float = 1.5,
         reset_threshold_innovation: float = 1.0,  # Volts
-        publish_interval: float = 1.0  # Publish every measurement
+        publish_interval: float = 1.0,  # Publish every measurement
     ):
         """
         Initialize State Estimator Agent.
@@ -142,9 +146,13 @@ class StateEstimatorAgent(BatteryBDIAgent):
 
         super().__init__(
             agent_id=agent_id,
-            observable_properties={'state_estimates', 'filter_health', 'uncertainty'},
+            observable_properties={
+                "state_estimates",
+                "filter_health",
+                "uncertainty",
+            },
             mqtt_bridge=mqtt_bridge,
-            storage_manager=storage_manager
+            storage_manager=storage_manager,
         )
 
         # Initialize Extended Kalman Filter
@@ -190,7 +198,9 @@ class StateEstimatorAgent(BatteryBDIAgent):
         self._initialize_beliefs()
         self._initialize_goals()
 
-        logger.info(f"StateEstimatorAgent initialized for battery {battery_id}")
+        logger.info(
+            f"StateEstimatorAgent initialized for battery {battery_id}"
+        )
 
     def _subscribe_to_topics(self):
         """Subscribe to relevant MQTT topics."""
@@ -204,55 +214,55 @@ class StateEstimatorAgent(BatteryBDIAgent):
         """Initialize BDI beliefs about state and filter health."""
         # Current state beliefs
         self.state.update_belief(
-            key='current_soc',
+            key="current_soc",
             proposition=f"soc_{self.ekf.get_soc():.2f}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         self.state.update_belief(
-            key='current_soh',
+            key="current_soh",
             proposition=f"soh_{self.ekf.get_soh():.2f}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Uncertainty beliefs
         self.state.update_belief(
-            key='soc_uncertainty',
+            key="soc_uncertainty",
             proposition=f"uncertainty_{self.ekf.get_soc_uncertainty():.4f}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         self.state.update_belief(
-            key='soh_uncertainty',
+            key="soh_uncertainty",
             proposition=f"uncertainty_{self.ekf.get_soh_uncertainty():.4f}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Filter health beliefs
         self.state.update_belief(
-            key='filter_health',
-            proposition='status_healthy',
+            key="filter_health",
+            proposition="status_healthy",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         self.state.update_belief(
-            key='divergence_detected',
-            proposition='false',
+            key="divergence_detected",
+            proposition="false",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Confidence level belief
         self.state.update_belief(
-            key='confidence_level',
-            proposition='level_high',
+            key="confidence_level",
+            proposition="level_high",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         logger.debug("State estimator beliefs initialized")
@@ -260,25 +270,31 @@ class StateEstimatorAgent(BatteryBDIAgent):
     def _initialize_goals(self):
         """Initialize BDI goals for state estimation."""
         # Goal: Maintain accurate state estimation
-        self.add_goal(Goal(
-            condition="accurate_estimation",
-            goal_type=GoalType.PERFORMANCE,
-            priority=1.0
-        ))
+        self.add_goal(
+            Goal(
+                condition="accurate_estimation",
+                goal_type=GoalType.PERFORMANCE,
+                priority=1.0,
+            )
+        )
 
         # Goal: Maintain low uncertainty
-        self.add_goal(Goal(
-            condition="low_uncertainty",
-            goal_type=GoalType.PERFORMANCE,
-            priority=0.9
-        ))
+        self.add_goal(
+            Goal(
+                condition="low_uncertainty",
+                goal_type=GoalType.PERFORMANCE,
+                priority=0.9,
+            )
+        )
 
         # Goal: Robust filtering (no divergence)
-        self.add_goal(Goal(
-            condition="robust_filtering",
-            goal_type=GoalType.PERFORMANCE,
-            priority=1.0
-        ))
+        self.add_goal(
+            Goal(
+                condition="robust_filtering",
+                goal_type=GoalType.PERFORMANCE,
+                priority=1.0,
+            )
+        )
 
         logger.debug("State estimator goals initialized")
 
@@ -292,7 +308,7 @@ class StateEstimatorAgent(BatteryBDIAgent):
         """
         try:
             # Parse telemetry message
-            msg = MessageFactory.parse_message('telemetry', payload)
+            msg = MessageFactory.parse_message("telemetry", payload)
 
             self._update_physics_cycle_stats(msg)
 
@@ -301,7 +317,7 @@ class StateEstimatorAgent(BatteryBDIAgent):
                 voltage=msg.voltage,
                 current=msg.current,
                 temperature=msg.temperature,
-                timestamp=msg.timestamp
+                timestamp=msg.timestamp,
             )
 
             # Process measurement through EKF
@@ -406,7 +422,9 @@ class StateEstimatorAgent(BatteryBDIAgent):
         soh_uncertainty = self.ekf.get_soh_uncertainty()
 
         # Determine confidence level
-        confidence_level = self._compute_confidence_level(soc_uncertainty, soh_uncertainty)
+        confidence_level = self._compute_confidence_level(
+            soc_uncertainty, soh_uncertainty
+        )
 
         # Determine filter health
         filter_health = self._assess_filter_health()
@@ -424,7 +442,7 @@ class StateEstimatorAgent(BatteryBDIAgent):
             soc_uncertainty=soc_uncertainty,
             soh_uncertainty=soh_uncertainty,
             confidence_level=confidence_level,
-            filter_health=filter_health
+            filter_health=filter_health,
         )
 
         # Store estimate
@@ -443,9 +461,7 @@ class StateEstimatorAgent(BatteryBDIAgent):
         )
 
     def _compute_confidence_level(
-        self,
-        soc_uncertainty: float,
-        soh_uncertainty: float
+        self, soc_uncertainty: float, soh_uncertainty: float
     ) -> ConfidenceLevel:
         """
         Compute confidence level based on uncertainties.
@@ -458,13 +474,17 @@ class StateEstimatorAgent(BatteryBDIAgent):
             Confidence level
         """
         # Check if either exceeds high threshold
-        if (soc_uncertainty >= self.soc_uncertainty_threshold_high or
-            soh_uncertainty >= self.soh_uncertainty_threshold_high):
+        if (
+            soc_uncertainty >= self.soc_uncertainty_threshold_high
+            or soh_uncertainty >= self.soh_uncertainty_threshold_high
+        ):
             return ConfidenceLevel.LOW
 
         # Check if both below low threshold
-        if (soc_uncertainty < self.soc_uncertainty_threshold_low and
-            soh_uncertainty < self.soh_uncertainty_threshold_low):
+        if (
+            soc_uncertainty < self.soc_uncertainty_threshold_low
+            and soh_uncertainty < self.soh_uncertainty_threshold_low
+        ):
             return ConfidenceLevel.HIGH
 
         return ConfidenceLevel.MEDIUM
@@ -501,56 +521,60 @@ class StateEstimatorAgent(BatteryBDIAgent):
         """
         # Update state beliefs
         self.state.update_belief(
-            key='current_soc',
+            key="current_soc",
             proposition=f"soc_{estimate.soc:.2f}",
             confidence=1.0 - estimate.soc_uncertainty,
-            is_internal=True
+            is_internal=True,
         )
 
         self.state.update_belief(
-            key='current_soh',
+            key="current_soh",
             proposition=f"soh_{estimate.soh:.2f}",
             confidence=1.0 - estimate.soh_uncertainty,
-            is_internal=True
+            is_internal=True,
         )
 
         # Update uncertainty beliefs
         self.state.update_belief(
-            key='soc_uncertainty',
+            key="soc_uncertainty",
             proposition=f"uncertainty_{estimate.soc_uncertainty:.4f}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         self.state.update_belief(
-            key='soh_uncertainty',
+            key="soh_uncertainty",
             proposition=f"uncertainty_{estimate.soh_uncertainty:.4f}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Update filter health belief
         self.state.update_belief(
-            key='filter_health',
+            key="filter_health",
             proposition=f"status_{estimate.filter_health.value}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Update divergence belief
         self.state.update_belief(
-            key='divergence_detected',
-            proposition='true' if estimate.filter_health == FilterHealth.DIVERGED else 'false',
+            key="divergence_detected",
+            proposition=(
+                "true"
+                if estimate.filter_health == FilterHealth.DIVERGED
+                else "false"
+            ),
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Update confidence level belief
         self.state.update_belief(
-            key='confidence_level',
+            key="confidence_level",
             proposition=f"level_{estimate.confidence_level.value}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
     def _deliberate_on_filter_management(self):
@@ -568,14 +592,21 @@ class StateEstimatorAgent(BatteryBDIAgent):
         filter_health = self.latest_estimate.filter_health
 
         # Decision 1: Reset filter if diverged or reset required
-        if filter_health in [FilterHealth.DIVERGED, FilterHealth.RESET_REQUIRED]:
-            logger.warning(f"Filter health is {filter_health.value}, resetting filter")
+        if filter_health in [
+            FilterHealth.DIVERGED,
+            FilterHealth.RESET_REQUIRED,
+        ]:
+            logger.warning(
+                f"Filter health is {filter_health.value}, resetting filter"
+            )
             self._reset_filter()
             return
 
         # Decision 2: Adjust process noise if warning state
         if filter_health == FilterHealth.WARNING:
-            logger.warning("Filter in warning state, considering process noise adjustment")
+            logger.warning(
+                "Filter in warning state, considering process noise adjustment"
+            )
             self._maybe_adjust_process_noise()
 
         # Decision 3: Flag low confidence
@@ -599,20 +630,22 @@ class StateEstimatorAgent(BatteryBDIAgent):
 
         # Update beliefs
         self.state.update_belief(
-            key='filter_health',
-            proposition='status_healthy',
+            key="filter_health",
+            proposition="status_healthy",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         self.state.update_belief(
-            key='divergence_detected',
-            proposition='false',
+            key="divergence_detected",
+            proposition="false",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
-        logger.info(f"Filter reset complete (total resets: {self.total_resets})")
+        logger.info(
+            f"Filter reset complete (total resets: {self.total_resets})"
+        )
 
     def _maybe_adjust_process_noise(self):
         """
@@ -677,15 +710,15 @@ class StateEstimatorAgent(BatteryBDIAgent):
             soc=estimate.soc,
             soh=estimate.soh,
             internal_resistance={
-                'R0': estimate.r0,
-                'R1': estimate.r1,
-                'C1': estimate.c1
+                "R0": estimate.r0,
+                "R1": estimate.r1,
+                "C1": estimate.c1,
             },
             uncertainty={
-                'soc': estimate.soc_uncertainty,
-                'soh': estimate.soh_uncertainty
+                "soc": estimate.soc_uncertainty,
+                "soh": estimate.soh_uncertainty,
             },
-            agent_id=str(self.id)
+            agent_id=str(self.id),
         )
 
         # Publish to state topic
@@ -733,14 +766,14 @@ class StateEstimatorAgent(BatteryBDIAgent):
         ekf_stats = self.ekf.get_statistics()
 
         return {
-            'total_measurements_processed': self.total_measurements_processed,
-            'total_resets': self.total_resets,
-            'total_adjustments': self.total_adjustments,
-            'total_warnings': self.total_warnings,
-            'estimate_history_size': len(self.estimate_history),
-            'filter_health': self.get_filter_health().value,
-            'confidence_level': self.get_confidence_level().value,
-            'ekf_stats': ekf_stats
+            "total_measurements_processed": self.total_measurements_processed,
+            "total_resets": self.total_resets,
+            "total_adjustments": self.total_adjustments,
+            "total_warnings": self.total_warnings,
+            "estimate_history_size": len(self.estimate_history),
+            "filter_health": self.get_filter_health().value,
+            "confidence_level": self.get_confidence_level().value,
+            "ekf_stats": ekf_stats,
         }
 
     def _agent_teardown(self):

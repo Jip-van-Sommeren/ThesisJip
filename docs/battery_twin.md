@@ -5,6 +5,7 @@ A formal multi-agent system for real-time battery state estimation, health monit
 ## Overview
 
 The Battery Digital Twin is a comprehensive system that combines:
+
 - **State Estimation**: Extended Kalman Filter (EKF) for SoC/SoH estimation
 - **Health Monitoring**: Degradation tracking and RUL prediction
 - **Capacity Prediction**: Hybrid physics-based + ML models
@@ -14,35 +15,41 @@ The Battery Digital Twin is a comprehensive system that combines:
 ### Key Features
 
 ✨ **Accurate State Estimation**
+
 - Extended Kalman Filter with 6-state vector [SoC, SoH, R0, R1, C1, V1]
 - Uncertainty quantification with covariance tracking
 - Divergence detection and adaptive tuning
 - SoC RMSE: ~3%, SoH RMSE: ~2%
 
 🏥 **Intelligent Health Monitoring**
+
 - Capacity fade analysis
 - Internal resistance tracking
 - Remaining Useful Life (RUL) estimation
 - Alert generation for anomalies
 
 🔮 **Hybrid Prediction**
+
 - Physics-based capacity model (battery degradation)
 - ML residual correction (PyTorch neural network)
 - Online learning with experience replay
 - Catastrophic forgetting mitigation
 
 🤖 **Formal Agent Architecture**
+
 - **ReactiveAgent**: Pure stimulus-response, no goals
 - **BDIAgent**: Full deliberation with beliefs, desires, intentions
 - **HybridAgent**: Layered decision-making
 
 📡 **Real-time Communication**
+
 - MQTT message passing between agents
 - QoS levels for reliability
 - Topic-based routing
 - Async/await architecture
 
 💾 **Multi-backend Storage** (Optional)
+
 - InfluxDB: Time-series metrics
 - MongoDB: Agent profiles and configurations
 - Neo4j: Hierarchy relationships
@@ -106,14 +113,14 @@ The orchestrator embeds the HybridDigitalTwin models (physics + ML residual) dir
 
 ### Agent Descriptions
 
-| Agent | Type | Purpose | Key Features |
-|-------|------|---------|--------------|
-| **Telemetry Ingestor** | Reactive | Data validation and cleaning | Outlier detection, gap filling, publishing |
-| **State Estimator** | BDI | Real-time SoC/SoH estimation | EKF, uncertainty tracking, divergence handling |
-| **Health Monitor** | BDI | Battery health assessment | Degradation analysis, RUL estimation, alerts |
-| **Physics Model** | Hybrid | Capacity prediction | Physics-based degradation model |
-| **Orchestrator Hybrid Service** | Shared | Runs HybridDigitalTwin, publishes hybrid predictions | Buffers telemetry per cycle, persists training samples |
-| **ML Residual** | BDI | Hybrid prediction | Neural network correction, online learning |
+| Agent                           | Type     | Purpose                                              | Key Features                                           |
+| ------------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------------ |
+| **Telemetry Ingestor**          | Reactive | Data validation and cleaning                         | Outlier detection, gap filling, publishing             |
+| **State Estimator**             | BDI      | Real-time SoC/SoH estimation                         | EKF, uncertainty tracking, divergence handling         |
+| **Health Monitor**              | BDI      | Battery health assessment                            | Degradation analysis, RUL estimation, alerts           |
+| **Physics Model**               | Hybrid   | Capacity prediction                                  | Physics-based degradation model                        |
+| **Orchestrator Hybrid Service** | Shared   | Runs HybridDigitalTwin, publishes hybrid predictions | Buffers telemetry per cycle, persists training samples |
+| **ML Residual**                 | BDI      | Hybrid prediction                                    | Neural network correction, online learning             |
 
 ## Installation
 
@@ -126,20 +133,24 @@ The orchestrator embeds the HybridDigitalTwin models (physics + ML residual) dir
 ### Setup
 
 1. **Clone repository and activate virtual environment:**
+
    ```bash
    cd /path/to/thesis
    source venv/bin/activate  # or venv\Scripts\activate on Windows
    ```
 
 2. **Install dependencies:**
+
    ```bash
    pip install -r requirements.txt
    ```
 
 3. **Start storage backends (optional):**
+
    ```bash
    docker-compose up -d
    ```
+
    This starts InfluxDB, MongoDB, Neo4j, Redis, and monitoring tools.
 
 4. **Download NASA battery dataset:**
@@ -157,6 +168,7 @@ python3 -m src.battery_twin.orchestrator
 ```
 
 This starts:
+
 - Telemetry Ingestor
 - State Estimator
 - Health Monitor
@@ -229,6 +241,7 @@ if __name__ == "__main__":
 Three example configurations are provided in `src/battery_twin/config/`:
 
 **`default.yaml`** - Core monitoring pipeline:
+
 ```yaml
 battery_id: "B0005"
 enable_telemetry_ingestor: true
@@ -241,6 +254,7 @@ log_level: "INFO"
 ```
 
 **`full_system.yaml`** - All agents enabled:
+
 ```yaml
 battery_id: "B0005"
 enable_telemetry_ingestor: true
@@ -256,22 +270,22 @@ log_level: "DEBUG"
 
 ### Key Configuration Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `battery_id` | Battery identifier | "B0005" |
-| `mqtt_broker` | MQTT broker host | "localhost" |
-| `mqtt_port` | MQTT broker port | 1883 |
-| `enable_storage` | Enable persistent storage | false |
-| `enable_telemetry_ingestor` | Enable telemetry agent | true |
-| `enable_state_estimator` | Enable EKF state estimation | true |
-| `enable_health_monitor` | Enable health monitoring | true |
-| `enable_physics_model` | Enable physics predictions | false |
-| `enable_ml_residual` | Enable ML corrections | false |
-| `ekf_initial_soc` | Initial State of Charge | 0.8 |
-| `ekf_initial_soh` | Initial State of Health | 1.0 |
-| `ekf_capacity_nominal` | Nominal capacity (Ah) | 2.0 |
-| `health_eol_threshold` | End-of-life SoH threshold | 0.8 |
-| `log_level` | Logging level | "INFO" |
+| Parameter                   | Description                 | Default     |
+| --------------------------- | --------------------------- | ----------- |
+| `battery_id`                | Battery identifier          | "B0005"     |
+| `mqtt_broker`               | MQTT broker host            | "localhost" |
+| `mqtt_port`                 | MQTT broker port            | 1883        |
+| `enable_storage`            | Enable persistent storage   | false       |
+| `enable_telemetry_ingestor` | Enable telemetry agent      | true        |
+| `enable_state_estimator`    | Enable EKF state estimation | true        |
+| `enable_health_monitor`     | Enable health monitoring    | true        |
+| `enable_physics_model`      | Enable physics predictions  | false       |
+| `enable_ml_residual`        | Enable ML corrections       | false       |
+| `ekf_initial_soc`           | Initial State of Charge     | 0.8         |
+| `ekf_initial_soh`           | Initial State of Health     | 1.0         |
+| `ekf_capacity_nominal`      | Nominal capacity (Ah)       | 2.0         |
+| `health_eol_threshold`      | End-of-life SoH threshold   | 0.8         |
+| `log_level`                 | Logging level               | "INFO"      |
 
 See `src/battery_twin/config/README.md` for complete documentation.
 
@@ -288,6 +302,7 @@ pytest src/battery_twin/tests/test_step15_integration.py::test_06_orchestrator_c
 ```
 
 **Test Coverage**: 30 integration tests (100% passing)
+
 - Configuration management
 - Orchestrator initialization
 - Agent lifecycle
@@ -305,6 +320,7 @@ python3 -m src.battery_twin.validation.validation_runner \
 ```
 
 This validates:
+
 - State estimation accuracy (SoC, SoH)
 - Prediction performance (capacity, voltage)
 - System reliability and throughput
@@ -320,6 +336,7 @@ python3 -m src.battery_twin.validation.performance_benchmark \
 ```
 
 This measures:
+
 - Message processing latency (min, max, mean, p95, p99)
 - System throughput (messages/second)
 - Resource utilization (CPU, memory)
@@ -414,6 +431,7 @@ battery/{battery_id}/status/*              # Agent status
 All messages use JSON serialization with Pydantic validation.
 
 **TelemetryMessage**:
+
 ```json
 {
   "battery_id": "B0005",
@@ -428,6 +446,7 @@ All messages use JSON serialization with Pydantic validation.
 ```
 
 **StateEstimateMessage**:
+
 ```json
 {
   "battery_id": "B0005",
@@ -450,18 +469,21 @@ All messages use JSON serialization with Pydantic validation.
 Based on benchmarking with NASA battery dataset (B0005):
 
 ### State Estimation
+
 - SoC RMSE: **~3%**
 - SoH RMSE: **~2%**
 - Average latency: **~15 ms**
 - Estimation rate: **10-20 Hz**
 
 ### System Throughput
+
 - Message processing: **~100 msg/s**
 - End-to-end latency (p99): **<50 ms**
 - CPU usage (3 agents): **~15%**
 - Memory usage: **~200 MB**
 
 ### Prediction Accuracy
+
 - Capacity RMSE: **~5%**
 - Voltage RMSE: **~3%**
 - Hybrid improvement: **20-30%** over physics-only
@@ -564,6 +586,7 @@ asyncio.run(monitor_state_estimates())
 **Problem**: "Failed to connect to MQTT broker"
 
 **Solutions**:
+
 1. Ensure Mosquitto is running: `sudo systemctl status mosquitto`
 2. Start Mosquitto: `sudo systemctl start mosquitto`
 3. Check broker host/port in configuration
@@ -574,6 +597,7 @@ asyncio.run(monitor_state_estimates())
 **Problem**: "Dataset file not found: Digital-Twin-in-python/data/raw/discharge.csv"
 
 **Solutions**:
+
 1. Download NASA battery dataset
 2. Place `discharge.csv` in correct location
 3. Or specify custom path in config:
@@ -586,6 +610,7 @@ asyncio.run(monitor_state_estimates())
 **Problem**: "Failed to connect to InfluxDB/MongoDB"
 
 **Solutions**:
+
 1. Start storage backends: `docker-compose up -d`
 2. Check container status: `docker-compose ps`
 3. Or disable storage in config: `enable_storage: false`
@@ -595,6 +620,7 @@ asyncio.run(monitor_state_estimates())
 **Problem**: System using too many resources
 
 **Solutions**:
+
 1. Disable unused agents (physics_model, ml_residual)
 2. Reduce message rate in replay engine
 3. Disable storage (`enable_storage: false`)
@@ -664,15 +690,6 @@ pytest src/battery_twin/tests/ --cov=src.battery_twin --cov-report=html
 ## Citation
 
 If you use this system in your research, please cite:
-
-```bibtex
-@mastersthesis{battery_digital_twin_2025,
-  title={Battery Digital Twin: A Formal Multi-Agent System for Real-time State Estimation and Health Monitoring},
-  author={Your Name},
-  year={2025},
-  school={Your University}
-}
-```
 
 ## License
 

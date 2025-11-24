@@ -11,7 +11,10 @@ Usage:
 import asyncio
 from loguru import logger
 
-from src.battery_twin.orchestrator import BatteryTwinConfig, BatteryTwinOrchestrator
+from src.battery_twin.orchestrator import (
+    BatteryTwinConfig,
+    BatteryTwinOrchestrator,
+)
 
 
 async def main():
@@ -30,16 +33,16 @@ async def main():
     # Create configuration with all agents enabled
     logger.info("Creating full system configuration...")
     config = BatteryTwinConfig(
-        battery_id='B0005',
+        battery_id="B0005",
         enable_telemetry_ingestor=True,
         enable_state_estimator=True,
         enable_health_monitor=True,
-        enable_physics_model=True,   # Enable physics predictions
-        enable_ml_residual=True,      # Enable ML corrections
-        enable_storage=False,         # Disable storage for simplicity
-        log_level='INFO',
+        enable_physics_model=True,  # Enable physics predictions
+        enable_ml_residual=True,  # Enable ML corrections
+        enable_storage=False,  # Disable storage for simplicity
+        log_level="INFO",
         enable_metrics=True,
-        metrics_interval=15.0
+        metrics_interval=15.0,
     )
     logger.info("✓ Full system configuration created")
 
@@ -57,15 +60,17 @@ async def main():
 
     # Print detailed status
     status = orchestrator.get_status()
-    running_agents = len([a for a in status['agents'].values() if a['status'] == 'RUNNING'])
-    total_agents = len(status['agents'])
+    running_agents = len(
+        [a for a in status["agents"].values() if a["status"] == "RUNNING"]
+    )
+    total_agents = len(status["agents"])
     logger.info(f"\nSystem Status:")
     logger.info(f"  State: {status['system_state']}")
     logger.info(f"  Battery ID: {status['battery_id']}")
     logger.info(f"  Agents Running: {running_agents}/{total_agents}")
     logger.info(f"  Uptime: {status['uptime_seconds']:.1f}s")
     logger.info(f"\nAgent Details:")
-    for agent_name, agent_status in status['agents'].items():
+    for agent_name, agent_status in status["agents"].items():
         logger.info(f"  - {agent_name}:")
         logger.info(f"      Status: {agent_status['status']}")
         logger.info(f"      Type: {agent_status['type']}")
@@ -85,7 +90,7 @@ async def main():
     logger.info(f"\nFinal Statistics:")
     logger.info(f"  Total Runtime: {final_status['uptime_seconds']:.1f}s")
     logger.info(f"  Total Messages Processed:")
-    for agent_name, agent_status in final_status['agents'].items():
+    for agent_name, agent_status in final_status["agents"].items():
         logger.info(f"    - {agent_name}: {agent_status['message_count']}")
 
     # Shutdown

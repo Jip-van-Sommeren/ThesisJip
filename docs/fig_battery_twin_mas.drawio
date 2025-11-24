@@ -1,0 +1,116 @@
+<mxfile host="app.diagrams.net" modified="2025-11-17T00:00:00.000Z" agent="codex-cli" version="22.1.0">
+  <diagram id="battery-twin-mas" name="BatteryTwin MAS">
+    <mxGraphModel dx="1280" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1080" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Environment container -->
+        <mxCell id="env" value="Environment (MQTT, Storage, Data Flows)" style="rounded=1;whiteSpace=wrap;html=1;container=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1260" height="720" as="geometry"/>
+        </mxCell>
+
+        <!-- Orchestrator container -->
+        <mxCell id="orch" value="Orchestrator" style="rounded=1;whiteSpace=wrap;html=1;container=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="env">
+          <mxGeometry x="450" y="40" width="360" height="140" as="geometry"/>
+        </mxCell>
+
+        <!-- Hybrid service inside orchestrator -->
+        <mxCell id="hybrid" value="Shared HybridDigitalTwin Service&#xa;(train_hybrid_twin, predict_hybrid_capacity)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="orch">
+          <mxGeometry x="20" y="60" width="320" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- MQTT Broker -->
+        <mxCell id="mqtt" value="MQTT Broker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="env">
+          <mxGeometry x="860" y="60" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Agents row -->
+        <mxCell id="ingest" value="Telemetry Ingestor&#xa;(Reactive)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="env">
+          <mxGeometry x="60" y="240" width="220" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="state" value="State Estimator&#xa;(BDI / EKF)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="env">
+          <mxGeometry x="320" y="240" width="220" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="phys" value="Physics Model&#xa;(Hybrid Agent)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="env">
+          <mxGeometry x="580" y="240" width="220" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ml" value="ML Residual&#xa;(BDI / ML)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="env">
+          <mxGeometry x="840" y="240" width="220" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="health" value="Health Monitor&#xa;(BDI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="env">
+          <mxGeometry x="840" y="360" width="220" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Storage cluster -->
+        <mxCell id="storage" value="Storage Backends" style="rounded=1;whiteSpace=wrap;html=1;container=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="env">
+          <mxGeometry x="900" y="500" width="320" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="influx" value="InfluxDB (time-series)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="storage">
+          <mxGeometry x="20" y="40" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="mongo" value="MongoDB (samples/config)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="storage">
+          <mxGeometry x="170" y="40" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="neo4j" value="Neo4j (relations)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="storage">
+          <mxGeometry x="20" y="110" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="redis" value="Redis (cache)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="storage">
+          <mxGeometry x="170" y="110" width="130" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- External sources -->
+        <mxCell id="src" value="Telemetry Source" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="cap" value="Capacity Measurements" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="540" width="200" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e1" value="battery/{id}/raw" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="src" target="ingest">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="battery/{id}/telemetry" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="ingest" target="state">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="battery/{id}/telemetry" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="ingest" target="phys">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="battery/{id}/prediction/physics" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="phys" target="ml">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="state estimates" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" parent="1" source="state" target="health">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e6" value="cleaned telemetry" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="ingest" target="influx">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" value="hybrid predictions" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="ml" target="influx">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" value="training samples" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="ml" target="mongo">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e9" value="battery/{id}/capacity" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="cap" target="ml">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e10" value="API: predict" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" parent="1" source="orch" target="ml">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" value="API: train" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" parent="1" source="ml" target="orch">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e12" value="broker connection" style="endArrow=block;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" parent="1" source="orch" target="mqtt">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+

@@ -23,34 +23,31 @@ import logging
 import time
 import threading
 import json
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from src.abstract_agent import AgentId
 from src.battery_twin.agents.battery_agent_types import BatteryReactiveAgent
 from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
 from src.battery_twin.communication.message_schemas import (
-    AgentRegistrationMessage,
-    AgentHeartbeatMessage,
     AgentDirectoryMessage,
-    MessageFactory
+    MessageFactory,
 )
-from src.battery_twin.storage.battery_storage_manager import BatteryStorageManager
+from src.battery_twin.storage.battery_storage_manager import (
+    BatteryStorageManager,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class AgentHealth(Enum):
     """Agent health status based on heartbeat monitoring."""
-    ACTIVE = "active"      # Receiving regular heartbeats
+
+    ACTIVE = "active"  # Receiving regular heartbeats
     INACTIVE = "inactive"  # No heartbeats, but not timed out yet
-    FAILED = "failed"      # Heartbeat timeout exceeded
-    UNKNOWN = "unknown"    # No status information
+    FAILED = "failed"  # Heartbeat timeout exceeded
+    UNKNOWN = "unknown"  # No status information
 
 
 @dataclass
@@ -60,6 +57,7 @@ class AgentRecord:
 
     Includes registration metadata, current status, and heartbeat tracking.
     """
+
     agent_id: str
     agent_type: str  # BDI, Reactive, Hybrid
     capabilities: List[str]
@@ -80,39 +78,39 @@ class AgentRecord:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            'agent_id': self.agent_id,
-            'agent_type': self.agent_type,
-            'capabilities': self.capabilities,
-            'supervisor': self.supervisor,
-            'roles': self.roles,
-            'groups': self.groups,
-            'health_status': self.health_status.value,
-            'registration_time': self.registration_time,
-            'last_heartbeat_time': self.last_heartbeat_time,
-            'heartbeat_count': self.heartbeat_count,
-            'uptime': self.uptime,
-            'last_status': self.last_status
+            "agent_id": self.agent_id,
+            "agent_type": self.agent_type,
+            "capabilities": self.capabilities,
+            "supervisor": self.supervisor,
+            "roles": self.roles,
+            "groups": self.groups,
+            "health_status": self.health_status.value,
+            "registration_time": self.registration_time,
+            "last_heartbeat_time": self.last_heartbeat_time,
+            "heartbeat_count": self.heartbeat_count,
+            "uptime": self.uptime,
+            "last_status": self.last_status,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AgentRecord':
+    def from_dict(cls, data: Dict[str, Any]) -> "AgentRecord":
         """Create AgentRecord from dictionary."""
         # Convert health_status string to enum
-        health_status = AgentHealth(data.get('health_status', 'unknown'))
+        health_status = AgentHealth(data.get("health_status", "unknown"))
 
         return cls(
-            agent_id=data['agent_id'],
-            agent_type=data['agent_type'],
-            capabilities=data.get('capabilities', []),
-            supervisor=data.get('supervisor'),
-            roles=data.get('roles', []),
-            groups=data.get('groups', []),
+            agent_id=data["agent_id"],
+            agent_type=data["agent_type"],
+            capabilities=data.get("capabilities", []),
+            supervisor=data.get("supervisor"),
+            roles=data.get("roles", []),
+            groups=data.get("groups", []),
             health_status=health_status,
-            registration_time=data.get('registration_time', time.time()),
-            last_heartbeat_time=data.get('last_heartbeat_time', 0.0),
-            heartbeat_count=data.get('heartbeat_count', 0),
-            uptime=data.get('uptime', 0.0),
-            last_status=data.get('last_status', '')
+            registration_time=data.get("registration_time", time.time()),
+            last_heartbeat_time=data.get("last_heartbeat_time", 0.0),
+            heartbeat_count=data.get("heartbeat_count", 0),
+            uptime=data.get("uptime", 0.0),
+            last_status=data.get("last_status", ""),
         )
 
 
@@ -153,7 +151,7 @@ class RegistryAgent(BatteryReactiveAgent):
         mqtt_config: Optional[MqttConfig] = None,
         heartbeat_timeout: float = 30.0,
         directory_publish_interval: float = 60.0,
-        enable_redis_persistence: bool = True
+        enable_redis_persistence: bool = True,
     ):
         """
         Initialize Registry Agent.
@@ -169,10 +167,10 @@ class RegistryAgent(BatteryReactiveAgent):
         """
         # Observable properties for reactive agent
         observable_properties = {
-            'agent_registration',
-            'agent_heartbeat',
-            'agent_directory',
-            'agent_health'
+            "agent_registration",
+            "agent_heartbeat",
+            "agent_directory",
+            "agent_health",
         }
 
         # Initialize parent classes
@@ -182,7 +180,7 @@ class RegistryAgent(BatteryReactiveAgent):
             mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
             mqtt_config=mqtt_config,
-            enable_heartbeat=True  # Registry agent sends its own heartbeats
+            enable_heartbeat=True,  # Registry agent sends its own heartbeats
         )
 
         # Configuration
@@ -220,14 +218,14 @@ class RegistryAgent(BatteryReactiveAgent):
                 action_id="handle_registration",
                 handler=self._handle_registration,
                 topic_pattern="agent/+/register",
-                description="Handle agent registration messages"
+                description="Handle agent registration messages",
             )
 
             self.register_action(
                 action_id="handle_heartbeat",
                 handler=self._handle_heartbeat,
                 topic_pattern="agent/+/heartbeat",
-                description="Handle agent heartbeat messages"
+                description="Handle agent heartbeat messages",
             )
 
             # Load existing directory from Redis if available
@@ -275,7 +273,9 @@ class RegistryAgent(BatteryReactiveAgent):
         """
         try:
             # Parse registration message
-            message = MessageFactory.parse_message('agent_registration', payload)
+            message = MessageFactory.parse_message(
+                "agent_registration", payload
+            )
 
             logger.info(f"Registration received from {message.agent_id}")
 
@@ -300,10 +300,12 @@ class RegistryAgent(BatteryReactiveAgent):
                         roles=message.roles,
                         groups=message.groups,
                         health_status=AgentHealth.INACTIVE,  # Wait for first heartbeat
-                        registration_time=message.timestamp
+                        registration_time=message.timestamp,
                     )
                     self.agent_directory[message.agent_id] = record
-                    logger.info(f"Registered new agent: {message.agent_id} (type: {message.agent_type})")
+                    logger.info(
+                        f"Registered new agent: {message.agent_id} (type: {message.agent_type})"
+                    )
 
             # Persist to Redis
             if self.enable_redis_persistence:
@@ -311,9 +313,9 @@ class RegistryAgent(BatteryReactiveAgent):
 
             # Update internal belief state
             self.state.update_belief(
-                key='agent_registration',
+                key="agent_registration",
                 proposition=f"registered:{message.agent_id}",
-                confidence=1.0
+                confidence=1.0,
             )
 
         except Exception as e:
@@ -335,7 +337,7 @@ class RegistryAgent(BatteryReactiveAgent):
         """
         try:
             # Parse heartbeat message
-            message = MessageFactory.parse_message('agent_heartbeat', payload)
+            message = MessageFactory.parse_message("agent_heartbeat", payload)
 
             # Update agent status
             with self.directory_lock:
@@ -347,10 +349,14 @@ class RegistryAgent(BatteryReactiveAgent):
                     record.last_status = message.status
                     record.health_status = AgentHealth.ACTIVE
 
-                    logger.debug(f"Heartbeat from {message.agent_id} (count: {record.heartbeat_count})")
+                    logger.debug(
+                        f"Heartbeat from {message.agent_id} (count: {record.heartbeat_count})"
+                    )
                 else:
                     # Agent sent heartbeat but not registered - create minimal record
-                    logger.warning(f"Heartbeat from unregistered agent: {message.agent_id}")
+                    logger.warning(
+                        f"Heartbeat from unregistered agent: {message.agent_id}"
+                    )
                     record = AgentRecord(
                         agent_id=message.agent_id,
                         agent_type="unknown",
@@ -359,15 +365,15 @@ class RegistryAgent(BatteryReactiveAgent):
                         last_heartbeat_time=message.timestamp,
                         heartbeat_count=1,
                         uptime=message.uptime,
-                        last_status=message.status
+                        last_status=message.status,
                     )
                     self.agent_directory[message.agent_id] = record
 
             # Update belief state
             self.state.update_belief(
-                key='agent_heartbeat',
+                key="agent_heartbeat",
                 proposition=f"heartbeat_received:{message.agent_id}",
-                confidence=1.0
+                confidence=1.0,
             )
 
         except Exception as e:
@@ -380,9 +386,7 @@ class RegistryAgent(BatteryReactiveAgent):
 
         self.monitor_running = True
         self.monitor_thread = threading.Thread(
-            target=self._monitoring_loop,
-            daemon=True,
-            name="registry-monitor"
+            target=self._monitoring_loop, daemon=True, name="registry-monitor"
         )
         self.monitor_thread.start()
         logger.info("Started heartbeat monitoring")
@@ -415,7 +419,9 @@ class RegistryAgent(BatteryReactiveAgent):
                             continue
 
                         # Check timeout
-                        time_since_heartbeat = current_time - record.last_heartbeat_time
+                        time_since_heartbeat = (
+                            current_time - record.last_heartbeat_time
+                        )
 
                         if time_since_heartbeat > self.heartbeat_timeout:
                             if record.health_status != AgentHealth.FAILED:
@@ -427,9 +433,9 @@ class RegistryAgent(BatteryReactiveAgent):
 
                                 # Update belief state
                                 self.state.update_belief(
-                                    key='agent_health',
+                                    key="agent_health",
                                     proposition=f"agent_failed:{agent_id}",
-                                    confidence=1.0
+                                    confidence=1.0,
                                 )
 
                 # Sleep before next check
@@ -452,7 +458,7 @@ class RegistryAgent(BatteryReactiveAgent):
         self.publish_thread = threading.Thread(
             target=self._publishing_loop,
             daemon=True,
-            name="registry-publisher"
+            name="registry-publisher",
         )
         self.publish_thread.start()
         logger.info("Started directory publishing")
@@ -495,23 +501,27 @@ class RegistryAgent(BatteryReactiveAgent):
         try:
             with self.directory_lock:
                 # Convert all records to dictionaries
-                agents_list = [record.to_dict() for record in self.agent_directory.values()]
+                agents_list = [
+                    record.to_dict()
+                    for record in self.agent_directory.values()
+                ]
 
                 # Create directory message
                 directory_msg = AgentDirectoryMessage(
                     timestamp=time.time(),
                     agents=agents_list,
-                    total_agents=len(agents_list)
+                    total_agents=len(agents_list),
                 )
 
                 # Publish to MQTT
                 success = self.publish_message(
-                    topic_name="agent_directory",
-                    message=directory_msg
+                    topic_name="agent_directory", message=directory_msg
                 )
 
                 if success:
-                    logger.debug(f"Published directory with {len(agents_list)} agents")
+                    logger.debug(
+                        f"Published directory with {len(agents_list)} agents"
+                    )
                 else:
                     logger.warning("Failed to publish directory")
 
@@ -557,7 +567,8 @@ class RegistryAgent(BatteryReactiveAgent):
         """
         with self.directory_lock:
             return [
-                record for record in self.agent_directory.values()
+                record
+                for record in self.agent_directory.values()
                 if record.agent_type == agent_type
             ]
 
@@ -573,7 +584,8 @@ class RegistryAgent(BatteryReactiveAgent):
         """
         with self.directory_lock:
             return [
-                record for record in self.agent_directory.values()
+                record
+                for record in self.agent_directory.values()
                 if capability in record.capabilities
             ]
 
@@ -589,11 +601,14 @@ class RegistryAgent(BatteryReactiveAgent):
         """
         with self.directory_lock:
             return [
-                record for record in self.agent_directory.values()
+                record
+                for record in self.agent_directory.values()
                 if role in record.roles
             ]
 
-    def get_agents_by_health(self, health_status: AgentHealth) -> List[AgentRecord]:
+    def get_agents_by_health(
+        self, health_status: AgentHealth
+    ) -> List[AgentRecord]:
         """
         Get all agents with a specific health status.
 
@@ -605,7 +620,8 @@ class RegistryAgent(BatteryReactiveAgent):
         """
         with self.directory_lock:
             return [
-                record for record in self.agent_directory.values()
+                record
+                for record in self.agent_directory.values()
                 if record.health_status == health_status
             ]
 
@@ -631,21 +647,35 @@ class RegistryAgent(BatteryReactiveAgent):
         """
         with self.directory_lock:
             total = len(self.agent_directory)
-            active = sum(1 for r in self.agent_directory.values() if r.health_status == AgentHealth.ACTIVE)
-            inactive = sum(1 for r in self.agent_directory.values() if r.health_status == AgentHealth.INACTIVE)
-            failed = sum(1 for r in self.agent_directory.values() if r.health_status == AgentHealth.FAILED)
+            active = sum(
+                1
+                for r in self.agent_directory.values()
+                if r.health_status == AgentHealth.ACTIVE
+            )
+            inactive = sum(
+                1
+                for r in self.agent_directory.values()
+                if r.health_status == AgentHealth.INACTIVE
+            )
+            failed = sum(
+                1
+                for r in self.agent_directory.values()
+                if r.health_status == AgentHealth.FAILED
+            )
 
             # Count by type
             type_counts = {}
             for record in self.agent_directory.values():
-                type_counts[record.agent_type] = type_counts.get(record.agent_type, 0) + 1
+                type_counts[record.agent_type] = (
+                    type_counts.get(record.agent_type, 0) + 1
+                )
 
             return {
-                'total_agents': total,
-                'active_agents': active,
-                'inactive_agents': inactive,
-                'failed_agents': failed,
-                'agents_by_type': type_counts
+                "total_agents": total,
+                "active_agents": active,
+                "inactive_agents": inactive,
+                "failed_agents": failed,
+                "agents_by_type": type_counts,
             }
 
     # ========================================================================
@@ -658,7 +688,7 @@ class RegistryAgent(BatteryReactiveAgent):
             return None
 
         # Storage manager should have a Redis client
-        if hasattr(self.storage_manager, 'redis_storage'):
+        if hasattr(self.storage_manager, "redis_storage"):
             return self.storage_manager.redis_storage
 
         return None
@@ -677,9 +707,9 @@ class RegistryAgent(BatteryReactiveAgent):
 
             # Store as hash in Redis
             key = f"{self.redis_agent_key}:{record.agent_id}"
-            redis_client.hset(key, mapping={
-                'data': json.dumps(record.to_dict())
-            })
+            redis_client.hset(
+                key, mapping={"data": json.dumps(record.to_dict())}
+            )
 
             # Set expiry (24 hours)
             redis_client.expire(key, 86400)
@@ -708,7 +738,9 @@ class RegistryAgent(BatteryReactiveAgent):
         try:
             redis_client = self._get_redis_client()
             if not redis_client:
-                logger.info("Redis not available, starting with empty directory")
+                logger.info(
+                    "Redis not available, starting with empty directory"
+                )
                 return
 
             # Find all agent keys
@@ -724,7 +756,7 @@ class RegistryAgent(BatteryReactiveAgent):
             with self.directory_lock:
                 for key in keys:
                     try:
-                        data = redis_client.hget(key, 'data')
+                        data = redis_client.hget(key, "data")
                         if data:
                             record_dict = json.loads(data)
                             record = AgentRecord.from_dict(record_dict)
@@ -740,7 +772,7 @@ class RegistryAgent(BatteryReactiveAgent):
 
 
 __all__ = [
-    'RegistryAgent',
-    'AgentRecord',
-    'AgentHealth',
+    "RegistryAgent",
+    "AgentRecord",
+    "AgentHealth",
 ]

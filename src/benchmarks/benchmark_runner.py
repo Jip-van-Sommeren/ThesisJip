@@ -214,6 +214,11 @@ class ProtocolBenchmarkRunner:
         """Run benchmarks for a specific protocol."""
         variants = self.config.protocol_variants.get(protocol, ["default"])
 
+        # Exclude incompatible variants for certain modes
+        # In app_ack mode, Kafka acks=0 is incompatible with reliable app-level ACKs
+        if protocol == "kafka" and str(self.config.latency_mode).lower() == "app_ack":
+            variants = [v for v in variants if v.lower() != "acks0"]
+
         protocol_results = {
             "variants": {},
             "metadata": {

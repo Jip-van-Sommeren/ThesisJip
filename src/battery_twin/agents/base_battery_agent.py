@@ -14,26 +14,23 @@ All battery twin agents (BDI, Reactive, Hybrid) inherit from this.
 
 import logging
 import time
-import json
 import threading
-from typing import Dict, List, Optional, Callable, Any, Set
+from typing import Dict, Optional, Callable, Any
 from dataclasses import dataclass, field
 from enum import Enum
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from src.abstract_agent import AbstractAgent, AgentId
+from src.abstract_agent import AgentId
 from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
-from src.battery_twin.communication.message_schemas import MessageFactory
-from src.battery_twin.storage.battery_storage_manager import BatteryStorageManager
+
+from src.battery_twin.storage.battery_storage_manager import (
+    BatteryStorageManager,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class AgentStatus(Enum):
     """Agent lifecycle status."""
+
     CREATED = "created"
     INITIALIZING = "initializing"
     READY = "ready"
@@ -47,6 +44,7 @@ class AgentStatus(Enum):
 @dataclass
 class ActionHandler:
     """Handler for an action triggered by MQTT or internal events."""
+
     action_id: str
     handler: Callable
     topic_pattern: Optional[str] = None
@@ -57,6 +55,7 @@ class ActionHandler:
 @dataclass
 class PerformanceMetrics:
     """Performance tracking for agent."""
+
     messages_received: int = 0
     messages_sent: int = 0
     actions_executed: int = 0
@@ -80,12 +79,12 @@ class PerformanceMetrics:
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
         return {
-            'messages_received': self.messages_received,
-            'messages_sent': self.messages_sent,
-            'actions_executed': self.actions_executed,
-            'errors_count': self.errors_count,
-            'uptime_seconds': self.uptime,
-            'avg_processing_time_ms': self.avg_processing_time
+            "messages_received": self.messages_received,
+            "messages_sent": self.messages_sent,
+            "actions_executed": self.actions_executed,
+            "errors_count": self.errors_count,
+            "uptime_seconds": self.uptime,
+            "avg_processing_time_ms": self.avg_processing_time,
         }
 
 
@@ -122,7 +121,7 @@ class BaseBatteryAgent:
         storage_manager: Optional[BatteryStorageManager] = None,
         mqtt_config: Optional[MqttConfig] = None,
         enable_heartbeat: bool = True,
-        heartbeat_interval: float = 30.0
+        heartbeat_interval: float = 30.0,
     ):
         """
         Initialize base battery agent.
@@ -183,10 +182,9 @@ class BaseBatteryAgent:
 
             # Create/connect MQTT bridge
             if self.mqtt_bridge is None:
-                client_id = str(self.get_agent_id()).replace('.', '_')
+                client_id = str(self.get_agent_id()).replace(".", "_")
                 self.mqtt_bridge = MqttBridge(
-                    client_id=client_id,
-                    mqtt_config=self.mqtt_config
+                    client_id=client_id, mqtt_config=self.mqtt_config
                 )
 
             # Connect to MQTT if we own the bridge
@@ -205,7 +203,7 @@ class BaseBatteryAgent:
                 self._start_heartbeat()
 
             # Custom agent setup
-            if hasattr(self, '_agent_setup'):
+            if hasattr(self, "_agent_setup"):
                 if not self._agent_setup():
                     logger.error("Agent-specific setup failed")
                     with self.status_lock:
@@ -241,7 +239,7 @@ class BaseBatteryAgent:
             self._stop_heartbeat()
 
             # Custom agent teardown
-            if hasattr(self, '_agent_teardown'):
+            if hasattr(self, "_agent_teardown"):
                 self._agent_teardown()
 
             # Disconnect MQTT if we own it
@@ -261,7 +259,7 @@ class BaseBatteryAgent:
         action_id: str,
         handler: Callable,
         topic_pattern: Optional[str] = None,
-        description: str = ""
+        description: str = "",
     ):
         """
         Register an action handler.
@@ -277,7 +275,7 @@ class BaseBatteryAgent:
                 action_id=action_id,
                 handler=handler,
                 topic_pattern=topic_pattern,
-                description=description
+                description=description,
             )
             self.action_handlers[action_id] = action_handler
 
@@ -307,23 +305,24 @@ class BaseBatteryAgent:
                     # Create wrapper that tracks metrics
                     def make_wrapper(handler, action_id):
                         def wrapper(topic, payload):
-                            self._execute_action_wrapper(action_id, handler, topic, payload)
+                            self._execute_action_wrapper(
+                                action_id, handler, topic, payload
+                            )
+
                         return wrapper
 
                     # Subscribe to topic
                     self.mqtt_bridge.subscribe_raw(
                         handler_info.topic_pattern,
-                        make_wrapper(handler_info.handler, action_id)
+                        make_wrapper(handler_info.handler, action_id),
                     )
 
-                    logger.debug(f"Subscribed to {handler_info.topic_pattern} for {action_id}")
+                    logger.debug(
+                        f"Subscribed to {handler_info.topic_pattern} for {action_id}"
+                    )
 
     def _execute_action_wrapper(
-        self,
-        action_id: str,
-        handler: Callable,
-        topic: str,
-        payload: str
+        self, action_id: str, handler: Callable, topic: str, payload: str
     ):
         """Wrapper for action execution with metrics tracking."""
         start_time = time.time()
@@ -343,10 +342,7 @@ class BaseBatteryAgent:
             self.metrics.total_processing_time += processing_time
 
     def publish_message(
-        self,
-        topic_name: str,
-        message: Any,
-        **topic_vars
+        self, topic_name: str, message: Any, **topic_vars
     ) -> bool:
         """
         Publish a message to MQTT.
@@ -364,7 +360,9 @@ class BaseBatteryAgent:
             return False
 
         try:
-            success = self.mqtt_bridge.publish(topic_name, message, **topic_vars)
+            success = self.mqtt_bridge.publish(
+                topic_name, message, **topic_vars
+            )
             if success:
                 self.metrics.messages_sent += 1
             return success
@@ -411,8 +409,7 @@ class BaseBatteryAgent:
 
         self.heartbeat_running = True
         self.heartbeat_thread = threading.Thread(
-            target=self._heartbeat_loop,
-            daemon=True
+            target=self._heartbeat_loop, daemon=True
         )
         self.heartbeat_thread.start()
         logger.debug("Heartbeat started")
@@ -432,20 +429,22 @@ class BaseBatteryAgent:
         while self.heartbeat_running:
             try:
                 # Send heartbeat message
-                from src.battery_twin.communication.message_schemas import AgentHeartbeatMessage
+                from src.battery_twin.communication.message_schemas import (
+                    AgentHeartbeatMessage,
+                )
 
                 heartbeat = AgentHeartbeatMessage(
                     agent_id=str(self.get_agent_id()),
                     timestamp=time.time(),
                     status=self.status.value,
-                    uptime=self.metrics.uptime
+                    uptime=self.metrics.uptime,
                 )
 
                 if self.mqtt_bridge and self.mqtt_bridge.is_connected():
                     self.mqtt_bridge.publish(
                         "agent_heartbeat",
                         heartbeat,
-                        agent_id=str(self.get_agent_id())
+                        agent_id=str(self.get_agent_id()),
                     )
 
                 # Sleep until next heartbeat
@@ -461,9 +460,9 @@ class BaseBatteryAgent:
 
         Must be implemented by subclass or provided via AbstractAgent.
         """
-        if hasattr(self, 'id'):
+        if hasattr(self, "id"):
             return self.id
-        elif hasattr(self, 'agent_id'):
+        elif hasattr(self, "agent_id"):
             return self.agent_id
         else:
             raise NotImplementedError("Subclass must provide agent_id or id")
@@ -497,8 +496,8 @@ class BaseBatteryAgent:
 
 
 __all__ = [
-    'BaseBatteryAgent',
-    'AgentStatus',
-    'ActionHandler',
-    'PerformanceMetrics',
+    "BaseBatteryAgent",
+    "AgentStatus",
+    "ActionHandler",
+    "PerformanceMetrics",
 ]

@@ -8,14 +8,10 @@ storage operations for telemetry, predictions, state estimates, and faults.
 import time
 import logging
 from typing import Dict, List, Any, Optional
-from datetime import datetime
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
 from src.storage.storage_manager import MultiAgentStorageManager
-from src.battery_twin.storage.battery_storage_config import BatteryStorageConfig
+from src.battery_twin.storage.battery_storage_config import (
+    BatteryStorageConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +29,9 @@ class BatteryStorageManager(MultiAgentStorageManager):
         self.battery_config = config
         self.battery_ids = config.battery_ids
 
-    def initialize_battery_storage(self, battery_id: str, metadata: Dict[str, Any]):
+    def initialize_battery_storage(
+        self, battery_id: str, metadata: Dict[str, Any]
+    ):
         """
         Initialize storage for a new battery.
 
@@ -49,17 +47,17 @@ class BatteryStorageManager(MultiAgentStorageManager):
                 "nominal_capacity": metadata.get("nominal_capacity", 2.0),
                 "nominal_voltage": metadata.get("nominal_voltage", 3.7),
                 "chemistry": metadata.get("chemistry", "LiCoO2"),
-                "manufacturing_date": metadata.get("manufacturing_date", "unknown"),
+                "manufacturing_date": metadata.get(
+                    "manufacturing_date", "unknown"
+                ),
                 "first_cycle_date": time.time(),
-                "metadata": metadata
+                "metadata": metadata,
             }
 
             # Insert or update
             collection = self.document_store.db["battery_metadata"]
             collection.update_one(
-                {"battery_id": battery_id},
-                {"$set": battery_doc},
-                upsert=True
+                {"battery_id": battery_id}, {"$set": battery_doc}, upsert=True
             )
 
         # Initialize cache for latest values
@@ -77,7 +75,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
         temperature: float,
         cycle: int,
         timestamp: Optional[float] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Record battery telemetry data.
@@ -101,47 +99,49 @@ class BatteryStorageManager(MultiAgentStorageManager):
         points = []
 
         # Voltage measurement
-        points.append({
-            "measurement": "battery_voltage",
-            "tags": {
-                "battery_id": battery_id,
-                "measurement_type": "measured"
-            },
-            "fields": {
-                "voltage": float(voltage),
-                "cycle": int(cycle)
-            },
-            "time": int(timestamp * 1e9)  # nanoseconds
-        })
+        points.append(
+            {
+                "measurement": "battery_voltage",
+                "tags": {
+                    "battery_id": battery_id,
+                    "measurement_type": "measured",
+                },
+                "fields": {"voltage": float(voltage), "cycle": int(cycle)},
+                "time": int(timestamp * 1e9),  # nanoseconds
+            }
+        )
 
         # Current measurement
-        points.append({
-            "measurement": "battery_current",
-            "tags": {
-                "battery_id": battery_id,
-                "measurement_type": "measured"
-            },
-            "fields": {
-                "current": float(current),
-                "cycle": int(cycle)
-            },
-            "time": int(timestamp * 1e9)
-        })
+        points.append(
+            {
+                "measurement": "battery_current",
+                "tags": {
+                    "battery_id": battery_id,
+                    "measurement_type": "measured",
+                },
+                "fields": {"current": float(current), "cycle": int(cycle)},
+                "time": int(timestamp * 1e9),
+            }
+        )
 
         # Temperature measurement
-        points.append({
-            "measurement": "battery_temperature",
-            "tags": {
-                "battery_id": battery_id,
-                "measurement_type": "measured"
-            },
-            "fields": {
-                "temperature": float(temperature),
-                "ambient_temperature": float(kwargs.get("ambient_temperature", temperature)),
-                "cycle": int(cycle)
-            },
-            "time": int(timestamp * 1e9)
-        })
+        points.append(
+            {
+                "measurement": "battery_temperature",
+                "tags": {
+                    "battery_id": battery_id,
+                    "measurement_type": "measured",
+                },
+                "fields": {
+                    "temperature": float(temperature),
+                    "ambient_temperature": float(
+                        kwargs.get("ambient_temperature", temperature)
+                    ),
+                    "cycle": int(cycle),
+                },
+                "time": int(timestamp * 1e9),
+            }
+        )
 
         # Write points
         try:
@@ -156,18 +156,22 @@ class BatteryStorageManager(MultiAgentStorageManager):
                 "current": current,
                 "temperature": temperature,
                 "cycle": cycle,
-                "timestamp": timestamp
+                "timestamp": timestamp,
             }
             cache_key = f"battery:{battery_id}:latest_telemetry"
-            self.cache.client.hset(cache_key, mapping={k: str(v) for k, v in cache_data.items()})
-            self.cache.client.expire(cache_key, self.battery_config.cache_ttl_seconds)
+            self.cache.client.hset(
+                cache_key, mapping={k: str(v) for k, v in cache_data.items()}
+            )
+            self.cache.client.expire(
+                cache_key, self.battery_config.cache_ttl_seconds
+            )
 
     def record_capacity(
         self,
         battery_id: str,
         capacity: float,
         cycle: int,
-        timestamp: Optional[float] = None
+        timestamp: Optional[float] = None,
     ):
         """Record battery capacity measurement."""
         if timestamp is None:
@@ -176,14 +180,9 @@ class BatteryStorageManager(MultiAgentStorageManager):
         if self.time_series:
             point = {
                 "measurement": "battery_capacity",
-                "tags": {
-                    "battery_id": battery_id,
-                    "cycle": str(cycle)
-                },
-                "fields": {
-                    "capacity": float(capacity)
-                },
-                "time": int(timestamp * 1e9)
+                "tags": {"battery_id": battery_id, "cycle": str(cycle)},
+                "fields": {"capacity": float(capacity)},
+                "time": int(timestamp * 1e9),
             }
 
             try:
@@ -200,7 +199,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
         uncertainty: Optional[float] = None,
         horizon: int = 0,
         timestamp: Optional[float] = None,
-        cycle: Optional[int] = None
+        cycle: Optional[int] = None,
     ):
         """
         Record battery capacity prediction.
@@ -225,14 +224,16 @@ class BatteryStorageManager(MultiAgentStorageManager):
                 "tags": {
                     "battery_id": battery_id,
                     "prediction_type": prediction_type,
-                    "agent_id": agent_id
+                    "agent_id": agent_id,
                 },
                 "fields": {
                     "predicted_capacity": float(predicted_capacity),
-                    "uncertainty": float(uncertainty) if uncertainty is not None else 0.0,
-                    "horizon": int(horizon)
+                    "uncertainty": (
+                        float(uncertainty) if uncertainty is not None else 0.0
+                    ),
+                    "horizon": int(horizon),
                 },
-                "time": int(timestamp * 1e9)
+                "time": int(timestamp * 1e9),
             }
 
             if cycle is not None:
@@ -249,10 +250,12 @@ class BatteryStorageManager(MultiAgentStorageManager):
             cache_data = {
                 "predicted_capacity": str(predicted_capacity),
                 "uncertainty": str(uncertainty) if uncertainty else "0.0",
-                "timestamp": str(timestamp)
+                "timestamp": str(timestamp),
             }
             self.cache.client.hset(cache_key, mapping=cache_data)
-            self.cache.client.expire(cache_key, self.battery_config.cache_ttl_seconds)
+            self.cache.client.expire(
+                cache_key, self.battery_config.cache_ttl_seconds
+            )
 
     def record_hybrid_training_sample(
         self,
@@ -295,7 +298,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
         soh: float,
         internal_resistance: Dict[str, float],
         timestamp: Optional[float] = None,
-        covariance: Optional[List[List[float]]] = None
+        covariance: Optional[List[List[float]]] = None,
     ):
         """
         Record battery state estimate (SoC, SoH, resistance).
@@ -315,18 +318,15 @@ class BatteryStorageManager(MultiAgentStorageManager):
         if self.time_series:
             point = {
                 "measurement": "battery_state_estimates",
-                "tags": {
-                    "battery_id": battery_id,
-                    "agent_id": agent_id
-                },
+                "tags": {"battery_id": battery_id, "agent_id": agent_id},
                 "fields": {
                     "soc": float(soc),
                     "soh": float(soh),
                     "r0": float(internal_resistance.get("R0", 0.0)),
                     "r1": float(internal_resistance.get("R1", 0.0)),
-                    "c1": float(internal_resistance.get("C1", 0.0))
+                    "c1": float(internal_resistance.get("C1", 0.0)),
                 },
-                "time": int(timestamp * 1e9)
+                "time": int(timestamp * 1e9),
             }
 
             try:
@@ -341,10 +341,12 @@ class BatteryStorageManager(MultiAgentStorageManager):
                 "soc": str(soc),
                 "soh": str(soh),
                 "r0": str(internal_resistance.get("R0", 0.0)),
-                "timestamp": str(timestamp)
+                "timestamp": str(timestamp),
             }
             self.cache.client.hset(cache_key, mapping=cache_data)
-            self.cache.client.expire(cache_key, self.battery_config.cache_ttl_seconds)
+            self.cache.client.expire(
+                cache_key, self.battery_config.cache_ttl_seconds
+            )
 
     def record_fault_event(
         self,
@@ -354,7 +356,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
         fault_type: str,
         cause: str,
         residual_magnitude: float,
-        timestamp: Optional[float] = None
+        timestamp: Optional[float] = None,
     ):
         """Record battery fault event."""
         if timestamp is None:
@@ -367,13 +369,13 @@ class BatteryStorageManager(MultiAgentStorageManager):
                 "tags": {
                     "battery_id": battery_id,
                     "fault_type": fault_type,
-                    "severity": severity
+                    "severity": severity,
                 },
                 "fields": {
                     "residual_magnitude": float(residual_magnitude),
-                    "description": cause
+                    "description": cause,
                 },
-                "time": int(timestamp * 1e9)
+                "time": int(timestamp * 1e9),
             }
 
             try:
@@ -390,7 +392,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
                 "severity": severity,
                 "fault_type": fault_type,
                 "cause": cause,
-                "residual_magnitude": residual_magnitude
+                "residual_magnitude": residual_magnitude,
             }
 
             collection = self.document_store.db["fault_events"]
@@ -403,7 +405,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
         parameters: Dict[str, float],
         confidence: float,
         cycle: int,
-        timestamp: Optional[float] = None
+        timestamp: Optional[float] = None,
     ):
         """Record updated battery model parameters."""
         if timestamp is None:
@@ -413,10 +415,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
         if self.time_series:
             point = {
                 "measurement": "battery_parameters",
-                "tags": {
-                    "battery_id": battery_id,
-                    "agent_id": agent_id
-                },
+                "tags": {"battery_id": battery_id, "agent_id": agent_id},
                 "fields": {
                     "k": float(parameters.get("k", 0.0)),
                     "c0": float(parameters.get("C0", 0.0)),
@@ -424,9 +423,9 @@ class BatteryStorageManager(MultiAgentStorageManager):
                     "r1": float(parameters.get("R1", 0.0)),
                     "c1": float(parameters.get("C1", 0.0)),
                     "confidence": float(confidence),
-                    "cycle": int(cycle)
+                    "cycle": int(cycle),
                 },
-                "time": int(timestamp * 1e9)
+                "time": int(timestamp * 1e9),
             }
 
             try:
@@ -443,7 +442,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
                 "cycle": cycle,
                 "parameters": parameters,
                 "confidence": confidence,
-                "fit_quality": {}
+                "fit_quality": {},
             }
 
             collection = self.document_store.db["parameter_history"]
@@ -462,14 +461,16 @@ class BatteryStorageManager(MultiAgentStorageManager):
                     "soc": float(data.get(b"soc", b"0").decode()),
                     "soh": float(data.get(b"soh", b"0").decode()),
                     "r0": float(data.get(b"r0", b"0").decode()),
-                    "timestamp": float(data.get(b"timestamp", b"0").decode())
+                    "timestamp": float(data.get(b"timestamp", b"0").decode()),
                 }
         except Exception as e:
             logger.error(f"Failed to get latest state: {e}")
 
         return None
 
-    def get_latest_telemetry(self, battery_id: str) -> Optional[Dict[str, Any]]:
+    def get_latest_telemetry(
+        self, battery_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get latest telemetry from cache."""
         if not self.cache:
             return None
@@ -481,9 +482,11 @@ class BatteryStorageManager(MultiAgentStorageManager):
                 return {
                     "voltage": float(data.get(b"voltage", b"0").decode()),
                     "current": float(data.get(b"current", b"0").decode()),
-                    "temperature": float(data.get(b"temperature", b"0").decode()),
+                    "temperature": float(
+                        data.get(b"temperature", b"0").decode()
+                    ),
                     "cycle": int(data.get(b"cycle", b"0").decode()),
-                    "timestamp": float(data.get(b"timestamp", b"0").decode())
+                    "timestamp": float(data.get(b"timestamp", b"0").decode()),
                 }
         except Exception as e:
             logger.error(f"Failed to get latest telemetry: {e}")
@@ -498,7 +501,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
         model_data: bytes,
         version: str,
         metadata: Dict[str, Any],
-        performance_metrics: Dict[str, float]
+        performance_metrics: Dict[str, float],
     ):
         """Store trained model in MongoDB."""
         if not self.document_store:
@@ -512,7 +515,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
             "model_data": model_data,
             "metadata": metadata,
             "timestamp": time.time(),
-            "performance_metrics": performance_metrics
+            "performance_metrics": performance_metrics,
         }
 
         collection = self.document_store.db["trained_models"]
@@ -520,10 +523,7 @@ class BatteryStorageManager(MultiAgentStorageManager):
         logger.info(f"Stored trained model for {agent_id} version {version}")
 
     def load_latest_model(
-        self,
-        agent_id: str,
-        battery_id: str,
-        model_type: str
+        self, agent_id: str, battery_id: str, model_type: str
     ) -> Optional[Dict[str, Any]]:
         """Load latest trained model from MongoDB."""
         if not self.document_store:
@@ -534,9 +534,9 @@ class BatteryStorageManager(MultiAgentStorageManager):
             {
                 "agent_id": agent_id,
                 "battery_id": battery_id,
-                "model_type": model_type
+                "model_type": model_type,
             },
-            sort=[("timestamp", -1)]
+            sort=[("timestamp", -1)],
         )
 
         return model_doc

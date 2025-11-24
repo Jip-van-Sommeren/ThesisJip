@@ -51,7 +51,9 @@ async def main():
         logger.info(f"  Battery: {info.battery_id}")
         logger.info(f"  Cycles: {info.n_cycles}")
         logger.info(f"  Measurements: {info.n_total_samples:,}")
-        logger.info(f"  Cycle Range: {info.cycle_range[0]} to {info.cycle_range[1]}")
+        logger.info(
+            f"  Cycle Range: {info.cycle_range[0]} to {info.cycle_range[1]}"
+        )
         logger.info(
             f"  Capacity Range: {info.capacity_range[0]:.3f} - {info.capacity_range[1]:.3f} Ah"
         )
@@ -93,7 +95,9 @@ async def main():
 
     # Note: Use BATCH mode for fastest replay (no delays between samples)
     # Or use FAST mode with high speed_multiplier for time-scaled replay
-    use_batch_mode = True  # Set to False to use FAST mode with speed_multiplier
+    use_batch_mode = (
+        True  # Set to False to use FAST mode with speed_multiplier
+    )
 
     if use_batch_mode:
         logger.info("Starting data replay in BATCH mode (maximum speed)...")

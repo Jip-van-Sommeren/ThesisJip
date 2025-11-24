@@ -35,9 +35,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from src.abstract_agent import AgentId, Goal, GoalType
 from src.battery_twin.agents.battery_agent_types import BatteryBDIAgent
@@ -45,9 +42,11 @@ from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
 from src.battery_twin.communication.message_schemas import (
     PredictionMessage,
     CapacityMessage,
-    MessageFactory
+    MessageFactory,
 )
-from src.battery_twin.storage.battery_storage_manager import BatteryStorageManager
+from src.battery_twin.storage.battery_storage_manager import (
+    BatteryStorageManager,
+)
 from src.battery_twin.models.residual_learner import (
     ResidualLearner,
     CycleFeatures,
@@ -60,6 +59,7 @@ logger = logging.getLogger(__name__)
 
 class ModelStatus(Enum):
     """Status of ML model."""
+
     NOT_TRAINED = "not_trained"
     TRAINING = "training"
     TRAINED = "trained"
@@ -69,10 +69,11 @@ class ModelStatus(Enum):
 
 class PerformanceLevel(Enum):
     """Model performance level."""
+
     EXCELLENT = "excellent"  # MAE < 0.02 Ah
-    GOOD = "good"           # MAE < 0.05 Ah
-    DEGRADED = "degraded"   # MAE < 0.10 Ah
-    POOR = "poor"           # MAE >= 0.10 Ah
+    GOOD = "good"  # MAE < 0.05 Ah
+    DEGRADED = "degraded"  # MAE < 0.10 Ah
+    POOR = "poor"  # MAE >= 0.10 Ah
 
 
 @dataclass
@@ -82,6 +83,7 @@ class TrainingDataPoint:
 
     Combines physics prediction with actual measurement for residual learning.
     """
+
     cycle: int
     timestamp: float
     physics_prediction: float
@@ -93,9 +95,9 @@ class TrainingDataPoint:
     def is_complete(self) -> bool:
         """Check if data point has all required information."""
         return (
-            self.actual_capacity is not None and
-            len(self.voltages) > 0 and
-            len(self.temperatures) > 0
+            self.actual_capacity is not None
+            and len(self.voltages) > 0
+            and len(self.temperatures) > 0
         )
 
 
@@ -146,18 +148,22 @@ class MLResidualAgent(BatteryBDIAgent):
 
         super().__init__(
             agent_id=agent_id,
-            observable_properties={'ml_predictions', 'model_performance'},
+            observable_properties={"ml_predictions", "model_performance"},
             mqtt_bridge=mqtt_bridge,
-            storage_manager=storage_manager
+            storage_manager=storage_manager,
         )
 
         # ML Model
-        self.ml_config = ml_config or NeuralNetConfig(epochs=50, batch_size=16, device='cpu')
+        self.ml_config = ml_config or NeuralNetConfig(
+            epochs=50, batch_size=16, device="cpu"
+        )
         self.learner = ResidualLearner(self.ml_config, replay_buffer_size=1000)
         self.hybrid_service = hybrid_service
 
         # Training data buffer
-        self.training_buffer: Dict[int, TrainingDataPoint] = {}  # cycle -> data
+        self.training_buffer: Dict[int, TrainingDataPoint] = (
+            {}
+        )  # cycle -> data
         self.min_training_samples = min_training_samples
         self.retrain_threshold_mae = retrain_threshold_mae
         self.retrain_interval_cycles = retrain_interval_cycles
@@ -183,71 +189,78 @@ class MLResidualAgent(BatteryBDIAgent):
 
         logger.info(
             f"Initialized MLResidualAgent for battery {battery_id}: "
-            f"min_samples={min_training_samples}, retrain_mae={retrain_threshold_mae}"
+            f"min_samples={min_training_samples}, \
+            retrain_mae={retrain_threshold_mae}"
         )
 
     def _initialize_beliefs(self):
         """Initialize BDI beliefs about model state and performance."""
         # Model status beliefs
         self.state.update_belief(
-            key='model_status',
+            key="model_status",
             proposition=f"status_{self.model_status.value}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         self.state.update_belief(
-            key='model_trained',
-            proposition='false',
+            key="model_trained",
+            proposition="false",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Data availability beliefs
         self.state.update_belief(
-            key='training_data_count',
+            key="training_data_count",
             proposition=f"count_{len(self.training_buffer)}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         self.state.update_belief(
-            key='enough_data_for_training',
-            proposition='false',
+            key="enough_data_for_training",
+            proposition="false",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Performance beliefs
         self.state.update_belief(
-            key='model_performance',
-            proposition='unknown',
+            key="model_performance",
+            proposition="unknown",
             confidence=0.0,
-            is_internal=True
+            is_internal=True,
         )
 
     def _initialize_goals(self):
         """Initialize BDI goals (desires) for ML model management."""
         # Goal: Train model when enough data available
-        self.add_goal(Goal(
-            condition="model_trained",
-            goal_type=GoalType.INTRINSIC,
-            priority=1.0
-        ))
+        self.add_goal(
+            Goal(
+                condition="model_trained",
+                goal_type=GoalType.INTRINSIC,
+                priority=1.0,
+            )
+        )
 
         # Goal: Maintain high prediction accuracy
-        self.add_goal(Goal(
-            condition="high_accuracy",
-            goal_type=GoalType.PERFORMANCE,
-            priority=0.9
-        ))
+        self.add_goal(
+            Goal(
+                condition="high_accuracy",
+                goal_type=GoalType.PERFORMANCE,
+                priority=0.9,
+            )
+        )
 
         # Goal: Keep model up-to-date with recent data
-        self.add_goal(Goal(
-            condition="model_fresh",
-            goal_type=GoalType.INTRINSIC,
-            priority=0.7
-        ))
+        self.add_goal(
+            Goal(
+                condition="model_fresh",
+                goal_type=GoalType.INTRINSIC,
+                priority=0.7,
+            )
+        )
 
     def _agent_setup(self) -> bool:
         """Agent-specific setup."""
@@ -257,21 +270,23 @@ class MLResidualAgent(BatteryBDIAgent):
                 action_id="process_physics_prediction",
                 handler=self._handle_physics_prediction,
                 topic_pattern=f"battery/{self.battery_id}/prediction/physics",
-                description="Process physics model predictions"
+                description="Process physics model predictions",
             )
 
             self.register_action(
                 action_id="process_actual_capacity",
                 handler=self._handle_actual_capacity,
                 topic_pattern=f"battery/{self.battery_id}/capacity",
-                description="Process actual capacity measurements"
+                description="Process actual capacity measurements",
             )
 
             # Try to load existing model from storage
             if self.storage_manager:
                 self._load_model_from_storage()
 
-            logger.info(f"MLResidualAgent setup complete for battery {self.battery_id}")
+            logger.info(
+                f"MLResidualAgent setup complete for battery {self.battery_id}"
+            )
             return True
 
         except Exception as e:
@@ -284,7 +299,9 @@ class MLResidualAgent(BatteryBDIAgent):
         if self.storage_manager and self.learner.model.is_fitted:
             self._save_model_to_storage()
 
-        logger.info(f"MLResidualAgent teardown complete for battery {self.battery_id}")
+        logger.info(
+            f"MLResidualAgent teardown complete for battery {self.battery_id}"
+        )
 
     # ========================================================================
     # Message Handling (Perception)
@@ -297,23 +314,27 @@ class MLResidualAgent(BatteryBDIAgent):
         Creates/updates training data point for the cycle.
         """
         try:
-            msg = MessageFactory.parse_message('prediction', payload)
+            msg = MessageFactory.parse_message("prediction", payload)
 
             # Get or create training data point for this cycle
             if msg.cycle not in self.training_buffer:
                 self.training_buffer[msg.cycle] = TrainingDataPoint(
                     cycle=msg.cycle,
                     timestamp=msg.timestamp,
-                    physics_prediction=msg.predicted_capacity
+                    physics_prediction=msg.predicted_capacity,
                 )
             else:
                 # Update existing data point
-                self.training_buffer[msg.cycle].physics_prediction = msg.predicted_capacity
+                self.training_buffer[msg.cycle].physics_prediction = (
+                    msg.predicted_capacity
+                )
 
             # Update belief about data availability
             self._update_data_beliefs()
 
-            logger.debug(f"Received physics prediction for cycle {msg.cycle}: {msg.predicted_capacity:.4f} Ah")
+            logger.debug(
+                f"Received physics prediction for cycle {msg.cycle}: {msg.predicted_capacity:.4f} Ah"
+            )
 
         except Exception as e:
             logger.error(f"Failed to handle physics prediction: {e}")
@@ -325,7 +346,7 @@ class MLResidualAgent(BatteryBDIAgent):
         Completes training data point and triggers deliberation on training.
         """
         try:
-            msg = MessageFactory.parse_message('capacity', payload)
+            msg = MessageFactory.parse_message("capacity", payload)
 
             # Get or create training data point
             if msg.cycle not in self.training_buffer:
@@ -334,20 +355,26 @@ class MLResidualAgent(BatteryBDIAgent):
                     cycle=msg.cycle,
                     timestamp=msg.timestamp,
                     physics_prediction=0.0,  # Will be updated when physics prediction arrives
-                    actual_capacity=msg.capacity
+                    actual_capacity=msg.capacity,
                 )
             else:
                 # Update existing data point
                 self.training_buffer[msg.cycle].actual_capacity = msg.capacity
 
             # Update cumulative Ah (approximate)
-            self.training_buffer[msg.cycle].cumulative_ah = msg.cycle * msg.capacity
+            self.training_buffer[msg.cycle].cumulative_ah = (
+                msg.cycle * msg.capacity
+            )
 
             # Set default voltages and temperatures if not present
             if len(self.training_buffer[msg.cycle].voltages) == 0:
-                self.training_buffer[msg.cycle].voltages = [3.8]  # Default voltage
+                self.training_buffer[msg.cycle].voltages = [
+                    3.8
+                ]  # Default voltage
             if len(self.training_buffer[msg.cycle].temperatures) == 0:
-                self.training_buffer[msg.cycle].temperatures = [25.0]  # Default temperature
+                self.training_buffer[msg.cycle].temperatures = [
+                    25.0
+                ]  # Default temperature
 
             # Check if we have physics prediction for this cycle
             data_point = self.training_buffer[msg.cycle]
@@ -371,25 +398,26 @@ class MLResidualAgent(BatteryBDIAgent):
         """Update beliefs about available training data."""
         # Count complete data points
         complete_count = sum(
-            1 for dp in self.training_buffer.values()
+            1
+            for dp in self.training_buffer.values()
             if dp.is_complete() and dp.physics_prediction > 0
         )
 
         # Update belief about data count
         self.state.update_belief(
-            key='training_data_count',
+            key="training_data_count",
             proposition=f"count_{complete_count}",
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
         # Update belief about having enough data
         enough_data = complete_count >= self.min_training_samples
         self.state.update_belief(
-            key='enough_data_for_training',
+            key="enough_data_for_training",
             proposition=str(enough_data).lower(),
             confidence=1.0,
-            is_internal=True
+            is_internal=True,
         )
 
     # ========================================================================
@@ -407,7 +435,8 @@ class MLResidualAgent(BatteryBDIAgent):
         """
         try:
             complete_data = [
-                dp for dp in self.training_buffer.values()
+                dp
+                for dp in self.training_buffer.values()
                 if dp.is_complete() and dp.physics_prediction > 0
             ]
 
@@ -441,7 +470,9 @@ class MLResidualAgent(BatteryBDIAgent):
                 # Check if many cycles passed since last training
                 if complete_data:
                     latest_cycle = max(dp.cycle for dp in complete_data)
-                    cycles_since_training = latest_cycle - self.last_training_cycle
+                    cycles_since_training = (
+                        latest_cycle - self.last_training_cycle
+                    )
 
                     if cycles_since_training >= self.retrain_interval_cycles:
                         logger.info(
@@ -465,7 +496,9 @@ class MLResidualAgent(BatteryBDIAgent):
             training_data: List of complete training data points
         """
         try:
-            logger.info(f"Starting initial model training with {len(training_data)} samples")
+            logger.info(
+                f"Starting initial model training with {len(training_data)} samples"
+            )
 
             # Update status
             self.model_status = ModelStatus.TRAINING
@@ -482,26 +515,28 @@ class MLResidualAgent(BatteryBDIAgent):
             self.total_trainings += 1
 
             self.state.update_belief(
-                key='model_trained',
-                proposition='true',
+                key="model_trained",
+                proposition="true",
                 confidence=1.0,
-                is_internal=True
+                is_internal=True,
             )
 
             self.state.update_belief(
-                key='model_status',
+                key="model_status",
                 proposition=f"status_{self.model_status.value}",
                 confidence=1.0,
-                is_internal=True
+                is_internal=True,
             )
 
             # Store training history
-            self.training_history.append({
-                'type': 'initial_training',
-                'cycle': self.last_training_cycle,
-                'n_samples': len(training_data),
-                'metrics': metrics
-            })
+            self.training_history.append(
+                {
+                    "type": "initial_training",
+                    "cycle": self.last_training_cycle,
+                    "n_samples": len(training_data),
+                    "metrics": metrics,
+                }
+            )
 
             logger.info(
                 f"Initial training completed. Train MAE: {metrics.get('final_train_mae', 0):.4f}, "
@@ -524,7 +559,8 @@ class MLResidualAgent(BatteryBDIAgent):
         try:
             # Get new data since last training
             new_data = [
-                dp for dp in training_data
+                dp
+                for dp in training_data
                 if dp.cycle > self.last_training_cycle
             ]
 
@@ -532,7 +568,9 @@ class MLResidualAgent(BatteryBDIAgent):
                 logger.warning("No new data for retraining")
                 return
 
-            logger.info(f"Starting model retraining with {len(new_data)} new samples")
+            logger.info(
+                f"Starting model retraining with {len(new_data)} new samples"
+            )
 
             # Update status
             self.model_status = ModelStatus.RETRAINING
@@ -549,12 +587,14 @@ class MLResidualAgent(BatteryBDIAgent):
             self.total_retrainings += 1
 
             # Store training history
-            self.training_history.append({
-                'type': 'retraining',
-                'cycle': self.last_training_cycle,
-                'n_new_samples': len(new_data),
-                'metrics': metrics
-            })
+            self.training_history.append(
+                {
+                    "type": "retraining",
+                    "cycle": self.last_training_cycle,
+                    "n_new_samples": len(new_data),
+                    "metrics": metrics,
+                }
+            )
 
             logger.info(
                 f"Retraining completed. Train MAE: {metrics.get('final_train_mae', 0):.4f}"
@@ -566,14 +606,22 @@ class MLResidualAgent(BatteryBDIAgent):
             logger.error(f"Model retraining failed: {e}")
             self.model_status = ModelStatus.FAILED
 
-    def _convert_to_features(self, training_data: List[TrainingDataPoint]) -> List[CycleFeatures]:
+    def _convert_to_features(
+        self, training_data: List[TrainingDataPoint]
+    ) -> List[CycleFeatures]:
         """Convert training data points to CycleFeatures."""
         features = []
 
         for dp in training_data:
             # Use simple voltage/temperature if not available
-            voltages = np.array(dp.voltages) if dp.voltages else np.array([3.8])
-            temperatures = np.array(dp.temperatures) if dp.temperatures else np.array([25.0])
+            voltages = (
+                np.array(dp.voltages) if dp.voltages else np.array([3.8])
+            )
+            temperatures = (
+                np.array(dp.temperatures)
+                if dp.temperatures
+                else np.array([25.0])
+            )
 
             feature = self.learner.extract_features_from_cycle_data(
                 cycle=dp.cycle,
@@ -581,7 +629,7 @@ class MLResidualAgent(BatteryBDIAgent):
                 voltages=voltages,
                 temperatures=temperatures,
                 physics_prediction=dp.physics_prediction,
-                actual_capacity=dp.actual_capacity
+                actual_capacity=dp.actual_capacity,
             )
             features.append(feature)
 
@@ -589,14 +637,18 @@ class MLResidualAgent(BatteryBDIAgent):
 
     def _submit_hybrid_training(self, training_data: List[TrainingDataPoint]):
         """Send training samples to shared hybrid twin service if available."""
-        if not self.hybrid_service or not hasattr(self.hybrid_service, "train_hybrid_twin"):
+        if not self.hybrid_service or not hasattr(
+            self.hybrid_service, "train_hybrid_twin"
+        ):
             return
 
         samples = []
         for dp in training_data:
             if dp.actual_capacity is None:
                 continue
-            avg_temp = float(np.mean(dp.temperatures)) if dp.temperatures else 25.0
+            avg_temp = (
+                float(np.mean(dp.temperatures)) if dp.temperatures else 25.0
+            )
             duration = float(len(dp.voltages)) if dp.voltages else 1.0
             samples.append(
                 {
@@ -642,14 +694,18 @@ class MLResidualAgent(BatteryBDIAgent):
             return None
 
         try:
-            from src.battery_twin.hybrid.core.digital_twin import PredictionResult
+            from src.battery_twin.hybrid.core.digital_twin import (
+                PredictionResult,
+            )
         except ImportError:  # pragma: no cover
             PredictionResult = None  # type: ignore
 
         if PredictionResult and isinstance(result, PredictionResult):
             value = float(result.hybrid_prediction[0])
             uncertainty = (
-                float(result.uncertainty[0]) if result.uncertainty is not None else None
+                float(result.uncertainty[0])
+                if result.uncertainty is not None
+                else None
             )
             return value, uncertainty
 
@@ -658,12 +714,11 @@ class MLResidualAgent(BatteryBDIAgent):
 
         return None
 
-
     def predict_hybrid_capacity(
         self,
         cycle: int,
         physics_prediction: float,
-        with_uncertainty: bool = True
+        with_uncertainty: bool = True,
     ) -> Tuple[float, Optional[float]]:
         """
         Predict hybrid capacity (physics + ML correction).
@@ -700,13 +755,12 @@ class MLResidualAgent(BatteryBDIAgent):
                 temperature_std=2.0,
                 temperature_min=22.0,
                 temperature_max=28.0,
-                physics_prediction=physics_prediction
+                physics_prediction=physics_prediction,
             )
 
             # Predict hybrid capacity
             hybrid, uncertainty = self.learner.predict_hybrid_capacity(
-                features,
-                with_uncertainty=with_uncertainty
+                features, with_uncertainty=with_uncertainty
             )
 
             self.predictions_made += 1
@@ -721,7 +775,7 @@ class MLResidualAgent(BatteryBDIAgent):
         self,
         cycle: int,
         hybrid_capacity: float,
-        uncertainty: Optional[float] = None
+        uncertainty: Optional[float] = None,
     ):
         """
         Publish hybrid prediction to MQTT.
@@ -738,18 +792,22 @@ class MLResidualAgent(BatteryBDIAgent):
                 cycle=cycle,
                 prediction_type="hybrid",
                 predicted_capacity=float(hybrid_capacity),
-                uncertainty=float(uncertainty) if uncertainty is not None else None,
+                uncertainty=(
+                    float(uncertainty) if uncertainty is not None else None
+                ),
                 horizon=0,
-                agent_id=str(self.id)
+                agent_id=str(self.id),
             )
 
             self.publish_message(
                 topic_name="battery_prediction_ml",
                 message=prediction_msg,
-                battery_id=self.battery_id
+                battery_id=self.battery_id,
             )
 
-            logger.debug(f"Published hybrid prediction for cycle {cycle}: {hybrid_capacity:.4f} Ah")
+            logger.debug(
+                f"Published hybrid prediction for cycle {cycle}: {hybrid_capacity:.4f} Ah"
+            )
 
         except Exception as e:
             logger.error(f"Failed to publish hybrid prediction: {e}")
@@ -785,10 +843,10 @@ class MLResidualAgent(BatteryBDIAgent):
                 self.model_status = ModelStatus.TRAINED
 
                 self.state.update_belief(
-                    key='model_trained',
-                    proposition='true',
+                    key="model_trained",
+                    proposition="true",
                     confidence=1.0,
-                    is_internal=True
+                    is_internal=True,
                 )
 
                 logger.info(f"ML model loaded from {model_dir}")
@@ -803,21 +861,22 @@ class MLResidualAgent(BatteryBDIAgent):
     def get_statistics(self) -> Dict:
         """Get agent statistics."""
         complete_data_count = sum(
-            1 for dp in self.training_buffer.values()
+            1
+            for dp in self.training_buffer.values()
             if dp.is_complete() and dp.physics_prediction > 0
         )
 
         stats = {
-            'model_status': self.model_status.value,
-            'model_trained': self.learner.model.is_fitted,
-            'training_data_count': len(self.training_buffer),
-            'complete_data_count': complete_data_count,
-            'min_training_samples': self.min_training_samples,
-            'last_training_cycle': self.last_training_cycle,
-            'total_trainings': self.total_trainings,
-            'total_retrainings': self.total_retrainings,
-            'predictions_made': self.predictions_made,
-            'training_history_length': len(self.training_history)
+            "model_status": self.model_status.value,
+            "model_trained": self.learner.model.is_fitted,
+            "training_data_count": len(self.training_buffer),
+            "complete_data_count": complete_data_count,
+            "min_training_samples": self.min_training_samples,
+            "last_training_cycle": self.last_training_cycle,
+            "total_trainings": self.total_trainings,
+            "total_retrainings": self.total_retrainings,
+            "predictions_made": self.predictions_made,
+            "training_history_length": len(self.training_history),
         }
 
         # Add model stats if trained
@@ -826,9 +885,13 @@ class MLResidualAgent(BatteryBDIAgent):
 
         # Add recent performance if available
         if len(self.hybrid_errors) > 0:
-            stats['recent_hybrid_mae'] = float(np.mean(self.hybrid_errors[-10:]))
+            stats["recent_hybrid_mae"] = float(
+                np.mean(self.hybrid_errors[-10:])
+            )
         if len(self.physics_errors) > 0:
-            stats['recent_physics_mae'] = float(np.mean(self.physics_errors[-10:]))
+            stats["recent_physics_mae"] = float(
+                np.mean(self.physics_errors[-10:])
+            )
 
         return stats
 
@@ -850,8 +913,8 @@ class MLResidualAgent(BatteryBDIAgent):
 
 
 __all__ = [
-    'MLResidualAgent',
-    'ModelStatus',
-    'PerformanceLevel',
-    'TrainingDataPoint'
+    "MLResidualAgent",
+    "ModelStatus",
+    "PerformanceLevel",
+    "TrainingDataPoint",
 ]

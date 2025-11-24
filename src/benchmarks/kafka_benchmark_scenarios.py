@@ -360,7 +360,7 @@ def teardown_kafka_basic_scenario(params: Dict[str, Any]):
     params.clear()
 
 
-def _wait_for_ack(agent, message_id: str, timeout: float = 5.0) -> bool:
+def _wait_for_ack(agent, message_id: str, timeout: float = 0.5) -> bool:
     """Wait for ACK message with matching message_id.
 
     Args:
@@ -542,7 +542,9 @@ def test_kafka_broadcast_throughput(
             if latency_mode == "app_ack" and receivers:
                 expected_acks = len(receivers)
                 ack_senders = set()
-                timeout = 5.0
+                # Allow override via parameters; default 0.5s for local app_ack
+                ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                timeout = ack_timeout
                 start_time = time.time()
 
                 while (
@@ -683,7 +685,8 @@ def test_kafka_concurrent_messaging(
 
             if success:
                 if latency_mode == "app_ack":
-                    if _wait_for_ack(agent, message_id):
+                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id
                         )
@@ -810,7 +813,8 @@ def test_kafka_scalability_stress(
 
             if success:
                 if latency_mode == "app_ack":
-                    if _wait_for_ack(agent, message_id, timeout=2.0):
+                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id
                         )

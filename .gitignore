@@ -10,3 +10,4 @@
 CLAUDE.md
 /.claude
 /.pytest_cache
+*.tex
