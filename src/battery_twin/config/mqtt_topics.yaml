@@ -7,12 +7,13 @@
 topics:
   # Data flow topics - battery-specific
   raw_telemetry: "battery/{battery_id}/raw"
-  clean_telemetry: "battery/{battery_id}/telemetry"
+  clean_telemetry: "battery/{battery_id}/telemetry/clean"
   capacity: "battery/{battery_id}/capacity"
   physics_prediction: "battery/{battery_id}/prediction/physics"
   ml_correction: "battery/{battery_id}/prediction/ml"
   hybrid_prediction: "battery/{battery_id}/prediction/hybrid"
-  state_estimate: "battery/{battery_id}/state"
+  state_estimate: "battery/{battery_id}/state/estimate"
+  health_report: "battery/{battery_id}/health/report"
   parameters: "battery/{battery_id}/parameters"
   faults: "battery/{battery_id}/faults"
   control_command: "battery/{battery_id}/control"

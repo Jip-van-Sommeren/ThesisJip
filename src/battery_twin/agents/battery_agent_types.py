@@ -19,7 +19,7 @@ from abstract_agent import AgentId
 from bdi_agent import BDIAgent
 from reactive_agent import ReactiveAgent
 from hybrid_agent import HybridAgent
-from src.battery_twin.agents.base_battery_agent import BaseBatteryAgent
+from src.battery_twin.agents.battery_agent_base import BatteryAgentBase
 from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
 from src.battery_twin.storage.battery_storage_manager import (
     BatteryStorageManager,
@@ -28,7 +28,7 @@ from src.battery_twin.storage.battery_storage_manager import (
 logger = logging.getLogger(__name__)
 
 
-class BatteryBDIAgent(BDIAgent, BaseBatteryAgent):
+class BatteryBDIAgent(BDIAgent, BatteryAgentBase):
     """
     BDI Agent for Battery Twin.
 
@@ -63,7 +63,7 @@ class BatteryBDIAgent(BDIAgent, BaseBatteryAgent):
         BDIAgent.__init__(self, agent_id, observable_properties)
 
         # Initialize battery agent base
-        BaseBatteryAgent.__init__(
+        BatteryAgentBase.__init__(
             self,
             mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
@@ -84,7 +84,7 @@ class BatteryBDIAgent(BDIAgent, BaseBatteryAgent):
         pass
 
 
-class BatteryReactiveAgent(ReactiveAgent, BaseBatteryAgent):
+class BatteryReactiveAgent(ReactiveAgent, BatteryAgentBase):
     """
     Reactive Agent for Battery Twin.
 
@@ -119,7 +119,7 @@ class BatteryReactiveAgent(ReactiveAgent, BaseBatteryAgent):
         ReactiveAgent.__init__(self, agent_id, observable_properties)
 
         # Initialize battery agent base
-        BaseBatteryAgent.__init__(
+        BatteryAgentBase.__init__(
             self,
             mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
@@ -140,7 +140,7 @@ class BatteryReactiveAgent(ReactiveAgent, BaseBatteryAgent):
         pass
 
 
-class BatteryHybridAgent(HybridAgent, BaseBatteryAgent):
+class BatteryHybridAgent(HybridAgent, BatteryAgentBase):
     """
     Hybrid Agent for Battery Twin.
 
@@ -175,7 +175,7 @@ class BatteryHybridAgent(HybridAgent, BaseBatteryAgent):
         HybridAgent.__init__(self, agent_id, observable_properties)
 
         # Initialize battery agent base
-        BaseBatteryAgent.__init__(
+        BatteryAgentBase.__init__(
             self,
             mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,

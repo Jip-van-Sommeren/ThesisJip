@@ -32,7 +32,7 @@ from src.battery_twin.communication.message_schemas import (
     MessageFactory
 )
 from src.battery_twin.communication.topic_manager import (
-    TopicManager,
+    BatteryTopicManager,
     format_battery_topic,
     subscribe_to_all_batteries
 )
@@ -181,11 +181,11 @@ def test_topic_manager():
     tests_failed = 0
 
     try:
-        tm = TopicManager("src/battery_twin/config/mqtt_topics.yaml")
-        print("  ✓ TopicManager loaded configuration")
+        tm = BatteryTopicManager("src/battery_twin/config/mqtt_topics.yaml")
+        print("  ✓ BatteryTopicManager loaded configuration")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ TopicManager failed to load: {e}")
+        print(f"  ✗ BatteryTopicManager failed to load: {e}")
         tests_failed += 1
         return tests_passed, tests_failed
 

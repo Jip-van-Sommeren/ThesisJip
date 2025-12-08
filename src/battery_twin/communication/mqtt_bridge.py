@@ -22,10 +22,11 @@ from pydantic import BaseModel, ValidationError
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from src.battery_twin.communication.message_schemas import MessageFactory
-from src.battery_twin.communication.topic_manager import TopicManager
+from src.battery_twin.communication.topic_manager import BatteryTopicManager
 
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MqttConfig:
     """MQTT broker configuration."""
+
     broker: str = "localhost"
     port: int = 1883
     qos: int = 1
@@ -60,7 +62,7 @@ class MqttBridge:
         self,
         client_id: str,
         mqtt_config: MqttConfig,
-        topic_config_path: str = "src/battery_twin/config/mqtt_topics.yaml"
+        topic_config_path: str = "src/battery_twin/config/mqtt_topics.yaml",
     ):
         """
         Initialize MQTT bridge.
@@ -72,7 +74,7 @@ class MqttBridge:
         """
         self.client_id = client_id
         self.config = mqtt_config
-        self.topic_manager = TopicManager(topic_config_path)
+        self.topic_manager = BatteryTopicManager(topic_config_path)
 
         # MQTT client
         self.client: Optional[mqtt.Client] = None
@@ -89,10 +91,10 @@ class MqttBridge:
 
         # Statistics
         self.stats = {
-            'messages_published': 0,
-            'messages_received': 0,
-            'publish_errors': 0,
-            'validation_errors': 0
+            "messages_published": 0,
+            "messages_received": 0,
+            "publish_errors": 0,
+            "validation_errors": 0,
         }
 
         self._setup_client()
@@ -104,18 +106,20 @@ class MqttBridge:
             self.client = mqtt.Client(
                 callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
                 client_id=self.client_id,
-                clean_session=self.config.clean_session
+                clean_session=self.config.clean_session,
             )
         except TypeError:
             # Fall back to old API (v1.x)
             self.client = mqtt.Client(
                 client_id=self.client_id,
-                clean_session=self.config.clean_session
+                clean_session=self.config.clean_session,
             )
 
         # Set username and password if provided
         if self.config.username and self.config.password:
-            self.client.username_pw_set(self.config.username, self.config.password)
+            self.client.username_pw_set(
+                self.config.username, self.config.password
+            )
 
         # Set callbacks
         self.client.on_connect = self._on_connect
@@ -139,16 +143,16 @@ class MqttBridge:
 
             try:
                 self.client.connect(
-                    self.config.broker,
-                    self.config.port,
-                    self.config.keepalive
+                    self.config.broker, self.config.port, self.config.keepalive
                 )
                 self.client.loop_start()
 
                 # Wait for connection (timeout 5 seconds)
                 timeout = 5.0
                 start_time = time.time()
-                while not self.connected and (time.time() - start_time) < timeout:
+                while (
+                    not self.connected and (time.time() - start_time) < timeout
+                ):
                     time.sleep(0.1)
 
                 if self.connected:
@@ -189,24 +193,34 @@ class MqttBridge:
         else:
             logger.error(f"Connection failed with code {rc}")
 
-    def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties=None):
+    def _on_disconnect(
+        self, client, userdata, disconnect_flags, reason_code, properties=None
+    ):
         """Callback when disconnected from broker."""
         self.connected = False
         # Handle both v1 and v2 API - reason_code might be rc in v1
-        rc = reason_code if isinstance(reason_code, int) else (reason_code.value if hasattr(reason_code, 'value') else 0)
+        rc = (
+            reason_code
+            if isinstance(reason_code, int)
+            else (reason_code.value if hasattr(reason_code, "value") else 0)
+        )
         if rc != 0:
-            logger.warning(f"Unexpected disconnect (rc={rc}), will auto-reconnect")
+            logger.warning(
+                f"Unexpected disconnect (rc={rc}), will auto-reconnect"
+            )
         else:
             logger.info("Clean disconnect from broker")
 
     def _on_message(self, client, userdata, msg):
         """Callback when message received."""
         try:
-            self.stats['messages_received'] += 1
+            self.stats["messages_received"] += 1
             topic = msg.topic
-            payload = msg.payload.decode('utf-8')
+            payload = msg.payload.decode("utf-8")
 
-            logger.debug(f"Received message on topic '{topic}': {payload[:100]}...")
+            logger.debug(
+                f"Received message on topic '{topic}': {payload[:100]}..."
+            )
 
             # Route message to registered callbacks
             self._route_message(topic, payload)
@@ -214,7 +228,9 @@ class MqttBridge:
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
-    def _on_publish(self, client, userdata, mid, reason_code=None, properties=None):
+    def _on_publish(
+        self, client, userdata, mid, reason_code=None, properties=None
+    ):
         """
         Callback when message published.
 
@@ -263,7 +279,7 @@ class MqttBridge:
         topic_name: str,
         message: BaseModel,
         qos: Optional[int] = None,
-        **topic_vars
+        **topic_vars,
     ) -> bool:
         """
         Publish a message to a topic.
@@ -300,24 +316,21 @@ class MqttBridge:
             result = self.client.publish(topic, payload, qos=qos_level)
 
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                self.stats['messages_published'] += 1
+                self.stats["messages_published"] += 1
                 logger.debug(f"Published to '{topic}': {payload[:100]}...")
                 return True
             else:
-                self.stats['publish_errors'] += 1
+                self.stats["publish_errors"] += 1
                 logger.error(f"Publish failed with rc={result.rc}")
                 return False
 
         except Exception as e:
-            self.stats['publish_errors'] += 1
+            self.stats["publish_errors"] += 1
             logger.error(f"Error publishing message: {e}")
             return False
 
     def publish_raw(
-        self,
-        topic: str,
-        payload: str,
-        qos: Optional[int] = None
+        self, topic: str, payload: str, qos: Optional[int] = None
     ) -> bool:
         """
         Publish raw payload to topic (no validation).
@@ -339,14 +352,14 @@ class MqttBridge:
             result = self.client.publish(topic, payload, qos=qos_level)
 
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                self.stats['messages_published'] += 1
+                self.stats["messages_published"] += 1
                 return True
             else:
-                self.stats['publish_errors'] += 1
+                self.stats["publish_errors"] += 1
                 return False
 
         except Exception as e:
-            self.stats['publish_errors'] += 1
+            self.stats["publish_errors"] += 1
             logger.error(f"Error publishing raw message: {e}")
             return False
 
@@ -355,7 +368,7 @@ class MqttBridge:
         topic_name: str,
         callback: Callable[[str, str], None],
         qos: Optional[int] = None,
-        **topic_vars
+        **topic_vars,
     ) -> bool:
         """
         Subscribe to a topic with callback.
@@ -412,7 +425,7 @@ class MqttBridge:
         self,
         topic_pattern: str,
         callback: Callable[[str, str], None],
-        qos: Optional[int] = None
+        qos: Optional[int] = None,
     ) -> bool:
         """
         Subscribe to raw topic pattern (no template lookup).
@@ -507,6 +520,6 @@ class MqttBridge:
 
 
 __all__ = [
-    'MqttBridge',
-    'MqttConfig',
+    "MqttBridge",
+    "MqttConfig",
 ]

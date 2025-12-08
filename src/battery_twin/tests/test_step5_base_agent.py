@@ -26,7 +26,7 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
 from abstract_agent import AgentId
-from src.battery_twin.agents.base_battery_agent import BaseBatteryAgent, AgentStatus
+from src.battery_twin.agents.battery_agent_base import BatteryAgentBase as BaseBatteryAgent, AgentStatus
 from src.battery_twin.agents.battery_agent_types import (
     BatteryBDIAgent,
     BatteryReactiveAgent,

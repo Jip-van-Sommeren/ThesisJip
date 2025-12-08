@@ -288,18 +288,29 @@ class PhysicsModelAgent(BatteryHybridAgent):
     def _agent_setup(self) -> bool:
         """Agent-specific setup."""
         try:
-            # Register MQTT action handlers
+            # Register MQTT action handlers using topic manager if available
+            tm = getattr(getattr(self, "transport", None), "topic_manager", None)
+            telemetry_topic = (
+                tm.get_topic("clean_telemetry", battery_id=self.battery_id)
+                if tm
+                else f"battery/{self.battery_id}/telemetry/clean"
+            )
+            capacity_topic = (
+                tm.get_topic("capacity", battery_id=self.battery_id)
+                if tm
+                else f"battery/{self.battery_id}/capacity"
+            )
             self.register_action(
                 action_id="process_telemetry",
                 handler=self._handle_telemetry,
-                topic_pattern=f"battery/{self.battery_id}/telemetry/clean",
+                topic_pattern=telemetry_topic,
                 description="Process clean telemetry data",
             )
 
             self.register_action(
                 action_id="process_capacity",
                 handler=self._handle_actual_capacity,
-                topic_pattern=f"battery/{self.battery_id}/capacity",
+                topic_pattern=capacity_topic,
                 description="Process actual capacity measurements",
             )
 
@@ -440,9 +451,9 @@ class PhysicsModelAgent(BatteryHybridAgent):
                 agent_id=str(self.id),
             )
 
-            # Publish to MQTT
+            # Publish to MQTT using logical topic name
             self.publish_message(
-                topic_name="battery_prediction_physics",
+                topic_name="physics_prediction",
                 message=prediction_msg,
                 battery_id=self.battery_id,
             )

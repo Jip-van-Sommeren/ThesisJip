@@ -265,18 +265,30 @@ class MLResidualAgent(BatteryBDIAgent):
     def _agent_setup(self) -> bool:
         """Agent-specific setup."""
         try:
-            # Register MQTT action handlers
+            # Register MQTT action handlers using topic manager if available
+            tm = getattr(getattr(self, "transport", None), "topic_manager", None)
+            physics_topic = (
+                tm.get_topic("physics_prediction", battery_id=self.battery_id)
+                if tm
+                else f"battery/{self.battery_id}/prediction/physics"
+            )
+            capacity_topic = (
+                tm.get_topic("capacity", battery_id=self.battery_id)
+                if tm
+                else f"battery/{self.battery_id}/capacity"
+            )
+
             self.register_action(
                 action_id="process_physics_prediction",
                 handler=self._handle_physics_prediction,
-                topic_pattern=f"battery/{self.battery_id}/prediction/physics",
+                topic_pattern=physics_topic,
                 description="Process physics model predictions",
             )
 
             self.register_action(
                 action_id="process_actual_capacity",
                 handler=self._handle_actual_capacity,
-                topic_pattern=f"battery/{self.battery_id}/capacity",
+                topic_pattern=capacity_topic,
                 description="Process actual capacity measurements",
             )
 
@@ -800,7 +812,7 @@ class MLResidualAgent(BatteryBDIAgent):
             )
 
             self.publish_message(
-                topic_name="battery_prediction_ml",
+                topic_name="hybrid_prediction",
                 message=prediction_msg,
                 battery_id=self.battery_id,
             )

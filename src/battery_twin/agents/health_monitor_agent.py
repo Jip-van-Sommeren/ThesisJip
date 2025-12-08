@@ -261,9 +261,19 @@ class HealthMonitorAgent(BatteryBDIAgent):
         self._initialize_goals()
         self._initialize_intentions()
 
-        # MQTT subscriptions (if mqtt_bridge is available)
-        if mqtt_bridge:
-            self._setup_subscriptions()
+        # Subscribe to state estimates via action registry using topic manager if available
+        tm = getattr(getattr(self, "transport", None), "topic_manager", None)
+        topic_pattern = (
+            tm.get_topic("state_estimate", battery_id=self.battery_id)
+            if tm
+            else f"battery/{self.battery_id}/state/estimate"
+        )
+        self.register_action(
+            action_id="handle_state_estimate",
+            handler=self._handle_state_estimate,
+            topic_pattern=topic_pattern,
+            description="Consume EKF state estimates",
+        )
 
         self.logger.info(
             f"HealthMonitorAgent initialized for {battery_id}, "
@@ -387,16 +397,8 @@ class HealthMonitorAgent(BatteryBDIAgent):
     # ========================================================================
 
     def _setup_subscriptions(self):
-        """Subscribe to relevant MQTT topics."""
-        # Subscribe to state estimates from StateEstimatorAgent
-        state_topic = f"battery/{self.battery_id}/state/estimate"
-        self.mqtt_bridge.subscribe(state_topic, self._handle_state_estimate)
-
-        # Could also subscribe to physics/hybrid predictions if needed
-        # prediction_topic = f"battery/{self.battery_id}/prediction/hybrid"
-        # self.mqtt_bridge.subscribe(prediction_topic, self._handle_prediction)
-
-        self.logger.info(f"Subscribed to {state_topic}")
+        """(Deprecated) Subscriptions are registered via register_action in __init__."""
+        self.logger.debug("Subscriptions configured via action registry")
 
     # ========================================================================
     # Message Handlers
@@ -955,10 +957,14 @@ class HealthMonitorAgent(BatteryBDIAgent):
         )
 
         # Publish
-        topic = f"battery/{self.battery_id}/health/report"
-        if self.mqtt_bridge:
-            self.mqtt_bridge.publish(topic, report.model_dump_json())
-            self.logger.debug(f"Published health report to {topic}")
+        self.publish_message("health_report", report, battery_id=self.battery_id)
+        tm = getattr(getattr(self, "transport", None), "topic_manager", None)
+        dbg_topic = (
+            tm.get_topic("health_report", battery_id=self.battery_id)
+            if tm
+            else f"battery/{self.battery_id}/health/report"
+        )
+        self.logger.debug(f"Published health report to {dbg_topic}")
 
     def _generate_recommendations(self) -> List[str]:
         """Generate actionable recommendations based on current health."""

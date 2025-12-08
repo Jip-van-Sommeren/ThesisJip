@@ -190,9 +190,20 @@ class StateEstimatorAgent(BatteryBDIAgent):
         self.total_adjustments = 0
         self.total_warnings = 0
 
-        # Subscribe to telemetry
-        if self.mqtt_bridge:
-            self._subscribe_to_topics()
+        # Subscribe to clean telemetry via action registry using topic manager if available
+        topic_pattern = (
+            getattr(getattr(self, "transport", None), "topic_manager", None).get_topic(
+                "clean_telemetry", battery_id=self.battery_id
+            )
+            if getattr(getattr(self, "transport", None), "topic_manager", None)
+            else f"battery/{self.battery_id}/telemetry/clean"
+        )
+        self.register_action(
+            action_id="handle_clean_telemetry",
+            handler=self._handle_telemetry,
+            topic_pattern=topic_pattern,
+            description="Consume cleaned telemetry for EKF updates",
+        )
 
         # Initialize BDI components
         self._initialize_beliefs()
@@ -203,12 +214,8 @@ class StateEstimatorAgent(BatteryBDIAgent):
         )
 
     def _subscribe_to_topics(self):
-        """Subscribe to relevant MQTT topics."""
-        # Subscribe to clean telemetry data
-        telemetry_topic = f"battery/{self.battery_id}/telemetry/clean"
-        self.mqtt_bridge.subscribe(telemetry_topic, self._handle_telemetry)
-
-        logger.info(f"Subscribed to {telemetry_topic}")
+        """(Deprecated) Subscriptions are registered via register_action in __init__."""
+        pass
 
     def _initialize_beliefs(self):
         """Initialize BDI beliefs about state and filter health."""
@@ -700,9 +707,6 @@ class StateEstimatorAgent(BatteryBDIAgent):
         Args:
             estimate: State estimate to publish
         """
-        if not self.mqtt_bridge:
-            return
-
         # Create state estimate message using existing schema
         message = StateEstimateMessage(
             battery_id=self.battery_id,
@@ -722,8 +726,8 @@ class StateEstimatorAgent(BatteryBDIAgent):
         )
 
         # Publish to state topic
-        state_topic = f"battery/{self.battery_id}/state/estimate"
-        self.mqtt_bridge.publish(state_topic, message.model_dump_json())
+        # Publish using logical topic name
+        self.publish_message("state_estimate", message, battery_id=self.battery_id)
 
         logger.debug(f"Published state estimate to {state_topic}")
 

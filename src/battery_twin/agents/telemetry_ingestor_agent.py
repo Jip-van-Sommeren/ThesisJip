@@ -179,11 +179,17 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
         # Last seen timestamp per battery
         self.last_timestamp: Dict[str, float] = {}
 
-        # Register action to process raw telemetry
+        # Register action to process raw telemetry using topic manager pattern
+        tm = getattr(getattr(self, "transport", None), "topic_manager", None)
+        raw_pattern = (
+            tm.get_subscription_pattern("raw_telemetry", battery_id=None)
+            if tm
+            else "battery/+/raw"
+        )
         self.register_action(
             action_id="process_raw_telemetry",
             handler=self._on_raw_telemetry,
-            topic_pattern="battery/+/raw",
+            topic_pattern=raw_pattern,
             description="Process raw telemetry from replay engine or sensors"
         )
 
