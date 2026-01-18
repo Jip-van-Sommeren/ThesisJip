@@ -16,10 +16,10 @@ import socket
 from typing import Dict, Any, List, Optional
 import concurrent.futures
 from benchmarks.communication_benchmark import generate_payload
-from communication.mqtt.mqtt_communication_agent import (
+from benchmarks.communication.mqtt.mqtt_communication_agent import (
     MqttCommunicationEnvironment,
 )
-from communication.communication_config import (
+from benchmarks.communication.communication_config import (
     CommunicationConfiguration,
     TopologyPattern,
 )
@@ -27,8 +27,8 @@ from benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )
-from communication.mqtt.mqtt_communication import MqttMessageType
-from communication.base_communication import MessageType
+from benchmarks.communication.mqtt.mqtt_communication import MqttMessageType
+from benchmarks.communication.base_communication import MessageType
 
 
 # Global variable to track broker container
@@ -199,7 +199,7 @@ def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("Failed to start MQTT broker")
 
     # Import LatencyMode enum
-    from communication.base_communication import LatencyMode
+    from benchmarks.communication.base_communication import LatencyMode
 
     # Convert string to enum
     if latency_mode == "send_only":

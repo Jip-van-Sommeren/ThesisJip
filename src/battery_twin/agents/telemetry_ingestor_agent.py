@@ -16,24 +16,15 @@ Storage: InfluxDB (time-series)
 
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Any
 
-import sys
-from pathlib import Path
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "src"))
+from mas.core import AgentId
+from mas.communication import Transport
 
-from abstract_agent import AgentId
-from src.battery_twin.agents.battery_agent_types import BatteryReactiveAgent
-from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
-from src.battery_twin.communication.message_schemas import (
-    MessageFactory,
-    TelemetryMessage,
-)
-from src.battery_twin.data.telemetry_cleaner import TelemetryCleaner
-from src.battery_twin.storage.battery_storage_manager import BatteryStorageManager
+from battery_twin.agents.battery_agent_base import BatteryReactiveAgent
+from battery_twin.communication.message_schemas import TelemetryMessage
+from battery_twin.data.telemetry_cleaner import TelemetryCleaner
 
 logger = logging.getLogger(__name__)
 
@@ -59,16 +50,16 @@ class TelemetryStats:
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
         return {
-            'messages_received': self.messages_received,
-            'messages_validated': self.messages_validated,
-            'messages_rejected': self.messages_rejected,
-            'outliers_detected': self.outliers_detected,
-            'missing_data_count': self.missing_data_count,
-            'voltage_failures': self.voltage_failures,
-            'current_failures': self.current_failures,
-            'temperature_failures': self.temperature_failures,
-            'uptime_seconds': self.uptime if self.first_message_time > 0 else 0.0,
-            'throughput_msg_per_sec': self.throughput
+            "messages_received": self.messages_received,
+            "messages_validated": self.messages_validated,
+            "messages_rejected": self.messages_rejected,
+            "outliers_detected": self.outliers_detected,
+            "missing_data_count": self.missing_data_count,
+            "voltage_failures": self.voltage_failures,
+            "current_failures": self.current_failures,
+            "temperature_failures": self.temperature_failures,
+            "uptime_seconds": self.uptime if self.first_message_time > 0 else 0.0,
+            "throughput_msg_per_sec": self.throughput,
         }
 
     @property
@@ -98,7 +89,7 @@ class ValidationRules:
     min_current: float = -5.0
     max_current: float = 5.0
 
-    # Temperature range (°C)
+    # Temperature range (C)
     min_temperature: float = -10.0
     max_temperature: float = 60.0
 
@@ -132,35 +123,32 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
     def __init__(
         self,
         agent_id: AgentId,
-        mqtt_bridge: Optional[MqttBridge] = None,
-        storage_manager: Optional[BatteryStorageManager] = None,
-        mqtt_config: Optional[MqttConfig] = None,
+        transport: Transport,
+        storage_manager: Optional[Any] = None,
         validation_rules: Optional[ValidationRules] = None,
         enable_outlier_detection: bool = True,
         enable_storage: bool = True,
-        enable_heartbeat: bool = True
+        enable_heartbeat: bool = True,
     ):
         """
         Initialize Telemetry Ingestor Agent.
 
         Args:
             agent_id: Agent identifier
-            mqtt_bridge: MQTT bridge for communication
+            transport: MQTT transport (required)
             storage_manager: Storage manager for persistence
-            mqtt_config: MQTT configuration
             validation_rules: Validation rules for telemetry
             enable_outlier_detection: Enable outlier detection
             enable_storage: Enable storage to InfluxDB
             enable_heartbeat: Enable periodic heartbeat messages
         """
-        # Initialize reactive agent
+        # Initialize reactive agent with transport injection
         super().__init__(
             agent_id=agent_id,
+            transport=transport,
             observable_properties={"battery_voltage", "battery_current", "battery_temperature"},
-            mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
-            mqtt_config=mqtt_config,
-            enable_heartbeat=enable_heartbeat
+            enable_heartbeat=enable_heartbeat,
         )
 
         # Configuration
@@ -179,18 +167,19 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
         # Last seen timestamp per battery
         self.last_timestamp: Dict[str, float] = {}
 
-        # Register action to process raw telemetry using topic manager pattern
-        tm = getattr(getattr(self, "transport", None), "topic_manager", None)
-        raw_pattern = (
-            tm.get_subscription_pattern("raw_telemetry", battery_id=None)
-            if tm
-            else "battery/+/raw"
-        )
+        # Register action to process raw telemetry
+        # Use topic manager if available, otherwise default pattern
+        raw_pattern = "battery/+/raw"
+        if hasattr(transport, "topic_manager") and transport.topic_manager:
+            raw_pattern = transport.topic_manager.get_subscription_pattern(
+                "raw_telemetry", battery_id=None
+            )
+
         self.register_action(
             action_id="process_raw_telemetry",
             handler=self._on_raw_telemetry,
             topic_pattern=raw_pattern,
-            description="Process raw telemetry from replay engine or sensors"
+            description="Process raw telemetry from replay engine or sensors",
         )
 
         logger.info(f"TelemetryIngestorAgent initialized: {agent_id}")
@@ -219,9 +208,7 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
             cleaned_telemetry, adjustments = self._clean_telemetry(telemetry)
 
             # Validate telemetry post-cleaning
-            is_valid, validation_errors = self._validate_telemetry(
-                cleaned_telemetry
-            )
+            is_valid, validation_errors = self._validate_telemetry(cleaned_telemetry)
 
             if not is_valid:
                 self.stats.messages_rejected += 1
@@ -249,7 +236,7 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
             success = self.publish_message(
                 "clean_telemetry",
                 cleaned_telemetry,
-                battery_id=cleaned_telemetry.battery_id
+                battery_id=cleaned_telemetry.battery_id,
             )
 
             if not success:
@@ -294,7 +281,9 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
         cleaned_message = telemetry.model_copy(update=update_payload)
         return cleaned_message, adjustments
 
-    def _validate_telemetry(self, telemetry: TelemetryMessage) -> tuple[bool, List[str]]:
+    def _validate_telemetry(
+        self, telemetry: TelemetryMessage
+    ) -> tuple[bool, List[str]]:
         """
         Validate telemetry data.
 
@@ -307,7 +296,11 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
         errors = []
 
         # Validate voltage
-        if not (self.validation_rules.min_voltage <= telemetry.voltage <= self.validation_rules.max_voltage):
+        if not (
+            self.validation_rules.min_voltage
+            <= telemetry.voltage
+            <= self.validation_rules.max_voltage
+        ):
             errors.append(
                 f"Voltage {telemetry.voltage}V outside range "
                 f"[{self.validation_rules.min_voltage}, {self.validation_rules.max_voltage}]"
@@ -315,7 +308,11 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
             self.stats.voltage_failures += 1
 
         # Validate current
-        if not (self.validation_rules.min_current <= telemetry.current <= self.validation_rules.max_current):
+        if not (
+            self.validation_rules.min_current
+            <= telemetry.current
+            <= self.validation_rules.max_current
+        ):
             errors.append(
                 f"Current {telemetry.current}A outside range "
                 f"[{self.validation_rules.min_current}, {self.validation_rules.max_current}]"
@@ -323,9 +320,13 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
             self.stats.current_failures += 1
 
         # Validate temperature
-        if not (self.validation_rules.min_temperature <= telemetry.temperature <= self.validation_rules.max_temperature):
+        if not (
+            self.validation_rules.min_temperature
+            <= telemetry.temperature
+            <= self.validation_rules.max_temperature
+        ):
             errors.append(
-                f"Temperature {telemetry.temperature}°C outside range "
+                f"Temperature {telemetry.temperature}C outside range "
                 f"[{self.validation_rules.min_temperature}, {self.validation_rules.max_temperature}]"
             )
             self.stats.temperature_failures += 1
@@ -377,7 +378,7 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
                 voltage=telemetry.voltage,
                 current=telemetry.current,
                 temperature=telemetry.temperature,
-                ambient_temperature=telemetry.ambient_temperature
+                ambient_temperature=telemetry.ambient_temperature,
             )
         except Exception as e:
             logger.error(f"Failed to store telemetry: {e}")
@@ -410,7 +411,7 @@ class TelemetryIngestorAgent(BatteryReactiveAgent):
 
 
 __all__ = [
-    'TelemetryIngestorAgent',
-    'TelemetryStats',
-    'ValidationRules',
+    "TelemetryIngestorAgent",
+    "TelemetryStats",
+    "ValidationRules",
 ]

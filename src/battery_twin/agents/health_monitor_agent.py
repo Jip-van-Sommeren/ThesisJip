@@ -24,10 +24,10 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from pydantic import BaseModel, Field
 
-from src.abstract_agent import AgentId, GoalType, Goal
-from src.battery_twin.agents.battery_agent_types import BatteryBDIAgent
-from src.battery_twin.communication.mqtt_bridge import MqttBridge
-from src.battery_twin.storage.battery_storage_manager import (
+from mas.core import AgentId, GoalType, Goal
+from mas.communication import Transport
+from battery_twin.agents.battery_agent_base import BatteryBDIAgent
+from battery_twin.storage.battery_storage_manager import (
     BatteryStorageManager,
 )
 
@@ -191,10 +191,10 @@ class HealthMonitorAgent(BatteryBDIAgent):
         self,
         agent_id: AgentId,
         battery_id: str,
+        transport: Transport,
         initial_soh: float = 1.0,
         initial_r0: float = 0.01,
         eol_threshold: float = 0.8,
-        mqtt_bridge: Optional[MqttBridge] = None,
         storage_manager: Optional[BatteryStorageManager] = None,
         observable_properties: Optional[set] = None,
     ):
@@ -204,10 +204,10 @@ class HealthMonitorAgent(BatteryBDIAgent):
         Args:
             agent_id: Unique agent identifier
             battery_id: Battery being monitored
+            transport: MQTT transport (injected)
             initial_soh: Initial State of Health (typically 1.0)
             initial_r0: Initial internal resistance (Ohms)
             eol_threshold: End-of-life SoH threshold (default 0.8 = 80%)
-            mqtt_bridge: MQTT communication bridge
             storage_manager: Optional storage manager
             observable_properties: Properties to track
         """
@@ -216,9 +216,9 @@ class HealthMonitorAgent(BatteryBDIAgent):
 
         super().__init__(
             agent_id=agent_id,
+            transport=transport,
             observable_properties=observable_properties
             or {"health_status", "risk_level", "rul_estimate"},
-            mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
         )
 

@@ -36,23 +36,23 @@ from enum import Enum
 from pathlib import Path
 
 
-from src.abstract_agent import AgentId, Goal, GoalType
-from src.battery_twin.agents.battery_agent_types import BatteryBDIAgent
-from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
-from src.battery_twin.communication.message_schemas import (
+from mas.core import AgentId, Goal, GoalType
+from mas.communication import Transport
+from battery_twin.agents.battery_agent_base import BatteryBDIAgent
+from battery_twin.communication.message_schemas import (
     PredictionMessage,
     CapacityMessage,
     MessageFactory,
 )
-from src.battery_twin.storage.battery_storage_manager import (
+from battery_twin.storage.battery_storage_manager import (
     BatteryStorageManager,
 )
-from src.battery_twin.models.residual_learner import (
+from battery_twin.models.residual_learner import (
     ResidualLearner,
     CycleFeatures,
     CycleFeatures,
 )
-from src.battery_twin.models.neural_network import NeuralNetConfig
+from battery_twin.models.neural_network import NeuralNetConfig
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ class MLResidualAgent(BatteryBDIAgent):
         self,
         agent_id: AgentId,
         battery_id: str,
-        mqtt_bridge: Optional[MqttBridge] = None,
+        transport: Transport,
         storage_manager: Optional[BatteryStorageManager] = None,
         ml_config: Optional[NeuralNetConfig] = None,
         min_training_samples: int = 30,
@@ -136,7 +136,7 @@ class MLResidualAgent(BatteryBDIAgent):
         Args:
             agent_id: Unique agent identifier
             battery_id: Battery identifier
-            mqtt_bridge: MQTT communication bridge
+            transport: MQTT transport (injected)
             storage_manager: Storage manager for persistence
             ml_config: Neural network configuration
             min_training_samples: Minimum samples needed for initial training
@@ -148,8 +148,8 @@ class MLResidualAgent(BatteryBDIAgent):
 
         super().__init__(
             agent_id=agent_id,
+            transport=transport,
             observable_properties={"ml_predictions", "model_performance"},
-            mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
         )
 
@@ -706,7 +706,7 @@ class MLResidualAgent(BatteryBDIAgent):
             return None
 
         try:
-            from src.battery_twin.hybrid.core.digital_twin import (
+            from battery_twin.hybrid.core.digital_twin import (
                 PredictionResult,
             )
         except ImportError:  # pragma: no cover

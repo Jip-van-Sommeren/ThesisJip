@@ -33,22 +33,20 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
+from mas.core import AgentId, Goal, GoalType, Action, ActionType, ReactiveRule
 
-from src.abstract_agent import AgentId, Goal, GoalType
-from src.battery_twin.agents.battery_agent_types import BatteryHybridAgent
-from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
-from src.battery_twin.communication.message_schemas import (
+from battery_twin.agents.battery_agent_base import BatteryHybridAgent
+from battery_twin.communication.message_schemas import (
     TelemetryMessage,
     PredictionMessage,
     MessageFactory,
 )
-from src.battery_twin.storage.battery_storage_manager import (
-    BatteryStorageManager,
-)
-from src.battery_twin.models.physics_degradation_model import (
+from battery_twin.storage.battery_storage_manager import BatteryStorageManager
+from battery_twin.models.physics_degradation_model import (
     PhysicsDegradationModel,
     DegradationParameters,
 )
+from mas.communication import Transport
 
 logger = logging.getLogger(__name__)
 
@@ -138,9 +136,13 @@ class PhysicsModelAgent(BatteryHybridAgent):
     based on cycle number, temperature, and charge time.
 
     Example:
+        >>> from mas.core import AgentId
+        >>> from mas.communication import MqttTransport, TopicManager, MqttConfig
+        >>> transport = MqttTransport(MqttConfig(), TopicManager("config.yaml"))
         >>> agent = PhysicsModelAgent(
         ...     agent_id=AgentId(app="battery_twin", type="physics", instance="1"),
-        ...     battery_id="B0005"
+        ...     battery_id="B0005",
+        ...     transport=transport
         ... )
         >>> agent.setup()
         >>> # Agent processes telemetry and makes predictions
@@ -151,9 +153,8 @@ class PhysicsModelAgent(BatteryHybridAgent):
         self,
         agent_id: AgentId,
         battery_id: str,
-        mqtt_bridge: Optional[MqttBridge] = None,
+        transport: Transport,
         storage_manager: Optional[BatteryStorageManager] = None,
-        mqtt_config: Optional[MqttConfig] = None,
         model_parameters: Optional[DegradationParameters] = None,
         accuracy_threshold: float = 0.05,  # 5% error threshold
         enable_parameter_adaptation: bool = True,
@@ -165,12 +166,12 @@ class PhysicsModelAgent(BatteryHybridAgent):
         Args:
             agent_id: Agent identifier
             battery_id: Battery identifier to monitor
-            mqtt_bridge: MQTT bridge for communication
+            transport: MQTT transport (required)
             storage_manager: Storage manager for persistence
-            mqtt_config: MQTT configuration
             model_parameters: Initial model parameters (uses defaults if None)
             accuracy_threshold: Error threshold for triggering parameter updates
             enable_parameter_adaptation: Enable automatic parameter adaptation
+            hybrid_service: Optional hybrid twin service
         """
         # Observable properties for this agent
         observable_properties = {
@@ -181,13 +182,12 @@ class PhysicsModelAgent(BatteryHybridAgent):
             "cycle_complete",
         }
 
-        # Initialize parent classes
+        # Initialize parent class with transport injection
         super().__init__(
             agent_id=agent_id,
+            transport=transport,
             observable_properties=observable_properties,
-            mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
-            mqtt_config=mqtt_config,
             enable_heartbeat=True,
         )
 
@@ -265,8 +265,6 @@ class PhysicsModelAgent(BatteryHybridAgent):
         fast MQTT message handlers (via register_action), not formal reactive rules.
         The reactive rules here are for belief-driven fast responses.
         """
-        from src.abstract_agent import ReactiveRule, Action, ActionType
-
         # Create action for cycle transition handling
         cycle_action = Action(
             action_id="handle_cycle_transition_action",
@@ -288,8 +286,10 @@ class PhysicsModelAgent(BatteryHybridAgent):
     def _agent_setup(self) -> bool:
         """Agent-specific setup."""
         try:
-            # Register MQTT action handlers using topic manager if available
-            tm = getattr(getattr(self, "transport", None), "topic_manager", None)
+            # Get topic manager if available
+            tm = getattr(self.transport, "topic_manager", None)
+
+            # Build topic patterns
             telemetry_topic = (
                 tm.get_topic("clean_telemetry", battery_id=self.battery_id)
                 if tm
@@ -300,6 +300,8 @@ class PhysicsModelAgent(BatteryHybridAgent):
                 if tm
                 else f"battery/{self.battery_id}/capacity"
             )
+
+            # Register MQTT action handlers
             self.register_action(
                 action_id="process_telemetry",
                 handler=self._handle_telemetry,
@@ -477,8 +479,8 @@ class PhysicsModelAgent(BatteryHybridAgent):
 
             logger.info(
                 f"Predicted capacity for cycle {cycle}: {predicted_capacity:.4f} Ah "
-                f"(T={self.current_cycle.avg_temperature:.1f}°C, "
-                f"t={self.current_cycle.total_charge_time:.0f}s)"
+                f"(T={completed_cycle.avg_temperature:.1f}°C, "
+                f"t={completed_cycle.total_charge_time:.0f}s)"
             )
 
         except Exception as e:

@@ -299,3 +299,25 @@ $$
 - Monitoring/Delegation (μ): Monitoring responsibilities and possible runtime delegation between agents.
 
 This tuple separates process logic from execution, providing a blueprint that the MAS enacts on the digital twin.
+
+## Persistence and Artifacts (optional)
+
+Keep storage out of the core agent and environment tuples, but give it a formal place via either service interfaces or environment artifacts.
+
+### Option A — Services in Σ
+
+- Represent persistence as abstract services in the digital‑application tuple 𝓓𝓐 = ⟨T, Dep, Π, Σ, α, μ⟩ (e.g., `kv.get/put`, `log.append/read`, `ts.write/query`).
+- Agents invoke storage by calling a service σ ∈ Σ as part of an action; the environment state S remains application‑level, not infrastructural.
+- Specify guarantees as annotations on each service: consistency (linearizable | per‑key FIFO | eventual), durability (durable | ephemeral), ordering (per‑key/per‑partition), retention, and access control.
+- This keeps persistence orthogonal to S while allowing policies to rely on stated guarantees.
+
+### Option B — Environment artifacts
+
+- Extend the environment to 𝓔𝓝𝓥⁺ = ⟨S, A_i, τ, O_i, 𝒜⟩, where 𝒜 is a set of artifacts (resources) with operation sets Ops(a).
+- A store a ∈ 𝒜 encapsulates internal state; operations op(a, …) update that state and may emit notifications.
+- Agent observations O_i incorporate artifact notifications; feasibility/safety/authorization checks apply uniformly to artifact operations.
+
+### Execution traces (optional)
+
+- Maintain an auxiliary trace T appending ⟨t, s, a, s′⟩ after applying τ for audit/replay.
+- T is not part of S and does not change semantics; it supports reproducibility and debugging.

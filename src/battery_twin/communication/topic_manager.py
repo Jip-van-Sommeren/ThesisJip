@@ -6,11 +6,7 @@ convenience methods and defaults for battery digital twin applications.
 """
 
 from typing import Dict
-from communication.topic_manager import (
-    TopicManager,
-    format_entity_topic as _format_entity_topic,
-    subscribe_to_entity_pattern as _subscribe_to_entity_pattern,
-)
+from mas.communication import TopicManager
 
 
 class BatteryTopicManager(TopicManager):
@@ -75,7 +71,8 @@ def format_battery_topic(
         >>> format_battery_topic("raw_telemetry", "B0005")
         'battery/B0005/raw'
     """
-    return _format_entity_topic(topic_name, "battery_id", battery_id, config_path)
+    tm = TopicManager(config_path)
+    return tm.get_topic(topic_name, battery_id=battery_id)
 
 
 def format_agent_topic(
@@ -98,7 +95,8 @@ def format_agent_topic(
         >>> format_agent_topic("agent_heartbeat", "telemetry.ingestor.1")
         'system/agents/telemetry.ingestor.1/heartbeat'
     """
-    return _format_entity_topic(topic_name, "agent_id", agent_id, config_path)
+    tm = TopicManager(config_path)
+    return tm.get_topic(topic_name, agent_id=agent_id)
 
 
 def subscribe_to_all_batteries(
@@ -119,7 +117,8 @@ def subscribe_to_all_batteries(
         >>> subscribe_to_all_batteries("raw_telemetry")
         'battery/+/raw'
     """
-    return _subscribe_to_entity_pattern(topic_name, "battery_id", config_path)
+    tm = TopicManager(config_path)
+    return tm.get_subscription_pattern(topic_name, battery_id=None)
 
 
 def subscribe_to_all_agents(
@@ -140,7 +139,8 @@ def subscribe_to_all_agents(
         >>> subscribe_to_all_agents("agent_heartbeat")
         'system/agents/+/heartbeat'
     """
-    return _subscribe_to_entity_pattern(topic_name, "agent_id", config_path)
+    tm = TopicManager(config_path)
+    return tm.get_subscription_pattern(topic_name, agent_id=None)
 
 
 __all__ = [

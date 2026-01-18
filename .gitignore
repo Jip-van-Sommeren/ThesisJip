@@ -11,3 +11,6 @@ CLAUDE.md
 /.claude
 /.pytest_cache
 *.tex
+*.drawio
+*.graphml
+/sections

@@ -11,13 +11,13 @@ import random
 import threading
 from typing import Dict, Any, List, Optional
 import concurrent.futures
-from abstract_agent import AgentId
+from mas.core import AgentId
 from benchmarks.communication_benchmark import generate_payload
-from communication.grpc.grpc_communication_agent import (
+from benchmarks.communication.grpc.grpc_communication_agent import (
     ExtendedGrpcCommunicatingAgent,
     GrpcCommunicationEnvironment,
 )
-from communication.communication_config import (
+from benchmarks.communication.communication_config import (
     CommunicationConfiguration,
     TopologyPattern,
 )
@@ -25,7 +25,7 @@ from benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )
-from communication.grpc.grpc_communication import GrpcMessageType
+from benchmarks.communication.grpc.grpc_communication import GrpcMessageType
 
 
 def _is_ack_message(message) -> bool:
@@ -73,7 +73,7 @@ def setup_grpc_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
     communication_mode = params.get("grpc_mode", "unary")
 
     # Import LatencyMode enum
-    from communication.base_communication import LatencyMode
+    from benchmarks.communication.base_communication import LatencyMode
 
     # Convert string to enum
     if latency_mode == "send_only":
@@ -163,7 +163,7 @@ def test_grpc_point_to_point_latency(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test basic point-to-point message latency via gRPC."""
-    from communication.base_communication import MessageType
+    from benchmarks.communication.base_communication import MessageType
 
     agents = params["agents"]
     message_count = params.get("message_count", 100)
@@ -247,7 +247,7 @@ def test_grpc_broadcast_throughput(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test gRPC broadcast message throughput."""
-    from communication.base_communication import MessageType
+    from benchmarks.communication.base_communication import MessageType
 
     agents = params["agents"]
     message_count = params.get("message_count", 50)
@@ -356,7 +356,7 @@ def test_grpc_concurrent_messaging(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test concurrent gRPC messaging between multiple agents."""
-    from communication.base_communication import MessageType
+    from benchmarks.communication.base_communication import MessageType
 
     agents = params["agents"]
     messages_per_agent = params.get("messages_per_agent", 20)
@@ -499,7 +499,7 @@ def test_grpc_scalability_stress(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test gRPC system under high message load for scalability."""
-    from communication.base_communication import MessageType
+    from benchmarks.communication.base_communication import MessageType
 
     agents = params["agents"]
     stress_duration = params.get("stress_duration", 5.0)  # seconds

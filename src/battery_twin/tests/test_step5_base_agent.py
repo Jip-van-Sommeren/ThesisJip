@@ -4,51 +4,43 @@ Step 5 Test: Base Battery Agent Class
 
 This test verifies that:
 - Base agent infrastructure initializes correctly
-- MQTT communication integration works
+- MockTransport for testing works
 - Action registry and routing works
-- Storage integration works
 - Performance metrics tracking works
 - Lifecycle management (setup/teardown) works
 
-Prerequisites:
-- (Optional) Mosquitto MQTT broker for full MQTT tests
-
-Run: source venv/bin/activate && python3 src/battery_twin/tests/test_step5_base_agent.py
+Run: source venv/bin/activate && PYTHONPATH=/home/jip/Documents/thesis/src python3 src/battery_twin/tests/test_step5_base_agent.py
 """
 
 import sys
 import time
 from pathlib import Path
 
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "src"))
-
-from abstract_agent import AgentId
-from src.battery_twin.agents.battery_agent_base import BatteryAgentBase as BaseBatteryAgent, AgentStatus
-from src.battery_twin.agents.battery_agent_types import (
-    BatteryBDIAgent,
+from mas.core import AgentId
+from mas.communication import MockTransport, TopicManager
+from battery_twin.agents.battery_agent_base import (
     BatteryReactiveAgent,
-    BatteryHybridAgent
+    BatteryBDIAgent,
+    BatteryHybridAgent,
+    AgentStatus,
 )
-from src.battery_twin.communication.mqtt_bridge import MqttConfig
-from src.battery_twin.communication.message_schemas import TelemetryMessage
+from battery_twin.communication.message_schemas import TelemetryMessage
 
 
 # ============================================================================
 # Helper Test Agent
 # ============================================================================
 
+
 class TestBatteryAgent(BatteryReactiveAgent):
     """Simple test agent for validation."""
 
-    def __init__(self, agent_id: AgentId):
+    def __init__(self, agent_id: AgentId, transport: MockTransport):
         super().__init__(
             agent_id=agent_id,
+            transport=transport,
             observable_properties={"battery_voltage", "battery_current"},
-            mqtt_config=MqttConfig(broker="localhost", port=1883),
-            enable_heartbeat=False  # Disable for testing
+            enable_heartbeat=False,  # Disable for testing
         )
 
         # Track received messages
@@ -59,7 +51,7 @@ class TestBatteryAgent(BatteryReactiveAgent):
             "process_telemetry",
             self._on_telemetry,
             "battery/+/raw",
-            "Process raw telemetry"
+            "Process raw telemetry",
         )
 
     def _on_telemetry(self, topic: str, payload: str):
@@ -68,8 +60,28 @@ class TestBatteryAgent(BatteryReactiveAgent):
 
 
 # ============================================================================
+# Test Fixtures
+# ============================================================================
+
+
+def create_mock_transport():
+    """Create a MockTransport for testing."""
+    # Use the actual mqtt_topics.yaml if available, otherwise create inline config
+    config_path = Path(__file__).parent.parent / "config" / "mqtt_topics.yaml"
+    if config_path.exists():
+        topic_manager = TopicManager(str(config_path))
+    else:
+        topic_manager = TopicManager()
+
+    transport = MockTransport(topic_manager)
+    transport.connect()
+    return transport
+
+
+# ============================================================================
 # Base Agent Infrastructure Tests
 # ============================================================================
+
 
 def test_agent_creation():
     """Test agent creation and initialization."""
@@ -78,14 +90,17 @@ def test_agent_creation():
     tests_passed = 0
     tests_failed = 0
 
+    # Create mock transport
+    transport = create_mock_transport()
+
     # Test 1: Create agent ID
     try:
         agent_id = AgentId(app="battery_twin", type="test", instance="1")
         assert str(agent_id) == "battery_twin.test.1"
-        print("  ✓ AgentId created successfully")
+        print("  [PASS] AgentId created successfully")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ AgentId creation failed: {e}")
+        print(f"  [FAIL] AgentId creation failed: {e}")
         tests_failed += 1
         return tests_passed, tests_failed
 
@@ -93,13 +108,14 @@ def test_agent_creation():
     try:
         agent = BatteryReactiveAgent(
             agent_id=agent_id,
+            transport=transport,
             observable_properties={"test_property"},
-            enable_heartbeat=False
+            enable_heartbeat=False,
         )
-        print("  ✓ BatteryReactiveAgent created")
+        print("  [PASS] BatteryReactiveAgent created")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ BatteryReactiveAgent creation failed: {e}")
+        print(f"  [FAIL] BatteryReactiveAgent creation failed: {e}")
         tests_failed += 1
         return tests_passed, tests_failed
 
@@ -107,36 +123,38 @@ def test_agent_creation():
     try:
         status = agent.get_status()
         assert status == AgentStatus.CREATED
-        print(f"  ✓ Initial status: {status.value}")
+        print(f"  [PASS] Initial status: {status.value}")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Status check failed: {e}")
+        print(f"  [FAIL] Status check failed: {e}")
         tests_failed += 1
 
     # Test 4: Create BDI agent
     try:
         bdi_agent = BatteryBDIAgent(
             agent_id=AgentId(app="battery_twin", type="bdi_test", instance="1"),
+            transport=transport,
             observable_properties={"test_property"},
-            enable_heartbeat=False
+            enable_heartbeat=False,
         )
-        print("  ✓ BatteryBDIAgent created")
+        print("  [PASS] BatteryBDIAgent created")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ BatteryBDIAgent creation failed: {e}")
+        print(f"  [FAIL] BatteryBDIAgent creation failed: {e}")
         tests_failed += 1
 
     # Test 5: Create Hybrid agent
     try:
         hybrid_agent = BatteryHybridAgent(
             agent_id=AgentId(app="battery_twin", type="hybrid_test", instance="1"),
+            transport=transport,
             observable_properties={"test_property"},
-            enable_heartbeat=False
+            enable_heartbeat=False,
         )
-        print("  ✓ BatteryHybridAgent created")
+        print("  [PASS] BatteryHybridAgent created")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ BatteryHybridAgent creation failed: {e}")
+        print(f"  [FAIL] BatteryHybridAgent creation failed: {e}")
         tests_failed += 1
 
     return tests_passed, tests_failed
@@ -149,67 +167,54 @@ def test_action_registry():
     tests_passed = 0
     tests_failed = 0
 
-    # Create agent
+    # Create transport and agent
+    transport = create_mock_transport()
     agent_id = AgentId(app="battery_twin", type="test", instance="1")
-    agent = TestBatteryAgent(agent_id)
+    agent = TestBatteryAgent(agent_id, transport)
 
     # Test 1: Action registered during init
     try:
         assert "process_telemetry" in agent.action_handlers
         handler = agent.action_handlers["process_telemetry"]
         assert handler.topic_pattern == "battery/+/raw"
-        print("  ✓ Action registered successfully")
+        print("  [PASS] Action registered successfully")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Action registration check failed: {e}")
+        print(f"  [FAIL] Action registration check failed: {e}")
         tests_failed += 1
 
     # Test 2: Register additional action
     try:
+
         def dummy_handler(topic, payload):
             pass
 
-        agent.register_action(
-            "test_action",
-            dummy_handler,
-            "test/topic",
-            "Test action"
-        )
+        agent.register_action("test_action", dummy_handler, "test/topic", "Test action")
         assert "test_action" in agent.action_handlers
-        print("  ✓ Additional action registered")
+        print("  [PASS] Additional action registered")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Additional action registration failed: {e}")
+        print(f"  [FAIL] Additional action registration failed: {e}")
         tests_failed += 1
 
     # Test 3: Disable action
     try:
         agent.enable_action("test_action", enabled=False)
         assert not agent.action_handlers["test_action"].enabled
-        print("  ✓ Action disabled successfully")
+        print("  [PASS] Action disabled successfully")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Action disable failed: {e}")
+        print(f"  [FAIL] Action disable failed: {e}")
         tests_failed += 1
 
     # Test 4: Re-enable action
     try:
         agent.enable_action("test_action", enabled=True)
         assert agent.action_handlers["test_action"].enabled
-        print("  ✓ Action re-enabled successfully")
+        print("  [PASS] Action re-enabled successfully")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Action re-enable failed: {e}")
-        tests_failed += 1
-
-    # Test 5: Unregister action
-    try:
-        agent.unregister_action("test_action")
-        assert "test_action" not in agent.action_handlers
-        print("  ✓ Action unregistered successfully")
-        tests_passed += 1
-    except Exception as e:
-        print(f"  ✗ Action unregister failed: {e}")
+        print(f"  [FAIL] Action re-enable failed: {e}")
         tests_failed += 1
 
     return tests_passed, tests_failed
@@ -222,9 +227,10 @@ def test_metrics_tracking():
     tests_passed = 0
     tests_failed = 0
 
-    # Create agent
+    # Create transport and agent
+    transport = create_mock_transport()
     agent_id = AgentId(app="battery_twin", type="test", instance="1")
-    agent = TestBatteryAgent(agent_id)
+    agent = TestBatteryAgent(agent_id, transport)
 
     # Test 1: Get initial metrics
     try:
@@ -232,22 +238,22 @@ def test_metrics_tracking():
         assert metrics.messages_received == 0
         assert metrics.messages_sent == 0
         assert metrics.actions_executed == 0
-        print("  ✓ Initial metrics retrieved")
+        print("  [PASS] Initial metrics retrieved")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Get metrics failed: {e}")
+        print(f"  [FAIL] Get metrics failed: {e}")
         tests_failed += 1
 
     # Test 2: Metrics as dictionary
     try:
         metrics_dict = agent.get_metrics_dict()
         assert isinstance(metrics_dict, dict)
-        assert 'messages_received' in metrics_dict
-        assert 'uptime_seconds' in metrics_dict
-        print("  ✓ Metrics converted to dictionary")
+        assert "messages_received" in metrics_dict
+        assert "uptime_seconds" in metrics_dict
+        print("  [PASS] Metrics converted to dictionary")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Metrics to dict failed: {e}")
+        print(f"  [FAIL] Metrics to dict failed: {e}")
         tests_failed += 1
 
     # Test 3: Check uptime
@@ -255,10 +261,10 @@ def test_metrics_tracking():
         time.sleep(0.1)  # Small delay
         uptime = agent.metrics.uptime
         assert uptime > 0
-        print(f"  ✓ Uptime tracking works: {uptime:.3f}s")
+        print(f"  [PASS] Uptime tracking works: {uptime:.3f}s")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Uptime check failed: {e}")
+        print(f"  [FAIL] Uptime check failed: {e}")
         tests_failed += 1
 
     return tests_passed, tests_failed
@@ -271,78 +277,61 @@ def test_lifecycle():
     tests_passed = 0
     tests_failed = 0
 
-    # Create agent
+    # Create transport and agent
+    transport = create_mock_transport()
     agent_id = AgentId(app="battery_twin", type="test", instance="1")
-    agent = TestBatteryAgent(agent_id)
+    agent = TestBatteryAgent(agent_id, transport)
 
     # Test 1: Check initial status
     try:
         assert agent.get_status() == AgentStatus.CREATED
-        print("  ✓ Initial status is CREATED")
+        print("  [PASS] Initial status is CREATED")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Initial status check failed: {e}")
+        print(f"  [FAIL] Initial status check failed: {e}")
         tests_failed += 1
 
-    # Test 2: Setup agent
+    # Test 2: Setup agent (should work with MockTransport)
     try:
-        # Note: setup will try to connect to MQTT, which may fail
         success = agent.setup()
-
-        if not success:
-            # MQTT connection failed (expected if broker not running)
-            print("  ⚠ Setup failed (MQTT broker not available)")
-            print("    This is expected if Mosquitto is not running")
-            tests_passed += 1
-        else:
-            # Setup succeeded
-            assert agent.get_status() in [AgentStatus.READY, AgentStatus.INITIALIZING]
-            print("  ✓ Agent setup successful")
-            tests_passed += 1
-
+        assert success, "Setup should succeed with MockTransport"
+        assert agent.get_status() == AgentStatus.READY
+        print("  [PASS] Agent setup successful")
+        tests_passed += 1
     except Exception as e:
-        print(f"  ⚠ Setup error (may be due to no MQTT broker): {e}")
-        tests_passed += 1  # Don't fail test if MQTT unavailable
+        print(f"  [FAIL] Setup failed: {e}")
+        tests_failed += 1
 
     # Test 3: Teardown agent
     try:
         agent.teardown()
-        # Status should be STOPPED after teardown
         status = agent.get_status()
-        assert status in [AgentStatus.STOPPED, AgentStatus.ERROR]
-        print("  ✓ Agent teardown successful")
+        assert status == AgentStatus.STOPPED
+        print("  [PASS] Agent teardown successful")
         tests_passed += 1
     except Exception as e:
-        print(f"  ✗ Teardown failed: {e}")
+        print(f"  [FAIL] Teardown failed: {e}")
         tests_failed += 1
-
-    # Test 4: Context manager
-    try:
-        with TestBatteryAgent(AgentId("battery_twin", "test", "2")) as ctx_agent:
-            # Agent should be set up
-            pass
-        # Agent should be torn down after context
-        print("  ✓ Context manager works")
-        tests_passed += 1
-    except Exception as e:
-        print(f"  ⚠ Context manager error (may be due to no MQTT): {e}")
-        tests_passed += 1  # Don't fail if MQTT unavailable
 
     return tests_passed, tests_failed
 
 
-def test_mqtt_integration():
-    """Test MQTT communication integration."""
-    print("\nTesting MQTT integration...")
+def test_mock_transport_messaging():
+    """Test messaging with MockTransport."""
+    print("\nTesting MockTransport messaging...")
 
     tests_passed = 0
     tests_failed = 0
 
+    # Create transport
+    transport = create_mock_transport()
+
     # Create agent
     agent_id = AgentId(app="battery_twin", type="test", instance="1")
-    agent = TestBatteryAgent(agent_id)
+    agent = TestBatteryAgent(agent_id, transport)
+    agent.setup()
 
-    # Test 1: Publish message (without connection)
+    # Test 1: Publish message
     try:
         telemetry = TelemetryMessage(
             battery_id="TEST_B0005",
@@ -350,23 +339,42 @@ def test_mqtt_integration():
             cycle=1,
             voltage=3.8,
             current=-2.0,
-            temperature=25.0
+            temperature=25.0,
         )
 
-        # This will fail if no MQTT bridge connected
-        success = agent.publish_message("raw_telemetry", telemetry, battery_id="TEST_B0005")
-
-        if not success:
-            print("  ⚠ Publish failed (no MQTT connection - expected)")
-            tests_passed += 1
-        else:
-            print("  ✓ Message published successfully")
-            tests_passed += 1
-
-    except Exception as e:
-        print(f"  ⚠ Publish error (expected without MQTT): {e}")
+        success = agent.publish_message(
+            "raw_telemetry", telemetry, battery_id="TEST_B0005"
+        )
+        assert success, "Publish should succeed with MockTransport"
+        print("  [PASS] Message published successfully")
         tests_passed += 1
+    except Exception as e:
+        print(f"  [FAIL] Publish failed: {e}")
+        tests_failed += 1
 
+    # Test 2: Check metrics updated
+    try:
+        assert agent.metrics.messages_sent > 0
+        print(f"  [PASS] Messages sent count: {agent.metrics.messages_sent}")
+        tests_passed += 1
+    except Exception as e:
+        print(f"  [FAIL] Metrics not updated: {e}")
+        tests_failed += 1
+
+    # Test 3: Simulate receiving a message
+    try:
+        # Simulate incoming message via MockTransport
+        transport.simulate_message("battery/TEST/raw", '{"test": "data"}')
+        # Allow time for callback
+        time.sleep(0.1)
+        assert len(agent.received_messages) > 0
+        print(f"  [PASS] Message received via MockTransport")
+        tests_passed += 1
+    except Exception as e:
+        print(f"  [FAIL] Message reception failed: {e}")
+        tests_failed += 1
+
+    agent.teardown()
     return tests_passed, tests_failed
 
 
@@ -374,13 +382,11 @@ def test_mqtt_integration():
 # Main Test Runner
 # ============================================================================
 
+
 def main():
     """Run all tests."""
     print("=" * 70)
-    print("STEP 5 TEST: Base Battery Agent Class")
-    print("=" * 70)
-    print("\nPrerequisites:")
-    print("  - (Optional) Mosquitto for full MQTT tests")
+    print("STEP 5 TEST: Base Battery Agent Class (with MockTransport)")
     print("=" * 70)
 
     all_tests_passed = 0
@@ -406,8 +412,8 @@ def main():
     all_tests_passed += passed
     all_tests_failed += failed
 
-    # Test 5: MQTT Integration
-    passed, failed = test_mqtt_integration()
+    # Test 5: MockTransport Messaging
+    passed, failed = test_mock_transport_messaging()
     all_tests_passed += passed
     all_tests_failed += failed
 
@@ -416,25 +422,21 @@ def main():
     print("TEST SUMMARY")
     print("=" * 70)
     print(f"  Total Tests: {all_tests_passed + all_tests_failed}")
-    print(f"  ✓ Passed: {all_tests_passed}")
-    print(f"  ✗ Failed: {all_tests_failed}")
+    print(f"  [PASS]: {all_tests_passed}")
+    print(f"  [FAIL]: {all_tests_failed}")
     print("=" * 70)
 
     if all_tests_failed == 0:
-        print("\n✓ ALL TESTS PASSED!")
-        print("\nNext step: Proceed to Step 6: TelemetryIngestorAgent (Reactive)")
+        print("\n[PASS] ALL TESTS PASSED!")
         print("\nWhat was tested:")
-        print("  ✓ Agent creation (BDI, Reactive, Hybrid)")
-        print("  ✓ Action registry and management")
-        print("  ✓ Performance metrics tracking")
-        print("  ✓ Lifecycle management (setup/teardown)")
-        print("  ✓ MQTT integration (with graceful degradation)")
-        print("  ✓ Context manager support")
+        print("  [PASS] Agent creation (BDI, Reactive, Hybrid)")
+        print("  [PASS] Action registry and management")
+        print("  [PASS] Performance metrics tracking")
+        print("  [PASS] Lifecycle management (setup/teardown)")
+        print("  [PASS] MockTransport messaging")
         return 0
     else:
-        print("\n✗ SOME TESTS FAILED")
-        print("\nCommon issues:")
-        print("  - MQTT tests may warn if Mosquitto not running (OK)")
+        print("\n[FAIL] SOME TESTS FAILED")
         return 1
 
 

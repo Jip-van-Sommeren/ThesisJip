@@ -16,13 +16,13 @@ import random
 import threading
 from typing import Dict, Any, List, Optional
 import concurrent.futures
-from abstract_agent import AgentId
+from mas.core import AgentId
 from benchmarks.communication_benchmark import generate_payload
-from communication.rest.rest_communicating_agent import (
+from benchmarks.communication.rest.rest_communicating_agent import (
     ExtendedRestCommunicatingAgent,
     RestCommunicationEnvironment,
 )
-from communication.communication_config import (
+from benchmarks.communication.communication_config import (
     CommunicationConfiguration,
     TopologyPattern,
 )
@@ -30,7 +30,7 @@ from benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )
-from communication.base_communication import MessageType, LatencyMode
+from benchmarks.communication.base_communication import MessageType, LatencyMode
 
 
 def create_test_agent(

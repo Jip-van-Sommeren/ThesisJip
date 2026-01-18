@@ -8,7 +8,7 @@ storage operations for telemetry, predictions, state estimates, and faults.
 import time
 import logging
 from typing import Dict, List, Any, Optional
-from src.storage.storage_manager import MultiAgentStorageManager
+from src.battery_twin.storage.storage_manager import MultiAgentStorageManager
 from src.battery_twin.storage.battery_storage_config import (
     BatteryStorageConfig,
 )

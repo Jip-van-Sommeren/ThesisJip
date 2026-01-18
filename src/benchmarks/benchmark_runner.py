@@ -16,7 +16,7 @@ import copy
 from typing import Dict, List, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
-from communication.communication_config import TopologyPattern
+from benchmarks.communication.communication_config import TopologyPattern
 
 
 # Import protocol-specific benchmark scenarios

@@ -17,10 +17,10 @@ from typing import Dict, Any, List, Optional
 import concurrent.futures
 from benchmarks.communication_benchmark import generate_payload
 
-from communication.kafka.kafka_communication_agent import (
+from benchmarks.communication.kafka.kafka_communication_agent import (
     KafkaCommunicationEnvironment,
 )
-from communication.communication_config import (
+from benchmarks.communication.communication_config import (
     CommunicationConfiguration,
     TopologyPattern,
 )
@@ -28,13 +28,13 @@ from benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )
-from communication.kafka.kafka_communication import KafkaMessageType
+from benchmarks.communication.kafka.kafka_communication import KafkaMessageType
 
 _kafka_broker_container: Optional[str] = None
 
 
 def _is_ack_message(message) -> bool:
-    from communication.base_communication import MessageType
+    from benchmarks.communication.base_communication import MessageType
 
     msg_type = getattr(message, "message_type", None)
     if hasattr(msg_type, "value"):
@@ -284,7 +284,7 @@ def setup_kafka_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("Failed to start Kafka broker")
 
     # Import LatencyMode enum
-    from communication.base_communication import LatencyMode
+    from benchmarks.communication.base_communication import LatencyMode
 
     # Convert string to enum
     if latency_mode == "send_only":

@@ -28,23 +28,23 @@ from enum import Enum
 import numpy as np
 from loguru import logger
 
-from src.abstract_agent import AgentId, Goal, GoalType
-from src.battery_twin.agents.battery_agent_types import BatteryBDIAgent
-from src.battery_twin.communication.mqtt_bridge import MqttBridge
-from src.battery_twin.storage.battery_storage_manager import (
+from mas.core import AgentId, Goal, GoalType
+from mas.communication import Transport
+from battery_twin.agents.battery_agent_base import BatteryBDIAgent
+from battery_twin.storage.battery_storage_manager import (
     BatteryStorageManager,
 )
-from src.battery_twin.models.extended_kalman_filter import (
+from battery_twin.models.extended_kalman_filter import (
     ExtendedKalmanFilter,
     EKFConfig,
     EKFMeasurement,
 )
-from src.battery_twin.communication.message_schemas import (
+from battery_twin.communication.message_schemas import (
     TelemetryMessage,
     StateEstimateMessage,
     MessageFactory,
 )
-from src.battery_twin.models.physics_degradation_model import (
+from battery_twin.models.physics_degradation_model import (
     DegradationParameters,
     PhysicsDegradationModel,
 )
@@ -111,7 +111,7 @@ class StateEstimatorAgent(BatteryBDIAgent):
         self,
         agent_id: AgentId,
         battery_id: str,
-        mqtt_bridge: Optional[MqttBridge] = None,
+        transport: Transport,
         storage_manager: Optional[BatteryStorageManager] = None,
         ekf_config: Optional[EKFConfig] = None,
         soc_uncertainty_threshold_low: float = 0.03,  # 3%
@@ -129,7 +129,7 @@ class StateEstimatorAgent(BatteryBDIAgent):
         Args:
             agent_id: Unique agent identifier
             battery_id: Battery identifier
-            mqtt_bridge: MQTT communication bridge
+            transport: MQTT transport (injected)
             storage_manager: Storage manager for persistence
             ekf_config: EKF configuration (uses default if None)
             soc_uncertainty_threshold_low: Low uncertainty threshold for SoC
@@ -146,12 +146,12 @@ class StateEstimatorAgent(BatteryBDIAgent):
 
         super().__init__(
             agent_id=agent_id,
+            transport=transport,
             observable_properties={
                 "state_estimates",
                 "filter_health",
                 "uncertainty",
             },
-            mqtt_bridge=mqtt_bridge,
             storage_manager=storage_manager,
         )
 
@@ -725,11 +725,10 @@ class StateEstimatorAgent(BatteryBDIAgent):
             agent_id=str(self.id),
         )
 
-        # Publish to state topic
         # Publish using logical topic name
         self.publish_message("state_estimate", message, battery_id=self.battery_id)
 
-        logger.debug(f"Published state estimate to {state_topic}")
+        logger.debug(f"Published state estimate for battery {self.battery_id}")
 
     # Getter methods for external access
 
