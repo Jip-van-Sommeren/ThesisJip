@@ -116,6 +116,7 @@ class HierarchyBenchmarkScenario:
         tasks = self.environment.generate_tasks(
             self.config.num_tasks_per_episode
         )
+        tasks_per_episode = len(tasks)
 
         for task in tasks:
             self.hierarchy.tasks[task.task_id] = task
@@ -131,6 +132,13 @@ class HierarchyBenchmarkScenario:
             if success:
                 task_delegation_step[task.task_id] = 0
                 self.tracker.start_coordination(task.task_id)
+
+        # Count initial delegation coordination records before stepping.
+        initial_messages = len(self.hierarchy.message_queue)
+        for _ in range(initial_messages):
+            self.tracker.record_message(message_bytes=100)
+        if initial_messages:
+            self.hierarchy.message_queue.clear()
 
         # Run episode
         done = False
@@ -191,8 +199,21 @@ class HierarchyBenchmarkScenario:
             # Track actions
             if hasattr(self.hierarchy, "managers"):
                 # Tree/Hybrid: track manager vs worker actions
-                for manager_id in self.hierarchy.managers:
-                    if self.hierarchy.agents[manager_id].is_active:
+                active_managers = [
+                    manager_id
+                    for manager_id in self.hierarchy.managers
+                    if self.hierarchy.agents[manager_id].is_active
+                ]
+                manager_should_act = True
+                if hasattr(self.hierarchy, "manager_planning_frequency"):
+                    # Only count manager actions on planning steps.
+                    manager_should_act = (
+                        self.hierarchy.step_count
+                        % self.hierarchy.manager_planning_frequency
+                        == 0
+                    )
+                if manager_should_act:
+                    for _ in active_managers:
                         self.tracker.record_action(
                             is_manager=True, execution_time=0.001
                         )
@@ -212,10 +233,12 @@ class HierarchyBenchmarkScenario:
                         )
                         primitive_actions += 1
 
-            # Track messages
+            # Track messages (coordination records) generated this step
             num_messages = len(self.hierarchy.message_queue)
             for _ in range(num_messages):
                 self.tracker.record_message(message_bytes=100)
+            if num_messages:
+                self.hierarchy.message_queue.clear()
 
             total_steps += 1
 
@@ -228,6 +251,7 @@ class HierarchyBenchmarkScenario:
             total_return=total_return,
             steps=total_steps,
             primitive_actions=primitive_actions,
+            tasks_per_episode=tasks_per_episode,
         )
 
         return {
@@ -399,6 +423,8 @@ class HierarchyComparisonBenchmark:
         print(f"Ablation parameters: {list(ablation_params.keys())}")
         print("=" * 70 + "\n")
 
+        start_idx = len(self.results)
+
         # Run baseline
         baseline_scenario = HierarchyBenchmarkScenario(base_config)
         baseline_result = baseline_scenario.run_benchmark()
@@ -426,8 +452,13 @@ class HierarchyComparisonBenchmark:
                 result = scenario.run_benchmark()
                 self.results.append(result)
 
-        # Export ablation results
-        self.export_ablation_results(ablation_params)
+        # Export ablation results only (exclude prior comparison runs)
+        ablation_results = self.results[start_idx:]
+        self.export_ablation_results(
+            ablation_params,
+            ablation_results,
+            base_config=base_config,
+        )
 
     def export_results(self):
         """Export all results to JSON and CSV."""
@@ -502,8 +533,16 @@ class HierarchyComparisonBenchmark:
 
         print(f" CSV exported to: {csv_file}")
 
-    def export_ablation_results(self, ablation_params: Dict[str, List[Any]]):
+    def export_ablation_results(
+        self,
+        ablation_params: Dict[str, List[Any]],
+        results: Optional[List[BenchmarkResult]] = None,
+        base_config: Optional[BenchmarkConfiguration] = None,
+    ):
         """Export ablation study results."""
+        if results is None:
+            results = self.results
+
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         ablation_file = os.path.join(
             self.output_dir, f"ablation_study_{timestamp}.json"
@@ -518,7 +557,7 @@ class HierarchyComparisonBenchmark:
                 },
                 "metrics": asdict(r.metrics),
             }
-            for r in self.results
+            for r in results
         ]
         export_data = {
             "timestamp": timestamp,
@@ -526,6 +565,16 @@ class HierarchyComparisonBenchmark:
                 k: [str(v) for v in vals]
                 for k, vals in ablation_params.items()
             },
+            "base_config": (
+                {
+                    "hierarchy_depth": base_config.hierarchy_depth,
+                    "planning_frequency": base_config.planning_frequency,
+                    "communication_limit": base_config.communication_limit,
+                    "static_roles": base_config.static_roles,
+                }
+                if base_config
+                else None
+            ),
             "results": results,
         }
 

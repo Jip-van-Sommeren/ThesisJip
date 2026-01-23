@@ -767,10 +767,15 @@ class CommunicationBenchmark:
         total_messages = self.throughput_tracker.total_messages
         delivery_failures = scenario.parameters.get("delivery_failures", 0)
         timeout_failures = scenario.parameters.get("timeout_failures", 0)
-
-        successful_messages = (
-            total_messages - delivery_failures - timeout_failures
+        timeout_failures_are_messages = scenario.parameters.get(
+            "timeout_failures_are_messages", True
         )
+
+        message_failures = delivery_failures
+        if timeout_failures_are_messages:
+            message_failures += timeout_failures
+
+        successful_messages = total_messages - message_failures
         success_rate = (
             successful_messages / total_messages if total_messages > 0 else 0.0
         )

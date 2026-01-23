@@ -282,6 +282,7 @@ class TreeHierarchy(HierarchyStrategy):
         """Process one step: manager plans, workers execute."""
         self.step_count += 1
         actions_taken = {"manager": 0, "worker": 0, "messages": 0}
+        message_count_before = len(self.message_queue)
 
         # Manager planning (every k steps)
         if self.step_count % self.manager_planning_frequency == 0:
@@ -328,11 +329,10 @@ class TreeHierarchy(HierarchyStrategy):
                                 },
                             )
                             self.send_message(report_msg)
-                            actions_taken["messages"] += 1
 
                 actions_taken["worker"] += 1
 
-        actions_taken["messages"] += len(self.message_queue)
+        actions_taken["messages"] = len(self.message_queue) - message_count_before
         return actions_taken
 
     def _manager_coordinate(self, manager_id: str):
@@ -527,6 +527,7 @@ class PeerToPeerHierarchy(HierarchyStrategy):
         """Process step with peer coordination."""
         self.step_count += 1
         actions_taken = {"peer_actions": 0, "messages": 0}
+        message_count_before = len(self.message_queue)
 
         # All peers execute tasks and coordinate
         for agent_id in self.agents:
@@ -567,7 +568,6 @@ class PeerToPeerHierarchy(HierarchyStrategy):
                                     },
                                 )
                                 self.send_message(completion_msg)
-                                actions_taken["messages"] += 1
 
             actions_taken["peer_actions"] += 1
 
@@ -586,7 +586,7 @@ class PeerToPeerHierarchy(HierarchyStrategy):
         if self.step_count % 5 == 0:
             self._synchronize_state()
 
-        actions_taken["messages"] += len(self.message_queue)
+        actions_taken["messages"] = len(self.message_queue) - message_count_before
         return actions_taken
 
     def _synchronize_state(self):
@@ -737,6 +737,7 @@ class HybridHierarchy(HierarchyStrategy):
             "peer_comm": 0,
             "messages": 0,
         }
+        message_count_before = len(self.message_queue)
 
         # Manager monitors and coordinates
         for manager_id in self.managers:
@@ -787,7 +788,6 @@ class HybridHierarchy(HierarchyStrategy):
                                 },
                             )
                             self.send_message(report_msg)
-                            actions_taken["messages"] += 1
 
                             # Notify peers
                             for peer_id in worker.peers:
@@ -805,7 +805,7 @@ class HybridHierarchy(HierarchyStrategy):
 
                 actions_taken["worker"] += 1
 
-        actions_taken["messages"] += len(self.message_queue)
+        actions_taken["messages"] = len(self.message_queue) - message_count_before
         return actions_taken
 
     def _manager_monitor(self, manager_id: str):

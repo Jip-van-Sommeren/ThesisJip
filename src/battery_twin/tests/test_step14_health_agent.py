@@ -20,7 +20,7 @@ from unittest.mock import Mock, patch, MagicMock
 import pytest
 import numpy as np
 
-from src.abstract_agent import AgentId, GoalType
+from mas.core import AgentId, GoalType
 from src.battery_twin.agents.health_monitor_agent import (
     HealthMonitorAgent,
     HealthStatus,

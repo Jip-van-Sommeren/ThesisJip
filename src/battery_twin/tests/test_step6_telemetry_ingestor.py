@@ -27,7 +27,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
-from abstract_agent import AgentId
+from mas.core import AgentId
 from src.battery_twin.agents.telemetry_ingestor_agent import (
     TelemetryIngestorAgent,
     ValidationRules,

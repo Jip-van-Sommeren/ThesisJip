@@ -27,8 +27,8 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
-from src.abstract_agent import AgentId
-from src.battery_twin.agents.battery_agent_types import BatteryReactiveAgent
+from mas.core import AgentId
+from src.battery_twin.agents.battery_agent_base import BatteryReactiveAgent
 from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
 from src.battery_twin.communication.message_schemas import (
     AgentDirectoryMessage,

@@ -905,6 +905,49 @@ class BenchmarkAnalyzer:
                     {', '.join(metadata.get('scenarios_tested', []))}\n\n"
             )
 
+            hardware = metadata.get("hardware", {})
+            if hardware:
+                os_info = hardware.get("os", {})
+                cpu_info = hardware.get("cpu", {})
+                memory_info = hardware.get("memory", {})
+
+                f.write("Hardware:\n")
+                system_label = " ".join(
+                    part
+                    for part in [
+                        os_info.get("system", ""),
+                        os_info.get("release", ""),
+                    ]
+                    if part
+                )
+                if os_info.get("machine"):
+                    system_label = f"{system_label} ({os_info['machine']})"
+                if system_label:
+                    f.write(f"  System: {system_label}\n")
+                if os_info.get("node"):
+                    f.write(f"  Node: {os_info['node']}\n")
+
+                if cpu_info:
+                    cpu_line = cpu_info.get("model", "unknown")
+                    physical = cpu_info.get("physical_cores")
+                    logical = cpu_info.get("logical_cores")
+                    if physical or logical:
+                        cpu_line += f" ({physical}C/{logical}T)"
+                    f.write(f"  CPU: {cpu_line}\n")
+                    if cpu_info.get("max_mhz"):
+                        f.write(
+                            f"  CPU Max MHz: {cpu_info['max_mhz']:.0f}\n"
+                        )
+
+                if memory_info.get("total_gb"):
+                    f.write(
+                        f"  Memory: {memory_info['total_gb']:.2f} GB\n"
+                    )
+                if hardware.get("python_version"):
+                    f.write(f"  Python: {hardware['python_version']}\n")
+
+                f.write("\n")
+
             # Protocol comparisons
             f.write("CROSS-PROTOCOL COMPARISON\n")
             f.write("-" * 30 + "\n\n")

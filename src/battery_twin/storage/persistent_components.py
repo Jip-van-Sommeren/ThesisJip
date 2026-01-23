@@ -5,8 +5,8 @@ Replaces agent components with storage-aware versions.
 
 import time
 from typing import Dict, Set, Optional, Any
-from ..abstract_agent import State, Goal
-from ..hierarchy import OrganizationalPosition, HierarchyMessage, MessageType
+from mas.core import State, Goal
+from mas.organization import OrganizationalPosition, HierarchyMessage, MessageType
 from .storage_manager import MultiAgentStorageManager
 
 

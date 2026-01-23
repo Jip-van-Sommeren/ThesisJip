@@ -16,7 +16,7 @@ import json
 import numpy as np
 from unittest.mock import Mock, MagicMock, patch
 
-from src.abstract_agent import AgentId
+from mas.core import AgentId
 from src.battery_twin.agents.state_estimator_agent import (
     StateEstimatorAgent,
     FilterHealth,

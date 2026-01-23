@@ -318,7 +318,7 @@ class ResourceEfficiencyTracker:
         self.wall_clock_times: List[float] = []
         self.manager_times: List[float] = []
         self.worker_times: List[float] = []
-        self.primitive_actions: List[int] = []
+        self.actions_per_task: List[float] = []
         self.current_episode_start: Optional[float] = None
         self.lock = threading.Lock()
 
@@ -328,7 +328,11 @@ class ResourceEfficiencyTracker:
             self.current_episode_start = time.perf_counter()
 
     def end_episode(
-        self, manager_time: float, worker_time: float, primitive_actions: int
+        self,
+        manager_time: float,
+        worker_time: float,
+        primitive_actions: int,
+        tasks_per_episode: int,
     ):
         """End episode and record resource usage."""
         with self.lock:
@@ -337,7 +341,12 @@ class ResourceEfficiencyTracker:
                 self.wall_clock_times.append(wall_clock)
                 self.manager_times.append(manager_time)
                 self.worker_times.append(worker_time)
-                self.primitive_actions.append(primitive_actions)
+                normalized = (
+                    primitive_actions / max(tasks_per_episode, 1)
+                    if tasks_per_episode is not None
+                    else float(primitive_actions)
+                )
+                self.actions_per_task.append(normalized)
                 self.current_episode_start = None
 
     def get_stats(self) -> Dict[str, float]:
@@ -368,8 +377,8 @@ class ResourceEfficiencyTracker:
             )
 
             avg_actions = (
-                statistics.mean(self.primitive_actions)
-                if self.primitive_actions
+                statistics.mean(self.actions_per_task)
+                if self.actions_per_task
                 else 0.0
             )
 
@@ -469,6 +478,7 @@ class HierarchyBenchmarkTracker:
         total_return: float,
         steps: int,
         primitive_actions: int,
+        tasks_per_episode: int,
     ):
         """End current episode and finalize metrics."""
         self.task_tracker.end_episode(success, total_return, steps)
@@ -476,6 +486,7 @@ class HierarchyBenchmarkTracker:
             self.manager_action_time,
             self.worker_action_time,
             primitive_actions,
+            tasks_per_episode,
         )
 
         if self.current_episode_metrics and self.episode_start_time:

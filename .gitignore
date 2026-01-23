@@ -10,7 +10,7 @@
 CLAUDE.md
 /.claude
 /.pytest_cache
-*.tex
+# *.tex
 *.drawio
 *.graphml
 /sections

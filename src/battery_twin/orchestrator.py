@@ -30,7 +30,7 @@ import pandas as pd
 import yaml
 from loguru import logger
 
-from src.abstract_agent import AgentId
+from mas.core import AgentId
 from src.battery_twin.agents.telemetry_ingestor_agent import (
     TelemetryIngestorAgent,
 )
@@ -130,7 +130,13 @@ class BatteryTwinConfig:
     def from_yaml(cls, config_path: str) -> "BatteryTwinConfig":
         """Load configuration from YAML file."""
         with open(config_path, "r") as f:
-            config_dict = yaml.safe_load(f)
+            config_dict = yaml.safe_load(f) or {}
+
+        if isinstance(config_dict, dict) and "system" in config_dict:
+            from src.battery_twin.config import load_unified_config
+
+            return load_unified_config(config_path).to_battery_twin_config()
+
         return cls(**config_dict)
 
 

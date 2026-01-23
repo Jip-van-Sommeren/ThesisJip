@@ -11,11 +11,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import queue
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from config.storage_config import StorageConfig
+from .storage_config import StorageConfig
 from src.battery_twin.storage.time_series_storage import InfluxDBStorage
 from src.battery_twin.storage.document_storage import MongoDBStorage
 from src.battery_twin.storage.graph_storage import Neo4jStorage

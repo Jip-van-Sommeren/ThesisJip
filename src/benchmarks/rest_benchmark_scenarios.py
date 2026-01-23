@@ -135,6 +135,42 @@ def _is_ack_message(message) -> bool:
     return msg_type == MessageType.ACK.value
 
 
+def _drain_non_ack_messages(mailbox) -> List[Any]:
+    """Drain non-ACK messages while preserving ACKs in the mailbox."""
+    non_ack = []
+    with mailbox.lock:
+        if not mailbox.messages:
+            return non_ack
+        keep = []
+        for msg in mailbox.messages:
+            if _is_ack_message(msg):
+                keep.append(msg)
+            else:
+                non_ack.append(msg)
+        if non_ack:
+            mailbox.messages.clear()
+            mailbox.messages.extend(keep)
+    return non_ack
+
+
+def _consume_ack_for(mailbox, message_id: str) -> int:
+    """Remove ACKs for a message and return how many were consumed."""
+    removed = 0
+    with mailbox.lock:
+        if not mailbox.messages:
+            return 0
+        keep = []
+        for msg in mailbox.messages:
+            if _is_ack_message(msg) and msg.content.get("ack_for") == message_id:
+                removed += 1
+                continue
+            keep.append(msg)
+        if removed:
+            mailbox.messages.clear()
+            mailbox.messages.extend(keep)
+    return removed
+
+
 def _wait_for_ack(agent, message_id: str, timeout: float = 0.5) -> bool:
     """Wait for ACK message with matching message_id.
 
@@ -148,15 +184,8 @@ def _wait_for_ack(agent, message_id: str, timeout: float = 0.5) -> bool:
     """
     start_time = time.time()
     while time.time() - start_time < timeout:
-        # Check mailbox for ACK messages
-        messages = agent.mailbox.peek_messages()
-        for msg in messages:
-            if (
-                _is_ack_message(msg)
-                and msg.content.get("ack_for") == message_id
-            ):
-                agent.mailbox.get_messages(clear=True)
-                return True
+        if _consume_ack_for(agent.mailbox, message_id):
+            return True
         time.sleep(0.005)  # Optimized polling interval (was 0.001, reduced CPU usage by 5x)
     return False
 
@@ -186,18 +215,16 @@ def test_point_to_point_latency(
     def receiver_ack_loop():
         """Background thread to send ACKs for received messages."""
         while not stop_ack_thread.is_set():
-            messages = receiver.mailbox.peek_messages()
+            messages = _drain_non_ack_messages(receiver.mailbox)
+            if not messages:
+                time.sleep(0.005)  # Optimized: reduced from 0.001
+                continue
             for msg in messages:
-                if _is_ack_message(msg):
-                    continue
-
                 ack_content = {"ack_for": msg.content.get("test_id")}
                 receiver.send_message(
                     str(sender.id), MessageType.ACK, ack_content
                 )
 
-            if messages:
-                receiver.mailbox.get_messages(clear=True)
             time.sleep(0.005)  # Optimized: reduced from 0.001
 
     if latency_mode == "app_ack":
@@ -270,21 +297,15 @@ def test_broadcast_throughput(
     def receiver_ack_loop(receiver):
         """Background thread to send ACKs for received broadcast messages.
 
-        Avoid dropping ACKs addressed to this receiver by re-queuing them
-        after clearing the inbox.
+        Drain non-ACK messages so ACKs remain available for local waiters.
         """
         while not stop_ack_threads.is_set():
-            inbox = receiver.mailbox.get_messages(clear=True)
+            inbox = _drain_non_ack_messages(receiver.mailbox)
             if not inbox:
                 time.sleep(0.005)  # Optimized: reduced from 0.001
                 continue
 
             for msg in inbox:
-                if _is_ack_message(msg):
-                    # Keep ACKs available for local sender-side waiters
-                    receiver.mailbox.add_message(msg)
-                    continue
-
                 ack_content = {"ack_for": msg.content.get("broadcast_id")}
                 receiver.send_message(
                     str(sender.id), MessageType.ACK, ack_content
@@ -328,18 +349,11 @@ def test_broadcast_throughput(
                     received_acks < expected_acks
                     and time.time() - timeout_start < timeout
                 ):
-                    messages = sender.mailbox.peek_messages()
-                    for msg in messages:
-                        if (
-                            _is_ack_message(msg)
-                            and msg.content.get("ack_for") == message_id
-                        ):
-                            received_acks += 1
+                    received_acks += _consume_ack_for(
+                        sender.mailbox, message_id
+                    )
                     if received_acks < expected_acks:
                         time.sleep(0.005)  # Optimized: reduced from 0.001
-
-                # Clear ACK messages from mailbox
-                sender.mailbox.get_messages(clear=True)
 
                 if received_acks >= expected_acks:
                     benchmark.latency_tracker.end_message_timing(message_id)
@@ -389,20 +403,15 @@ def test_concurrent_messaging(
     def receiver_ack_loop(receiver):
         """Background thread to send ACKs for received messages.
 
-        Clear the inbox safely and re-queue ACKs so we don't starve local
-        sender waiters in app_ack mode.
+        Drain non-ACK messages so ACKs remain available for local waiters.
         """
         while not stop_ack_threads.is_set():
-            inbox = receiver.mailbox.get_messages(clear=True)
+            inbox = _drain_non_ack_messages(receiver.mailbox)
             if not inbox:
                 time.sleep(0.005)
                 continue
 
             for msg in inbox:
-                if _is_ack_message(msg):
-                    receiver.mailbox.add_message(msg)
-                    continue
-
                 sender_id = msg.content.get("sender")
                 message_index = msg.content.get("message_num")
                 if sender_id is None or message_index is None:
@@ -515,6 +524,7 @@ def test_concurrent_messaging(
     return {
         "delivery_failures": delivery_failures,
         "timeout_failures": timeout_failures,
+        "timeout_failures_are_messages": False,
         "ack_timeouts": ack_timeouts,
     }
 
@@ -542,20 +552,15 @@ def test_scalability_stress(
     def receiver_ack_loop(receiver):
         """Background thread to send ACKs for received messages.
 
-        Re-queue ACKs to avoid losing them due to mailbox clears while the
-        same agent is also sending messages.
+        Drain non-ACK messages so ACKs remain available for local waiters.
         """
         while not stop_ack_threads.is_set():
-            inbox = receiver.mailbox.get_messages(clear=True)
+            inbox = _drain_non_ack_messages(receiver.mailbox)
             if not inbox:
                 time.sleep(0.005)
                 continue
 
             for msg in inbox:
-                if _is_ack_message(msg):
-                    receiver.mailbox.add_message(msg)
-                    continue
-
                 msg_id = msg.content.get("count", "")
                 full_msg_id = f"stress_{msg.sender_id}_{msg_id}"
                 ack_content = {"ack_for": full_msg_id}

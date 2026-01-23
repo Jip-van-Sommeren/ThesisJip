@@ -118,7 +118,9 @@ class CommAgentBase:
                         MqttBridge,
                         MqttConfig,
                     )
-                    from src.communication.transport import MqttBridgeTransport
+                    from benchmarks.communication.transport import (
+                        MqttBridgeTransport,
+                    )
 
                     client_id = str(self.get_agent_id()).replace(".", "_")
                     cfg = self.mqtt_config or MqttConfig()
@@ -127,7 +129,9 @@ class CommAgentBase:
                     )
                     self.transport = MqttBridgeTransport(self.mqtt_bridge)
                 else:
-                    from src.communication.transport import MqttBridgeTransport
+                    from benchmarks.communication.transport import (
+                        MqttBridgeTransport,
+                    )
                     self.transport = MqttBridgeTransport(self.mqtt_bridge)
 
             if self.own_mqtt and hasattr(self.transport, "connect"):

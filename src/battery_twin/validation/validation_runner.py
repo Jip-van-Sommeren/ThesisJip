@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-from src.abstract_agent import AgentId
+from mas.core import AgentId
 from src.battery_twin.data.nasa_loader import NASABatteryLoader, CycleData
 from src.battery_twin.data.replay_engine import DataReplayEngine
 from src.battery_twin.orchestrator import BatteryTwinOrchestrator, BatteryTwinConfig

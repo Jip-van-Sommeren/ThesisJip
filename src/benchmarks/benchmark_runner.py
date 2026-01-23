@@ -13,9 +13,11 @@ import time
 import json
 import os
 import copy
+import platform
 from typing import Dict, List, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
+import psutil
 from benchmarks.communication.communication_config import TopologyPattern
 
 
@@ -43,6 +45,63 @@ class EnumEncoder(json.JSONEncoder):
         if isinstance(obj, Enum):
             return obj.value
         return super().default(obj)
+
+
+def _read_cpu_model() -> str:
+    """Best-effort CPU model string."""
+    try:
+        with open("/proc/cpuinfo", "r") as f:
+            for line in f:
+                if line.lower().startswith("model name"):
+                    return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    cpu_model = platform.processor()
+    if cpu_model:
+        return cpu_model
+    try:
+        return platform.uname().processor
+    except Exception:
+        return ""
+
+
+def _get_hardware_metadata() -> Dict[str, Any]:
+    """Collect basic hardware and OS metadata for reproducibility."""
+    os_info = {
+        "system": platform.system(),
+        "release": platform.release(),
+        "version": platform.version(),
+        "machine": platform.machine(),
+        "node": platform.node(),
+    }
+
+    cpu_info = {
+        "model": _read_cpu_model() or "unknown",
+        "physical_cores": psutil.cpu_count(logical=False) or 0,
+        "logical_cores": psutil.cpu_count(logical=True) or 0,
+    }
+    freq = psutil.cpu_freq()
+    if freq:
+        if freq.min:
+            cpu_info["min_mhz"] = round(freq.min, 2)
+        if freq.max:
+            cpu_info["max_mhz"] = round(freq.max, 2)
+        if freq.current:
+            cpu_info["current_mhz"] = round(freq.current, 2)
+
+    memory_info = {}
+    try:
+        total_gb = psutil.virtual_memory().total / (1024**3)
+        memory_info["total_gb"] = round(total_gb, 2)
+    except Exception:
+        pass
+
+    return {
+        "os": os_info,
+        "python_version": platform.python_version(),
+        "cpu": cpu_info,
+        "memory": memory_info,
+    }
 
 
 @dataclass
@@ -610,6 +669,7 @@ class ProtocolBenchmarkRunner:
                 "latency_mode": self.config.latency_mode,
                 "protocols_tested": self.config.protocols,
                 "scenarios_tested": self.config.scenarios,
+                "hardware": _get_hardware_metadata(),
             },
             "protocol_results": self.results,
             "cross_protocol_comparison": self.comparison_data,
@@ -634,6 +694,7 @@ class ProtocolBenchmarkRunner:
                     "latency_mode": self.config.latency_mode,
                     "comparison_data": self.comparison_data,
                     "protocol_ranking": self._rank_protocols(),
+                    "hardware": _get_hardware_metadata(),
                 },
                 f,
                 cls=EnumEncoder,

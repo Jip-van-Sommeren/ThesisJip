@@ -73,7 +73,7 @@ def test_config_files():
         "src/battery_twin/config/battery_twin_config.yaml": "main config",
         "src/battery_twin/config/mqtt_topics.yaml": "MQTT topics",
         "src/battery_twin/config/hierarchy_config.yaml": "hierarchy config",
-        "config/mosquitto.conf": "Mosquitto config",
+        "src/battery_twin/config/storage_config.yaml": "storage config",
     }
 
     all_valid = True
@@ -176,7 +176,7 @@ def test_config_content():
 
 
 def test_docker_compose():
-    """Test that docker-compose.yml includes Mosquitto."""
+    """Test that docker-compose.yml is present and minimal."""
     print("\nTesting Docker Compose configuration...")
 
     docker_compose_path = Path("docker-compose.yml")
@@ -187,27 +187,15 @@ def test_docker_compose():
     with open(docker_compose_path, 'r') as f:
         content = f.read()
 
-    # Check for Mosquitto service
+    if "services:" not in content:
+        print("  ✗ services block not found in docker-compose.yml")
+        return False
+
     if "mosquitto:" in content:
-        print("  ✓ Mosquitto service found in docker-compose.yml")
-    else:
-        print("  ✗ Mosquitto service NOT found in docker-compose.yml")
+        print("  ✗ Mosquitto service should not be present")
         return False
 
-    # Check for MQTT ports
-    if "1883:1883" in content:
-        print("  ✓ MQTT port 1883 configured")
-    else:
-        print("  ✗ MQTT port 1883 NOT configured")
-        return False
-
-    # Check for Mosquitto volumes
-    if "mosquitto_data:" in content:
-        print("  ✓ Mosquitto data volume configured")
-    else:
-        print("  ✗ Mosquitto data volume NOT configured")
-        return False
-
+    print("  ✓ docker-compose.yml present without embedded services")
     return True
 
 

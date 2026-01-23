@@ -19,7 +19,7 @@ from unittest.mock import Mock, MagicMock
 from pathlib import Path
 import tempfile
 
-from src.abstract_agent import AgentId
+from mas.core import AgentId
 from src.battery_twin.agents.ml_residual_agent import (
     MLResidualAgent,
     ModelStatus,

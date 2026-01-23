@@ -22,7 +22,7 @@ from unittest.mock import Mock, MagicMock, patch, AsyncMock
 import pytest
 import yaml
 
-from src.abstract_agent import AgentId
+from mas.core import AgentId
 from src.battery_twin.orchestrator import (
     BatteryTwinConfig,
     BatteryTwinOrchestrator,

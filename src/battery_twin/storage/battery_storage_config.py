@@ -5,13 +5,16 @@ Extends the base storage configuration with battery twin specific
 measurements, schemas, and retention policies.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-from config.storage_config import StorageConfig, InfluxConfig, MongoConfig, Neo4jConfig, RedisConfig
+
+from .storage_config import (
+    StorageConfig,
+    InfluxConfig,
+    MongoConfig,
+    Neo4jConfig,
+    RedisConfig,
+)
 
 
 @dataclass

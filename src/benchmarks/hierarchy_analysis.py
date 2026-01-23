@@ -156,7 +156,7 @@ class HierarchyBenchmarkAnalyzer:
                 "Team Size": config["num_agents"],
                 "Success Rate": metrics["success_rate"] * 100,
                 "Makespan": metrics["makespan_mean"],
-                "Messages/Episode": metrics["messages_per_episode"],
+                "Coordination Records/Episode": metrics["messages_per_episode"],
                 "Manager Utilization": metrics["manager_utilization"]
             })
 
@@ -174,8 +174,8 @@ class HierarchyBenchmarkAnalyzer:
                 aggfunc="mean"
             )
             axes[0, 0].plot(
-                strategy_pivot.index,
-                strategy_pivot.values,
+                strategy_pivot.index.to_numpy(),
+                strategy_pivot.to_numpy().ravel(),
                 marker='o',
                 linewidth=2,
                 label=strategy.replace("_", " ").title()
@@ -196,8 +196,8 @@ class HierarchyBenchmarkAnalyzer:
                 aggfunc="mean"
             )
             axes[0, 1].plot(
-                strategy_pivot.index,
-                strategy_pivot.values,
+                strategy_pivot.index.to_numpy(),
+                strategy_pivot.to_numpy().ravel(),
                 marker='s',
                 linewidth=2,
                 label=strategy.replace("_", " ").title()
@@ -209,25 +209,25 @@ class HierarchyBenchmarkAnalyzer:
         axes[0, 1].legend()
         axes[0, 1].grid(True, alpha=0.3)
 
-        # Plot 3: Communication overhead vs team size
+        # Plot 3: Coordination record overhead vs team size
         for strategy in self.strategies:
             strategy_df = df[df["Strategy"] == strategy.replace("_", " ").title()]
             strategy_pivot = strategy_df.pivot_table(
-                values="Messages/Episode",
+                values="Coordination Records/Episode",
                 index="Team Size",
                 aggfunc="mean"
             )
             axes[1, 0].plot(
-                strategy_pivot.index,
-                strategy_pivot.values,
+                strategy_pivot.index.to_numpy(),
+                strategy_pivot.to_numpy().ravel(),
                 marker='^',
                 linewidth=2,
                 label=strategy.replace("_", " ").title()
             )
 
-        axes[1, 0].set_title("Communication Overhead vs Team Size", fontsize=12, fontweight="bold")
+        axes[1, 0].set_title("Coordination Record Overhead vs Team Size", fontsize=12, fontweight="bold")
         axes[1, 0].set_xlabel("Team Size (agents)")
-        axes[1, 0].set_ylabel("Messages per Episode")
+        axes[1, 0].set_ylabel("Coordination Records per Episode")
         axes[1, 0].legend()
         axes[1, 0].grid(True, alpha=0.3)
 
@@ -241,8 +241,8 @@ class HierarchyBenchmarkAnalyzer:
                     aggfunc="mean"
                 )
                 axes[1, 1].plot(
-                    strategy_pivot.index,
-                    strategy_pivot.values,
+                    strategy_pivot.index.to_numpy(),
+                    strategy_pivot.to_numpy().ravel(),
                     marker='d',
                     linewidth=2,
                     label=strategy.replace("_", " ").title()
@@ -354,7 +354,7 @@ class HierarchyBenchmarkAnalyzer:
     def create_communication_cost_analysis(
         self, output_file: str = "hierarchy_communication.png"
     ):
-        """Analyze communication costs across strategies."""
+        """Analyze coordination record costs across strategies."""
         if not self.benchmarks:
             print("No benchmark data available")
             return
@@ -368,7 +368,7 @@ class HierarchyBenchmarkAnalyzer:
                 "Strategy": config["hierarchy_type"].replace("_", " ").title(),
                 "Environment": config["environment_type"].replace("_", " ").title(),
                 "Agents": config["num_agents"],
-                "Messages/Episode": metrics["messages_per_episode"],
+                "Coordination Records/Episode": metrics["messages_per_episode"],
                 "Bytes/Step": metrics["bytes_per_step"],
                 "Coordination Latency (ms)": metrics["coordination_latency_mean"] * 1000
             })
@@ -378,16 +378,16 @@ class HierarchyBenchmarkAnalyzer:
         # Create 1x3 subplot
         fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-        # Plot 1: Messages per episode
+        # Plot 1: Coordination records per episode
         pivot1 = df.pivot_table(
-            values="Messages/Episode",
+            values="Coordination Records/Episode",
             index="Environment",
             columns="Strategy",
             aggfunc="mean"
         )
         pivot1.plot(kind="bar", ax=axes[0], width=0.8)
-        axes[0].set_title("Messages per Episode", fontsize=12, fontweight="bold")
-        axes[0].set_ylabel("Message Count")
+        axes[0].set_title("Coordination Records per Episode", fontsize=12, fontweight="bold")
+        axes[0].set_ylabel("Coordination Record Count")
         axes[0].legend(title="Strategy")
         axes[0].grid(True, alpha=0.3, axis='y')
         axes[0].tick_params(axis='x', rotation=45)
@@ -400,8 +400,8 @@ class HierarchyBenchmarkAnalyzer:
             aggfunc="mean"
         )
         pivot2.plot(kind="bar", ax=axes[1], width=0.8)
-        axes[1].set_title("Communication Bandwidth", fontsize=12, fontweight="bold")
-        axes[1].set_ylabel("Bytes per Step")
+        axes[1].set_title("Estimated Bytes per Step", fontsize=12, fontweight="bold")
+        axes[1].set_ylabel("Estimated Bytes per Step")
         axes[1].legend(title="Strategy")
         axes[1].grid(True, alpha=0.3, axis='y')
         axes[1].tick_params(axis='x', rotation=45)
@@ -420,12 +420,12 @@ class HierarchyBenchmarkAnalyzer:
         axes[2].grid(True, alpha=0.3, axis='y')
         axes[2].tick_params(axis='x', rotation=45)
 
-        plt.suptitle("Communication Cost Analysis", fontsize=16, fontweight="bold")
+        plt.suptitle("Coordination Record Cost Analysis", fontsize=16, fontweight="bold")
         plt.tight_layout()
 
         output_path = os.path.join(self.results_dir, output_file)
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        print(f"✓ Communication cost analysis saved to {output_path}")
+        print(f"✓ Coordination record cost analysis saved to {output_path}")
         plt.close()
 
     def create_strategy_radar_chart(
@@ -467,14 +467,14 @@ class HierarchyBenchmarkAnalyzer:
             # For action efficiency: lower is better (max 1200 actions = 0 score)
             action_score = max(0, 100 - (avg_actions / 1200 * 100)) if avg_actions > 0 else 50
 
-            # For messages: lower is better (max 60000 messages = 0 score)
+            # For coordination records: lower is better (max 60000 records = 0 score)
             comm_score = max(0, 100 - (avg_messages / 60000 * 100)) if avg_messages > 0 else 50
 
             strategy_metrics[strategy] = {
                 "Task Success": np.mean(success_rates),
                 "Time Efficiency": time_eff,
                 "Action Efficiency": action_score,
-                "Low Communication": comm_score,
+                "Low Coordination Records": comm_score,
                 "Delegation Quality": np.mean(delegation_success) if delegation_success else 50
             }
 
@@ -558,21 +558,73 @@ class HierarchyBenchmarkAnalyzer:
             data_rows.append({
                 "Hierarchy Depth": config.get("hierarchy_depth", 2),
                 "Planning Frequency": config.get("planning_frequency", 1),
-                "Comm Limit": config.get("communication_limit", "Unlimited"),
+                "Coordination Record Limit": config.get("communication_limit", "Unlimited"),
                 "Success Rate": metrics["success_rate"] * 100,
                 "Makespan": metrics["makespan_mean"],
-                "Messages/Episode": metrics["messages_per_episode"],
+                "Coordination Records/Episode": metrics["messages_per_episode"],
                 "Manager Util": metrics["manager_utilization"]
             })
 
         df = pd.DataFrame(data_rows)
+
+        base_config = ablation_data.get("base_config")
+        has_base_config = isinstance(base_config, dict)
+        if has_base_config:
+            baseline_depth = base_config.get("hierarchy_depth")
+            baseline_freq = base_config.get("planning_frequency")
+            baseline_comm = base_config.get("communication_limit")
+        else:
+            baseline_depth = (
+                df["Hierarchy Depth"].mode().iloc[0]
+                if "Hierarchy Depth" in df.columns and not df.empty
+                else None
+            )
+            baseline_freq = (
+                df["Planning Frequency"].mode().iloc[0]
+                if "Planning Frequency" in df.columns and not df.empty
+                else None
+            )
+            baseline_comm = (
+                df["Coordination Record Limit"].mode().iloc[0]
+                if "Coordination Record Limit" in df.columns and not df.empty
+                else None
+            )
+
+        _unset = object()
+
+        def _filter_ablation(
+            data: pd.DataFrame,
+            depth: Optional[int] = None,
+            freq: Optional[int] = None,
+            comm: Any = _unset,
+        ) -> pd.DataFrame:
+            filtered = data
+            if depth is not None:
+                filtered = filtered[filtered["Hierarchy Depth"] == depth]
+            if freq is not None:
+                filtered = filtered[filtered["Planning Frequency"] == freq]
+            if comm is not _unset:
+                if comm is None and "Coordination Record Limit" in filtered.columns:
+                    filtered = filtered[
+                        filtered["Coordination Record Limit"].isna()
+                    ]
+                else:
+                    filtered = filtered[
+                        filtered["Coordination Record Limit"] == comm
+                    ]
+            return filtered
 
         # Create 2x2 subplot for ablation analysis
         fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
         # Plot 1: Success rate vs hierarchy depth
         if "Hierarchy Depth" in df.columns:
-            depth_data = df.groupby("Hierarchy Depth").agg({
+            depth_df = _filter_ablation(
+                df,
+                freq=baseline_freq,
+                comm=baseline_comm,
+            )
+            depth_data = depth_df.groupby("Hierarchy Depth").agg({
                 "Success Rate": "mean",
                 "Makespan": "mean"
             })
@@ -585,22 +637,42 @@ class HierarchyBenchmarkAnalyzer:
 
         # Plot 2: Performance vs planning frequency
         if "Planning Frequency" in df.columns:
-            freq_data = df.groupby("Planning Frequency").agg({
+            freq_df = _filter_ablation(
+                df,
+                depth=baseline_depth,
+                comm=baseline_comm,
+            )
+            freq_data = freq_df.groupby("Planning Frequency").agg({
                 "Success Rate": "mean",
                 "Manager Util": "mean"
-            })
+            }).sort_index()
 
             ax2a = axes[0, 1]
             ax2b = ax2a.twinx()
 
-            freq_data["Success Rate"].plot(kind="line", ax=ax2a, marker='o',
-                                          color="#FF6B6B", linewidth=2, label="Success Rate")
-            freq_data["Manager Util"].plot(kind="line", ax=ax2b, marker='s',
-                                          color="#45B7D1", linewidth=2, label="Manager Util")
+            x_vals = freq_data.index.to_numpy()
+            ax2a.plot(
+                x_vals,
+                freq_data["Success Rate"].to_numpy(),
+                marker='o',
+                color="#FF6B6B",
+                linewidth=2,
+                label="Success Rate"
+            )
+            ax2b.plot(
+                x_vals,
+                freq_data["Manager Util"].to_numpy(),
+                marker='s',
+                color="#45B7D1",
+                linewidth=2,
+                label="Manager Util"
+            )
 
             ax2a.set_title("Impact of Planning Frequency", fontsize=12, fontweight="bold")
             ax2a.set_xlabel("Planning Frequency (steps)")
             ax2a.set_ylabel("Success Rate (%)", color="#FF6B6B")
+            ax2a.set_ylim(0, 105)
+            ax2a.set_xticks(x_vals)
             ax2b.set_ylabel("Manager Utilization", color="#45B7D1")
             ax2a.grid(True, alpha=0.3)
 
@@ -610,35 +682,25 @@ class HierarchyBenchmarkAnalyzer:
             ax2a.legend(lines1 + lines2, labels1 + labels2, loc="best")
 
         # Plot 3: Communication overhead comparison
-        if "Comm Limit" in df.columns:
-            comm_data = df.groupby("Comm Limit").agg({
-                "Messages/Episode": "mean",
+        if "Coordination Record Limit" in df.columns:
+            comm_df = _filter_ablation(
+                df,
+                depth=baseline_depth,
+                freq=baseline_freq,
+            )
+            comm_data = comm_df.groupby("Coordination Record Limit").agg({
+                "Coordination Records/Episode": "mean",
                 "Success Rate": "mean"
             })
-            comm_data["Messages/Episode"].plot(kind="bar", ax=axes[1, 0], color="#96CEB4")
-            axes[1, 0].set_title("Communication Limits Impact", fontsize=12, fontweight="bold")
-            axes[1, 0].set_ylabel("Messages per Episode")
-            axes[1, 0].set_xlabel("Communication Limit")
+            comm_data["Coordination Records/Episode"].plot(kind="bar", ax=axes[1, 0], color="#96CEB4")
+            axes[1, 0].set_title("Coordination Record Limits Impact", fontsize=12, fontweight="bold")
+            axes[1, 0].set_ylabel("Coordination Records per Episode")
+            axes[1, 0].set_xlabel("Coordination Record Limit")
             axes[1, 0].grid(True, alpha=0.3, axis='y')
             axes[1, 0].tick_params(axis='x', rotation=45)
 
-        # Plot 4: Comprehensive comparison table
-        summary_stats = df[["Hierarchy Depth", "Planning Frequency",
-                           "Success Rate", "Makespan", "Messages/Episode"]].describe()
-
-        axes[1, 1].axis("tight")
-        axes[1, 1].axis("off")
-        table_data = summary_stats.round(2).reset_index()
-        table = axes[1, 1].table(
-            cellText=table_data.values,
-            colLabels=table_data.columns,
-            cellLoc="center",
-            loc="center"
-        )
-        table.auto_set_font_size(False)
-        table.set_fontsize(9)
-        table.scale(1.2, 1.5)
-        axes[1, 1].set_title("Ablation Study Statistics", fontsize=12, fontweight="bold")
+        # Plot 4 removed (summary table now provided in LaTeX)
+        fig.delaxes(axes[1, 1])
 
         plt.suptitle("Hierarchy Ablation Study Analysis", fontsize=16, fontweight="bold", y=0.995)
         plt.tight_layout()
@@ -703,7 +765,7 @@ class HierarchyBenchmarkAnalyzer:
                     f.write(f"    Success Rate:       {avg_success:6.1f}%\n")
                     f.write(f"    Normalized Return:  {avg_return:6.3f}\n")
                     f.write(f"    Avg Makespan:       {avg_makespan:6.1f} steps\n")
-                    f.write(f"    Messages/Episode:   {avg_messages:6.1f}\n")
+                    f.write(f"    Coordination Records/Episode: {avg_messages:6.1f}\n")
                     f.write(f"    Manager Util:       {avg_manager_util:6.1f}\n")
 
             # Best performing strategy by metric
@@ -731,7 +793,7 @@ class HierarchyBenchmarkAnalyzer:
                 ])
             )
 
-            # Best by communication (fewest messages)
+            # Best by coordination records (fewest records)
             best_communication = min(
                 self.strategies,
                 key=lambda s: np.mean([
@@ -743,7 +805,7 @@ class HierarchyBenchmarkAnalyzer:
 
             f.write(f"Highest Success Rate:    {best_success.replace('_', ' ').title()}\n")
             f.write(f"Most Time Efficient:     {best_efficiency.replace('_', ' ').title()}\n")
-            f.write(f"Lowest Communication:    {best_communication.replace('_', ' ').title()}\n")
+            f.write(f"Lowest Coordination Records: {best_communication.replace('_', ' ').title()}\n")
 
             # Recommendations
             f.write("\n\nRECOMMENDATIONS\n")
@@ -755,7 +817,7 @@ class HierarchyBenchmarkAnalyzer:
 
             f.write("• Peer-to-Peer:\n")
             f.write("  - Best for: Fault tolerance, distributed decision making\n")
-            f.write("  - Trade-offs: Higher communication cost, slower consensus\n\n")
+            f.write("  - Trade-offs: Higher coordination record cost, slower consensus\n\n")
 
             f.write("• Hybrid:\n")
             f.write("  - Best for: Balanced performance, flexible coordination\n")
