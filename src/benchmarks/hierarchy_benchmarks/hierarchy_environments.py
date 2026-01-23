@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple, Any, Set
 from dataclasses import dataclass, field
 import random
 import time
-from benchmarks.hierarchy_strategies import Task, HierarchyStrategy
+from benchmarks.hierarchy_benchmarks.hierarchy_strategies import Task, HierarchyStrategy
 
 
 @dataclass

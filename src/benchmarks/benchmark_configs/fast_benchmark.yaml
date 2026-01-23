@@ -1,7 +1,7 @@
 # Example benchmark configuration using the YAML matrix system.
 #
 # Run with:
-#   python3 src/benchmarks/benchmark_runner.py --config-file src/benchmarks/example_configs/advanced_matrix.yml
+#   python3 src/benchmarks/benchmark_runner.py --config-file src/benchmarks/benchmark_configs/advanced_matrix.yml
 #
 # You can still add CLI overrides (e.g. --protocols rest kafka) to narrow the run.
 

@@ -3,11 +3,11 @@
 Quick test script to verify hierarchy benchmark metrics are working correctly.
 """
 
-from src.benchmarks.hierarchy_benchmark_scenarios import (
+from benchmarks.hierarchy_benchmarks.hierarchy_benchmark_scenarios import (
     HierarchyBenchmarkScenario,
     BenchmarkConfiguration,
 )
-from src.benchmarks.hierarchy_strategies import HierarchyType
+from benchmarks.hierarchy_benchmarks.hierarchy_strategies import HierarchyType
 
 
 def test_metrics():

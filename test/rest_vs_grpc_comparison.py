@@ -4,8 +4,8 @@ REST vs gRPC Performance Comparison
 Runs the same benchmarks on both implementations to compare performance.
 """
 
-from benchmarks.rest_benchmark_scenarios import create_benchmark_scenarios
-from benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
+from benchmarks.communication_benchmarks.rest_benchmark_scenarios import create_rest_benchmark_scenarios
+from benchmarks.communication_benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
 
 
 def compare_implementations():
@@ -27,7 +27,7 @@ def compare_implementations():
 
         # REST Implementation
         print("\nTesting REST Implementation...")
-        rest_benchmark = create_benchmark_scenarios()
+        rest_benchmark = create_rest_benchmark_scenarios()
 
         if "message_count" in config:
             # Point-to-point test

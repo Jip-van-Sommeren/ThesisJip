@@ -3,7 +3,7 @@
 Simple benchmark test to verify benchmarks work without port conflicts.
 """
 
-from benchmarks.rest_benchmark_scenarios import create_benchmark_scenarios
+from benchmarks.communication_benchmarks.rest_benchmark_scenarios import create_rest_benchmark_scenarios
 
 
 def test_simple_benchmark():
@@ -13,7 +13,7 @@ def test_simple_benchmark():
 
     try:
         # Create benchmark suite
-        benchmark = create_benchmark_scenarios()
+        benchmark = create_rest_benchmark_scenarios()
 
         # Run a quick latency test
         print("Running point-to-point latency test...")

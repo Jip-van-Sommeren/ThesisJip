@@ -1,41 +1,134 @@
 """
-MQTT Benchmark Test Scenarios
-Provides the same benchmark scenarios as REST and gRPC but using MQTT
-communication.
+Benchmark Test Scenarios for REST Communication Implementation
+Provides pre-defined scenarios to test different aspects of the communication
+system.
 
-Enables direct performance comparison between MQTT and other protocol
-implementations
-of the same formal communication model from the thesis.
+Scenarios include:
+- Basic latency and throughput testing
+- Scalability with different agent counts
+- Topology impact analysis
+- Message type performance comparison
+- Stress testing under high load
 """
 
 import time
 import random
 import threading
-import subprocess
-import socket
 from typing import Dict, Any, List, Optional
 import concurrent.futures
-from benchmarks.communication_benchmark import generate_payload
-from benchmarks.communication.mqtt.mqtt_communication_agent import (
-    MqttCommunicationEnvironment,
+from mas.core import AgentId
+from benchmarks.communication_benchmarks.communication_benchmark import generate_payload
+from benchmarks.communication.rest.rest_communicating_agent import (
+    ExtendedRestCommunicatingAgent,
+    RestCommunicationEnvironment,
 )
 from benchmarks.communication.communication_config import (
     CommunicationConfiguration,
     TopologyPattern,
 )
-from benchmarks.communication_benchmark import (
+from benchmarks.communication_benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )
-from benchmarks.communication.mqtt.mqtt_communication import MqttMessageType
-from benchmarks.communication.base_communication import MessageType
+from benchmarks.communication.base_communication import MessageType, LatencyMode
 
 
-# Global variable to track broker container
-_mqtt_broker_container: Optional[str] = None
+def create_test_agent(
+    agent_id: str,
+    observable_props: set = None,
+    transport_mode: str = "http1",
+) -> ExtendedRestCommunicatingAgent:
+    """Create a test agent with basic configuration."""
+    if observable_props is None:
+        observable_props = {"environment", "messages"}
+
+    agent_id_obj = AgentId("benchmark", "test", agent_id)
+    agent = ExtendedRestCommunicatingAgent(
+        agent_id_obj, observable_props, transport_mode=transport_mode
+    )
+    agent.initialize_agent()
+    return agent
+
+
+def setup_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Setup for basic latency/throughput scenarios.
+
+    Default latency_mode is 'end_to_end' for fair comparison across all protocols.
+    This measures complete message delivery time including acknowledgments.
+    """
+    agent_count = params.get("agent_count", 5)
+    topology_pattern = params.get(
+        "topology_pattern", TopologyPattern.FULLY_CONNECTED
+    )
+    latency_mode = params.get("latency_mode", "end_to_end")
+    transport_mode = params.get("transport_mode", "http1")
+
+    # Convert string to enum
+    if latency_mode == "send_only":
+        latency_mode_enum = LatencyMode.SEND_ONLY
+    elif latency_mode == "app_ack":
+        latency_mode_enum = LatencyMode.APP_ACK
+    else:
+        latency_mode_enum = LatencyMode.END_TO_END
+
+    # Create communication environment with dynamic port allocation
+    env = RestCommunicationEnvironment(
+        latency_mode=latency_mode_enum, transport_mode=transport_mode
+    )
+    env.start_service()
+
+    # Create agents
+    agents = []
+    for i in range(agent_count):
+        agent = create_test_agent(f"agent_{i}", transport_mode=transport_mode)
+        agents.append(agent)
+        env.register_agent(agent)
+        if getattr(agent, "mailbox", None) is None and env.comm_service:
+            agent.mailbox = env.comm_service.mailboxes.get(str(agent.id))
+            print(f"Agent {agent.id} mailbox: {agent.mailbox}")
+
+    # Setup topology
+    config = CommunicationConfiguration()
+    config.set_agents([str(agent.id) for agent in agents])
+    topology = config.set_topology(topology_pattern)
+
+    # Apply topology to environment
+    for sender, receiver in topology.links:
+        env.add_communication_link(sender, receiver)
+
+    return {
+        "environment": env,
+        "agents": agents,
+        "config": config,
+        "agent_count": agent_count,  # Add this line to fix the issue
+        "topology_density": (
+            len(topology.links) / (agent_count * (agent_count - 1))
+            if agent_count > 1
+            else 0
+        ),
+    }
+
+
+def teardown_basic_scenario(params: Dict[str, Any]):
+    """Cleanup for basic scenarios."""
+    # Stop the communication service to free up ports
+    for agent in params.get("agents", []):
+        if hasattr(agent, "comm_agent"):
+            try:
+                agent.comm_agent.close()
+            except AttributeError:
+                pass
+
+    if "environment" in params:
+        env = params["environment"]
+        env.stop_service()
+
+    # Clear references
+    params.clear()
 
 
 def _is_ack_message(message) -> bool:
+    """Check whether the message is an ACK (protocol-agnostic)."""
     msg_type = getattr(message, "message_type", None)
     if hasattr(msg_type, "value"):
         msg_type = msg_type.value
@@ -78,242 +171,6 @@ def _consume_ack_for(mailbox, message_id: str) -> int:
     return removed
 
 
-def is_mqtt_running(host="localhost", port=1883, timeout=2) -> bool:
-    """Check if MQTT broker is accessible."""
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((host, port))
-        sock.close()
-        return result == 0
-    except Exception:
-        return False
-
-
-def start_mqtt_docker(wait_time=3) -> bool:
-    """Start MQTT broker (Mosquitto) using Docker if not already running."""
-    global _mqtt_broker_container
-
-    print("[DEBUG] Checking if MQTT is running...")
-    if is_mqtt_running():
-        print("✓ MQTT broker is already running on localhost:1883")
-        return True
-
-    print("Starting MQTT broker (Mosquitto) using Docker...")
-    import sys
-
-    sys.stdout.flush()  # Ensure output is visible immediately
-
-    try:
-        # Check if container exists but is stopped
-        result = subprocess.run(
-            [
-                "docker",
-                "ps",
-                "-a",
-                "--filter",
-                "name=mqtt-benchmark",
-                "--format",
-                "{{.Names}}",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        if "mqtt-benchmark" in result.stdout:
-            # Start existing container
-            print("[DEBUG] Found existing container, starting it...")
-            start_result = subprocess.run(
-                ["docker", "start", "mqtt-benchmark"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            print(f"[DEBUG] Start output: {start_result.stdout}")
-            _mqtt_broker_container = "mqtt-benchmark"
-        else:
-            # Create and start new container
-            print("[DEBUG] Creating new container...")
-            run_result = subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "-d",
-                    "--name",
-                    "mqtt-benchmark",
-                    "-p",
-                    "1883:1883",
-                    "-p",
-                    "9001:9001",
-                    "eclipse-mosquitto:latest",
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            print(f"[DEBUG] Container ID: {run_result.stdout.strip()}")
-            _mqtt_broker_container = "mqtt-benchmark"
-
-        print(f"Waiting {wait_time}s for MQTT broker to be ready...")
-        time.sleep(wait_time)
-
-        max_retries = 5
-        for i in range(max_retries):
-            if is_mqtt_running():
-                print("✓ mqtt broker is ready")
-                return True
-            if i < max_retries - 1:
-                print(f"  Still waiting... ({i+1}/{max_retries})")
-                time.sleep(3)
-        print("✗ mqtt broker failed to start properly")
-        return False
-
-    except subprocess.CalledProcessError as e:
-        print(f"✗ Failed to start MQTT broker: {e}")
-        print(f"[DEBUG] stderr: {e.stderr if hasattr(e, 'stderr') else 'N/A'}")
-        print("Please start MQTT broker manually or install Docker")
-        return False
-    except FileNotFoundError:
-        print(
-            "Docker not found. Please install Docker or start MQTT broker\
-                manually"
-        )
-        return False
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def stop_mqtt_docker():
-    """Stop the MQTT broker Docker container."""
-    global _mqtt_broker_container
-
-    if _mqtt_broker_container:
-        print("\nStopping MQTT broker...")
-        try:
-            subprocess.run(
-                ["docker", "stop", _mqtt_broker_container],
-                capture_output=True,
-                check=True,
-            )
-            print("✓ MQTT broker stopped")
-        except subprocess.CalledProcessError:
-            pass  # Container might already be stopped
-        finally:
-            _mqtt_broker_container = None
-
-
-def ensure_mqtt_running() -> bool:
-    """Ensure MQTT broker is running, start it if needed."""
-    if is_mqtt_running():
-        return True
-
-    print("\n MQTT broker not detected on localhost:1883")
-
-    return start_mqtt_docker()
-
-
-def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Setup for basic MQTT latency/throughput scenarios.
-
-    Default latency_mode is 'end_to_end' for fair comparison across all protocols.
-    MQTT uses QoS 1 (at-least-once delivery) for comparable durability to Kafka acks=1.
-    """
-    agent_count = params.get("agent_count", 5)
-    topology_pattern = params.get(
-        "topology_pattern", TopologyPattern.FULLY_CONNECTED
-    )
-    latency_mode = params.get("latency_mode", "end_to_end")
-    mqtt_qos = int(params.get("mqtt_qos", 1))
-
-    # Ensure MQTT broker is running before creating environment
-    if not ensure_mqtt_running():
-        raise RuntimeError("Failed to start MQTT broker")
-
-    # Import LatencyMode enum
-    from benchmarks.communication.base_communication import LatencyMode
-
-    # Convert string to enum
-    if latency_mode == "send_only":
-        latency_mode_enum = LatencyMode.SEND_ONLY
-    elif latency_mode == "app_ack":
-        latency_mode_enum = LatencyMode.APP_ACK
-    else:
-        latency_mode_enum = LatencyMode.END_TO_END
-
-    # Create MQTT communication environment
-    # QoS 1 configuration for fair benchmark comparison:
-    # - QoS 1: At-least-once delivery with broker acknowledgment
-    # - This provides similar durability guarantees to Kafka acks=1
-    mqtt_config = {
-        "broker_host": "localhost",
-        "broker_port": 1883,
-        "keepalive": 60,
-        "qos": mqtt_qos,
-    }
-    env = MqttCommunicationEnvironment(
-        broker_host="localhost",
-        broker_port=1883,
-        mqtt_config=mqtt_config,
-        latency_mode=latency_mode_enum,
-    )
-    env.start_service()
-
-    # Check if service started successfully
-    if not env.is_running:
-        raise RuntimeError(
-            "MQTT service failed to start.\
-                Ensure MQTT broker is running on localhost:1883"
-        )
-
-    # Create agents
-    agents = []
-    for i in range(agent_count):
-        agent = env.create_agent(f"agent_{i}")
-        if getattr(agent, "mailbox", None) is None and hasattr(
-            agent, "mqtt_agent"
-        ):
-            agent.mailbox = agent.mqtt_agent.mailbox
-        agents.append(agent)
-
-    # Setup topology
-    config = CommunicationConfiguration()
-    config.set_agents([str(agent.id) for agent in agents])
-    topology = config.set_topology(topology_pattern)
-
-    # Apply topology to environment
-    for sender, receiver in topology.links:
-        env.add_communication_link(sender, receiver)
-
-    return {
-        "environment": env,
-        "agents": agents,
-        "config": config,
-        "agent_count": agent_count,
-        "topology_density": (
-            len(topology.links) / (agent_count * (agent_count - 1))
-            if agent_count > 1
-            else 0
-        ),
-    }
-
-
-def teardown_mqtt_basic_scenario(params: Dict[str, Any]):
-    """Cleanup for MQTT basic scenarios."""
-    # Stop the MQTT communication service and close connections
-    if "environment" in params:
-        env = params["environment"]
-        env.close_all_agents()
-        env.stop_service()
-
-    # Clear references
-    params.clear()
-
-
 def _wait_for_ack(agent, message_id: str, timeout: float = 0.5) -> bool:
     """Wait for ACK message with matching message_id.
 
@@ -329,14 +186,14 @@ def _wait_for_ack(agent, message_id: str, timeout: float = 0.5) -> bool:
     while time.time() - start_time < timeout:
         if _consume_ack_for(agent.mailbox, message_id):
             return True
-        time.sleep(0.001)  # Small polling interval
+        time.sleep(0.005)  # Optimized polling interval (was 0.001, reduced CPU usage by 5x)
     return False
 
 
-def test_mqtt_point_to_point_latency(
+def test_point_to_point_latency(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Test basic point-to-point message latency via MQTT."""
+    """Test basic point-to-point message latency."""
     agents = params["agents"]
     message_count = params.get("message_count", 100)
     payload_size = params.get("payload_size_bytes", 100)
@@ -360,31 +217,32 @@ def test_mqtt_point_to_point_latency(
         while not stop_ack_thread.is_set():
             messages = _drain_non_ack_messages(receiver.mailbox)
             if not messages:
-                time.sleep(0.001)
+                time.sleep(0.005)  # Optimized: reduced from 0.001
                 continue
             for msg in messages:
                 ack_content = {"ack_for": msg.content.get("test_id")}
                 receiver.send_message(
-                    str(sender.id), MqttMessageType.ACK, ack_content
+                    str(sender.id), MessageType.ACK, ack_content
                 )
-            time.sleep(0.001)
+
+            time.sleep(0.005)  # Optimized: reduced from 0.001
 
     if latency_mode == "app_ack":
         ack_thread = threading.Thread(target=receiver_ack_loop, daemon=True)
         ack_thread.start()
 
     for i in range(message_count):
-        message_id = f"mqtt_latency_test_{i}"
+        message_id = f"latency_test_{i}"
 
         # Start timing
         benchmark.latency_tracker.start_message_timing(message_id)
         benchmark.throughput_tracker.record_message()
 
-        # Send message via MQTT with specified payload size
+        # Send message with specified payload size
         payload_data = generate_payload(payload_size)
         content = {"test_id": message_id, "data": payload_data}
         success = sender.send_message(
-            str(receiver.id), MqttMessageType.INFORM, content
+            str(receiver.id), MessageType.INFORM, content
         )
 
         if success:
@@ -415,10 +273,10 @@ def test_mqtt_point_to_point_latency(
     }
 
 
-def test_mqtt_broadcast_throughput(
+def test_broadcast_throughput(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Test MQTT broadcast message throughput."""
+    """Test broadcast message throughput."""
     agents = params["agents"]
     message_count = params.get("message_count", 50)
     payload_size = params.get("payload_size_bytes", 100)
@@ -437,17 +295,20 @@ def test_mqtt_broadcast_throughput(
     ack_threads = []
 
     def receiver_ack_loop(receiver):
-        """ACK loop for broadcast; drain non-ACK messages."""
+        """Background thread to send ACKs for received broadcast messages.
+
+        Drain non-ACK messages so ACKs remain available for local waiters.
+        """
         while not stop_ack_threads.is_set():
             inbox = _drain_non_ack_messages(receiver.mailbox)
             if not inbox:
-                time.sleep(0.001)
+                time.sleep(0.005)  # Optimized: reduced from 0.001
                 continue
 
             for msg in inbox:
                 ack_content = {"ack_for": msg.content.get("broadcast_id")}
                 receiver.send_message(
-                    str(sender.id), MqttMessageType.ACK, ack_content
+                    str(sender.id), MessageType.ACK, ack_content
                 )
 
     if latency_mode == "app_ack" and receivers:
@@ -459,7 +320,7 @@ def test_mqtt_broadcast_throughput(
             ack_threads.append(thread)
 
     for i in range(message_count):
-        message_id = f"mqtt_broadcast_test_{i}"
+        message_id = f"broadcast_test_{i}"
 
         # Track throughput
         benchmark.throughput_tracker.record_message()
@@ -467,7 +328,7 @@ def test_mqtt_broadcast_throughput(
         # Start timing
         benchmark.latency_tracker.start_message_timing(message_id)
 
-        # Send broadcast via MQTT with specified payload size
+        # Send broadcast with specified payload size
         payload_data = generate_payload(payload_size)
         content = {
             "broadcast_id": message_id,
@@ -481,7 +342,8 @@ def test_mqtt_broadcast_throughput(
                 expected_acks = len(receivers)
                 received_acks = 0
                 timeout_start = time.time()
-                timeout = 5.0
+                ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                timeout = ack_timeout
 
                 while (
                     received_acks < expected_acks
@@ -491,7 +353,7 @@ def test_mqtt_broadcast_throughput(
                         sender.mailbox, message_id
                     )
                     if received_acks < expected_acks:
-                        time.sleep(0.001)
+                        time.sleep(0.005)  # Optimized: reduced from 0.001
 
                 if received_acks >= expected_acks:
                     benchmark.latency_tracker.end_message_timing(message_id)
@@ -518,10 +380,10 @@ def test_mqtt_broadcast_throughput(
     }
 
 
-def test_mqtt_concurrent_messaging(
+def test_concurrent_messaging(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Test concurrent MQTT messaging between multiple agents."""
+    """Test concurrent messaging between multiple agents."""
     agents = params["agents"]
     messages_per_agent = params.get("messages_per_agent", 20)
     payload_size = params.get("payload_size_bytes", 100)
@@ -539,23 +401,25 @@ def test_mqtt_concurrent_messaging(
     ack_threads = []
 
     def receiver_ack_loop(receiver):
-        """ACK loop for concurrent messaging; keep ACKs available locally."""
+        """Background thread to send ACKs for received messages.
+
+        Drain non-ACK messages so ACKs remain available for local waiters.
+        """
         while not stop_ack_threads.is_set():
             inbox = _drain_non_ack_messages(receiver.mailbox)
             if not inbox:
-                time.sleep(0.001)
+                time.sleep(0.005)
                 continue
 
             for msg in inbox:
-                msg_id = (
-                    str(msg.content.get("sender", ""))
-                    + "_"
-                    + str(msg.content.get("message_num", ""))
-                )
-                full_msg_id = f"mqtt_concurrent_{msg_id}"
+                sender_id = msg.content.get("sender")
+                message_index = msg.content.get("message_num")
+                if sender_id is None or message_index is None:
+                    continue
+                full_msg_id = f"concurrent_{sender_id}_{message_index}"
                 ack_content = {"ack_for": full_msg_id}
                 receiver.send_message(
-                    msg.sender_id, MqttMessageType.ACK, ack_content
+                    msg.sender_id, MessageType.ACK, ack_content
                 )
 
     if latency_mode == "app_ack":
@@ -569,7 +433,7 @@ def test_mqtt_concurrent_messaging(
     concurrency_limit = params.get("concurrent_senders", len(agents))
     active_agents = agents[: max(1, min(concurrency_limit, len(agents)))]
 
-    def mqtt_agent_messaging_task(agent, agent_index):
+    def agent_messaging_task(agent, agent_index):
         nonlocal delivery_failures, timeout_failures, ack_timeouts
 
         # Get valid targets based on topology from configuration
@@ -577,28 +441,32 @@ def test_mqtt_concurrent_messaging(
         valid_targets = []
 
         if config and hasattr(config, "topology"):
+            # Get agents this agent can send to based on topology links
             agent_id_str = str(agent.id)
             for other_agent in agents:
                 if other_agent != agent:
                     other_id_str = str(other_agent.id)
+                    # Check if there's a link from this agent to the other
                     if (agent_id_str, other_id_str) in config.topology.links:
                         valid_targets.append(other_agent)
 
+        # Fall back to all agents if no topology or no valid targets
         if not valid_targets:
             valid_targets = [a for a in agents if a != agent]
 
         if not valid_targets:
+            # No valid targets, skip this agent
             return
 
         for i in range(messages_per_agent):
             target = random.choice(valid_targets)
-            message_id = f"mqtt_concurrent_{agent_index}_{i}"
+            message_id = f"concurrent_{agent_index}_{i}"
 
             # Start timing
             benchmark.latency_tracker.start_message_timing(message_id)
             benchmark.throughput_tracker.record_message()
 
-            # Send message via MQTT with specified payload size
+            # Send message with specified payload size
             payload_data = generate_payload(payload_size)
             content = {
                 "sender": agent_index,
@@ -607,7 +475,7 @@ def test_mqtt_concurrent_messaging(
                 "timestamp": time.time(),
             }
             success = agent.send_message(
-                str(target.id), MqttMessageType.INFORM, content
+                str(target.id), MessageType.INFORM, content
             )
 
             if success:
@@ -630,13 +498,13 @@ def test_mqtt_concurrent_messaging(
             # Random delay to simulate realistic messaging patterns
             time.sleep(random.uniform(0.005, 0.02))
 
-    # Run concurrent MQTT messaging
+    # Run concurrent messaging
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=len(active_agents)
     ) as executor:
         futures = []
         for i, agent in enumerate(active_agents):
-            future = executor.submit(mqtt_agent_messaging_task, agent, i)
+            future = executor.submit(agent_messaging_task, agent, i)
             futures.append(future)
 
         # Wait for all tasks to complete
@@ -661,10 +529,10 @@ def test_mqtt_concurrent_messaging(
     }
 
 
-def test_mqtt_scalability_stress(
+def test_scalability_stress(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
-    """Test MQTT system under high message load for scalability."""
+    """Test system under high message load for scalability."""
     agents = params["agents"]
     stress_duration = params.get("stress_duration", 5.0)  # seconds
     payload_size = params.get("payload_size_bytes", 100)
@@ -682,21 +550,22 @@ def test_mqtt_scalability_stress(
     ack_threads = []
 
     def receiver_ack_loop(receiver):
-        """ACK loop for stress; drain non-ACK messages."""
+        """Background thread to send ACKs for received messages.
+
+        Drain non-ACK messages so ACKs remain available for local waiters.
+        """
         while not stop_ack_threads.is_set():
             inbox = _drain_non_ack_messages(receiver.mailbox)
             if not inbox:
-                time.sleep(0.001)
+                time.sleep(0.005)
                 continue
 
             for msg in inbox:
-                msg_count = msg.content.get("count")
-                if msg_count is None:
-                    continue
-                full_msg_id = f"mqtt_stress_{msg.sender_id}_{msg_count}"
+                msg_id = msg.content.get("count", "")
+                full_msg_id = f"stress_{msg.sender_id}_{msg_id}"
                 ack_content = {"ack_for": full_msg_id}
                 receiver.send_message(
-                    msg.sender_id, MqttMessageType.ACK, ack_content
+                    msg.sender_id, MessageType.ACK, ack_content
                 )
 
     if latency_mode == "app_ack":
@@ -707,7 +576,7 @@ def test_mqtt_scalability_stress(
             thread.start()
             ack_threads.append(thread)
 
-    def mqtt_stress_messaging_task(agent):
+    def stress_messaging_task(agent):
         nonlocal delivery_failures, message_count, ack_timeouts
         end_time = time.time() + stress_duration
         targets = [a for a in agents if a != agent]
@@ -715,13 +584,13 @@ def test_mqtt_scalability_stress(
 
         while time.time() < end_time:
             target = random.choice(targets)
-            message_id = f"mqtt_stress_{agent.id}_{local_count}"
+            message_id = f"stress_{agent.id}_{local_count}"
 
             # Track timing and throughput
             benchmark.latency_tracker.start_message_timing(message_id)
             benchmark.throughput_tracker.record_message()
 
-            # Send message via MQTT with specified payload size
+            # Send message with specified payload size
             payload_data = generate_payload(payload_size)
             content = {
                 "stress_test": True,
@@ -730,15 +599,13 @@ def test_mqtt_scalability_stress(
             }
             success = agent.send_message(
                 str(target.id),
-                random.choice(
-                    [MqttMessageType.INFORM, MqttMessageType.REQUEST]
-                ),
+                random.choice([MessageType.INFORM, MessageType.REQUEST]),
                 content,
             )
 
             if success:
                 if latency_mode == "app_ack":
-                    # Wait for ACK from receiver
+                    # Wait for ACK from receiver (configurable, default 0.5s)
                     ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
@@ -758,13 +625,12 @@ def test_mqtt_scalability_stress(
             # Minimal delay for high throughput
             time.sleep(0.001)
 
-    # Run MQTT stress test
+    # Run stress test
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=len(agents)
     ) as executor:
         futures = [
-            executor.submit(mqtt_stress_messaging_task, agent)
-            for agent in agents
+            executor.submit(stress_messaging_task, agent) for agent in agents
         ]
         concurrent.futures.wait(futures, timeout=stress_duration + 5)
 
@@ -781,58 +647,58 @@ def test_mqtt_scalability_stress(
     }
 
 
-def create_mqtt_benchmark_scenarios(
+def create_rest_benchmark_scenarios(
     latency_mode: str = "end_to_end",
 ) -> CommunicationBenchmark:
-    """Create and configure all MQTT benchmark scenarios."""
+    """Create and configure all benchmark scenarios."""
     benchmark = CommunicationBenchmark()
     benchmark.latency_mode = latency_mode  # Store for use in scenarios
 
-    # Scenario 1: MQTT Point-to-Point Latency
-    mqtt_latency_scenario = BenchmarkScenario(
+    # Scenario 1: Basic Point-to-Point Latency
+    latency_scenario = BenchmarkScenario(
         name="point_to_point_latency",
-        description="Measures basic MQTT message latency between two agents",
+        description="Measures basic message latency between two agents",
     )
-    mqtt_latency_scenario.set_setup(setup_mqtt_basic_scenario)
-    mqtt_latency_scenario.set_test(test_mqtt_point_to_point_latency)
-    mqtt_latency_scenario.set_teardown(teardown_mqtt_basic_scenario)
-    benchmark.add_scenario(mqtt_latency_scenario)
+    latency_scenario.set_setup(setup_basic_scenario)
+    latency_scenario.set_test(test_point_to_point_latency)
+    latency_scenario.set_teardown(teardown_basic_scenario)
+    benchmark.add_scenario(latency_scenario)
 
-    # Scenario 2: MQTT Broadcast Throughput
-    mqtt_broadcast_scenario = BenchmarkScenario(
+    # Scenario 2: Broadcast Throughput
+    broadcast_scenario = BenchmarkScenario(
         name="broadcast_throughput",
-        description="Tests MQTT broadcast message throughput and delivery",
+        description="Tests broadcast message throughput and delivery",
     )
-    mqtt_broadcast_scenario.set_setup(setup_mqtt_basic_scenario)
-    mqtt_broadcast_scenario.set_test(test_mqtt_broadcast_throughput)
-    mqtt_broadcast_scenario.set_teardown(teardown_mqtt_basic_scenario)
-    benchmark.add_scenario(mqtt_broadcast_scenario)
+    broadcast_scenario.set_setup(setup_basic_scenario)
+    broadcast_scenario.set_test(test_broadcast_throughput)
+    broadcast_scenario.set_teardown(teardown_basic_scenario)
+    benchmark.add_scenario(broadcast_scenario)
 
-    # Scenario 3: MQTT Concurrent Messaging
-    mqtt_concurrent_scenario = BenchmarkScenario(
+    # Scenario 3: Concurrent Messaging
+    concurrent_scenario = BenchmarkScenario(
         name="concurrent_messaging",
-        description="Tests MQTT concurrent messaging between multiple agents",
+        description="Tests concurrent messaging between multiple agents",
     )
-    mqtt_concurrent_scenario.set_setup(setup_mqtt_basic_scenario)
-    mqtt_concurrent_scenario.set_test(test_mqtt_concurrent_messaging)
-    mqtt_concurrent_scenario.set_teardown(teardown_mqtt_basic_scenario)
-    benchmark.add_scenario(mqtt_concurrent_scenario)
+    concurrent_scenario.set_setup(setup_basic_scenario)
+    concurrent_scenario.set_test(test_concurrent_messaging)
+    concurrent_scenario.set_teardown(teardown_basic_scenario)
+    benchmark.add_scenario(concurrent_scenario)
 
-    # Scenario 4: MQTT Scalability Stress Test
-    mqtt_stress_scenario = BenchmarkScenario(
+    # Scenario 4: Scalability Stress Test
+    stress_scenario = BenchmarkScenario(
         name="scalability_stress",
-        description="High-load MQTT stress test for scalability analysis",
+        description="High-load stress test for scalability analysis",
     )
-    mqtt_stress_scenario.set_setup(setup_mqtt_basic_scenario)
-    mqtt_stress_scenario.set_test(test_mqtt_scalability_stress)
-    mqtt_stress_scenario.set_teardown(teardown_mqtt_basic_scenario)
-    benchmark.add_scenario(mqtt_stress_scenario)
+    stress_scenario.set_setup(setup_basic_scenario)
+    stress_scenario.set_test(test_scalability_stress)
+    stress_scenario.set_teardown(teardown_basic_scenario)
+    benchmark.add_scenario(stress_scenario)
 
     return benchmark
 
 
-def run_mqtt_topology_comparison(benchmark: CommunicationBenchmark):
-    """Run MQTT performance comparison across different topology patterns."""
+def run_topology_comparison(benchmark: CommunicationBenchmark):
+    """Run comparison across different topology patterns."""
     topologies = [
         TopologyPattern.FULLY_CONNECTED,
         TopologyPattern.STAR,
@@ -843,7 +709,7 @@ def run_mqtt_topology_comparison(benchmark: CommunicationBenchmark):
     results = {}
 
     for topology in topologies:
-        print(f"\nTesting MQTT topology: {topology.value}")
+        print(f"\nTesting topology: {topology.value}")
         result = benchmark.run_scenario(
             "concurrent_messaging",
             agent_count=20,
@@ -858,7 +724,7 @@ def run_mqtt_topology_comparison(benchmark: CommunicationBenchmark):
     comparison = benchmark.compare_scenarios(scenario_names)
 
     print("\n" + "=" * 60)
-    print("MQTT TOPOLOGY COMPARISON SUMMARY")
+    print("TOPOLOGY COMPARISON SUMMARY")
     print("=" * 60)
     for topology, metrics in comparison.items():
         print(f"\n{topology}:")
@@ -869,17 +735,17 @@ def run_mqtt_topology_comparison(benchmark: CommunicationBenchmark):
     return results
 
 
-def run_mqtt_scalability_analysis(
+def run_scalability_analysis(
     benchmark: CommunicationBenchmark, agent_counts: Optional[List[int]] = None
 ):
-    """Run MQTT scalability analysis with increasing agent counts."""
+    """Run scalability analysis with increasing agent counts."""
     if agent_counts is None:
         agent_counts = [3, 5, 8, 12]
 
     results = {}
 
     for count in agent_counts:
-        print(f"\nTesting MQTT with {count} agents")
+        print(f"\nTesting with {count} agents")
         result = benchmark.run_scenario(
             "scalability_stress",
             agent_count=count,
@@ -890,7 +756,7 @@ def run_mqtt_scalability_analysis(
         benchmark.print_summary(result)
 
     print("\n" + "=" * 60)
-    print("MQTT SCALABILITY ANALYSIS SUMMARY")
+    print("SCALABILITY ANALYSIS SUMMARY")
     print("=" * 60)
     for count, result in results.items():
         print(f"\n{count} Agents:")
@@ -904,50 +770,39 @@ def run_mqtt_scalability_analysis(
 
 
 if __name__ == "__main__":
-    print("MQTT Communication Benchmark Suite")
+    print("REST Communication Benchmark Suite")
     print("=" * 60)
 
-    # Ensure MQTT broker is running
-    start_mqtt_docker()
-    if not is_mqtt_running():
-        print("\nCannot run benchmarks without MQTT broker")
-        exit(1)
+    # Create benchmark suite
+    benchmark = create_rest_benchmark_scenarios()
 
-    try:
-        # Create MQTT benchmark suite
-        benchmark = create_mqtt_benchmark_scenarios()
+    # Run individual scenarios
+    print("\n1. Point-to-Point Latency Test")
+    result1 = benchmark.run_scenario(
+        "point_to_point_latency", agent_count=2, message_count=50
+    )
+    benchmark.print_summary(result1)
 
-        # Run individual MQTT scenarios
-        print("\n1. MQTT Point-to-Point Latency Test")
-        result1 = benchmark.run_scenario(
-            "point_to_point_latency", agent_count=2, message_count=50
-        )
-        benchmark.print_summary(result1)
+    print("\n2. Broadcast Throughput Test")
+    result2 = benchmark.run_scenario(
+        "broadcast_throughput", agent_count=5, message_count=30
+    )
+    benchmark.print_summary(result2)
 
-        print("\n2. MQTT Broadcast Throughput Test")
-        result2 = benchmark.run_scenario(
-            "broadcast_throughput", agent_count=5, message_count=30
-        )
-        benchmark.print_summary(result2)
+    print("\n3. Concurrent Messaging Test")
+    result3 = benchmark.run_scenario(
+        "concurrent_messaging", agent_count=4, messages_per_agent=10
+    )
+    benchmark.print_summary(result3)
 
-        print("\n3. MQTT Concurrent Messaging Test")
-        result3 = benchmark.run_scenario(
-            "concurrent_messaging", agent_count=4, messages_per_agent=10
-        )
-        benchmark.print_summary(result3)
+    # Optional: Run extended analysis
 
-        # Optional: Run extended analysis
+    print("\nRunning topology comparison...")
+    run_topology_comparison(benchmark)
 
-        print("\nRunning MQTT topology comparison...")
-        run_mqtt_topology_comparison(benchmark)
+    print("\nRunning scalability analysis...")
+    run_scalability_analysis(benchmark, [5, 10, 15, 20])
 
-        print("\nRunning MQTT scalability analysis...")
-        run_mqtt_scalability_analysis(benchmark, [5, 10, 15, 20])
-
-        # Export results (after all benchmarks are complete)
-        benchmark.export_results("mqtt_benchmark_results.json")
-        print("\nResults exported to mqtt_benchmark_results.json")
-
-    finally:
-        # Clean up: stop broker if we started it
-        stop_mqtt_docker()
+    # Export results (after all benchmarks are complete)
+    benchmark.export_results("rest_benchmark_results.json")
+    print("\nResults exported to rest_benchmark_results.json")

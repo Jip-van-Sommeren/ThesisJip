@@ -15,19 +15,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Import benchmark scenarios
 try:
-    from benchmarks.rest_benchmark_scenarios import (
-        create_benchmark_scenarios as create_rest_scenarios,
+    from benchmarks.communication_benchmarks.rest_benchmark_scenarios import (
+        create_rest_benchmark_scenarios as create_rest_scenarios,
     )
-    from benchmarks.grpc_benchmark_scenarios import (
+    from benchmarks.communication_benchmarks.grpc_benchmark_scenarios import (
         create_grpc_benchmark_scenarios,
     )
-    from benchmarks.mqtt_benchmark_scenarios import (
+    from benchmarks.communication_benchmarks.mqtt_benchmark_scenarios import (
         create_mqtt_benchmark_scenarios,
     )
-    from benchmarks.kafka_benchmark_scenarios import (
+    from benchmarks.communication_benchmarks.kafka_benchmark_scenarios import (
         create_kafka_benchmark_scenarios,
     )
-    from communication.communication_config import TopologyPattern
+    from benchmarks.communication.communication_config import TopologyPattern
 except ImportError as e:
     print(f"Import error: {e}")
     print("Please ensure you're running from the correct directory")

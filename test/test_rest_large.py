@@ -3,7 +3,7 @@
 Test larger benchmark to verify agent count works with more agents.
 """
 
-from benchmarks.rest_benchmark_scenarios import create_benchmark_scenarios
+from benchmarks.communication_benchmarks.rest_benchmark_scenarios import create_rest_benchmark_scenarios
 
 
 def test_larger_benchmark():
@@ -13,7 +13,7 @@ def test_larger_benchmark():
 
     try:
         # Create benchmark suite
-        benchmark = create_benchmark_scenarios()
+        benchmark = create_rest_benchmark_scenarios()
 
         # Run concurrent messaging with 5 agents
         print("Running concurrent messaging test with 5 agents...")

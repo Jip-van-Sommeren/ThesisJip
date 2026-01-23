@@ -35,7 +35,7 @@ Three measurement modes are supported; each changes what "latency" means:
 - **`app_ack`**: full application-level round trip (send -> receiver processing -> ACK -> sender receives ACK). This is the strictest, protocol-agnostic end-to-end measure.
 
 ### Scenarios (what we benchmark)
-All protocols implement the same scenarios via `src/benchmarks/*_benchmark_scenarios.py`.
+All protocols implement the same scenarios via `src/benchmarks/communication_benchmarks/*_benchmark_scenarios.py`.
 
 1) **Point-to-point latency** (`point_to_point_latency`)
    - **What**: sequential request/response between two agents.
@@ -93,7 +93,7 @@ Hardware/OS metadata is embedded in `benchmark_metadata.hardware` (CPU model, co
 ### Outputs and plots
 Results are written to the configured output directory (default `results/`). In this repo the thesis artifacts live under `src/results/`.
 
-Communication analysis (`src/benchmarks/benchmark_analysis.py`) produces:
+Communication analysis (`src/benchmarks/communication_benchmarks/benchmark_analysis.py`) produces:
 
 - `latency_comparison.png`
 - `throughput_comparison.png`
@@ -115,14 +115,14 @@ Communication analysis (`src/benchmarks/benchmark_analysis.py`) produces:
 Protocol benchmarks answer *how fast* messages move. Hierarchy benchmarks answer *how agents should be organized* to coordinate tasks efficiently. They model coordination logic without network effects, so organizational trade-offs are visible without transport noise.
 
 ### Strategies evaluated
-Implemented in `src/benchmarks/hierarchy_strategies.py`:
+Implemented in `src/benchmarks/hierarchy_benchmarks/hierarchy_strategies.py`:
 
 - **Tree**: manager-worker hierarchy with delegated tasks.
 - **Peer-to-peer**: fully distributed coordination and consensus.
 - **Hybrid**: manager assigns tasks; workers coordinate laterally.
 
 ### Environments
-Defined in `src/benchmarks/hierarchy_environments.py`:
+Defined in `src/benchmarks/hierarchy_benchmarks/hierarchy_environments.py`:
 
 - **Resource allocation**: tasks compete for limited resources.
 - **Task distribution**: continuous task stream assigned to agents.
@@ -159,7 +159,7 @@ Single-parameter sweeps are run for the **Tree** strategy in **task_distribution
 The results are summarized in LaTeX (see `sections/sec_experiments.tex`, Table `tab:hierarchy-ablation`) and plotted in `src/results/hierarchy/hierarchy_ablation.png`.
 
 ### Outputs and plots
-Hierarchy analysis (`src/benchmarks/hierarchy_analysis.py`) generates:
+Hierarchy analysis (`src/benchmarks/hierarchy_benchmarks/hierarchy_analysis.py`) generates:
 
 - `hierarchy_success_rates.png`
 - `hierarchy_scalability.png`
@@ -182,6 +182,6 @@ Hierarchy analysis (`src/benchmarks/hierarchy_analysis.py`) generates:
 ## Quick pointers
 
 - Communication runner: `src/benchmarks/benchmark_runner.py`
-- Communication analysis: `src/benchmarks/benchmark_analysis.py`
-- Hierarchy scenarios: `src/benchmarks/hierarchy_benchmark_scenarios.py`
-- Hierarchy analysis: `src/benchmarks/hierarchy_analysis.py`
+- Communication analysis: `src/benchmarks/communication_benchmarks/benchmark_analysis.py`
+- Hierarchy scenarios: `src/benchmarks/hierarchy_benchmarks/hierarchy_benchmark_scenarios.py`
+- Hierarchy analysis: `src/benchmarks/hierarchy_benchmarks/hierarchy_analysis.py`

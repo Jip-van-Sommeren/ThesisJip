@@ -16,16 +16,16 @@ import os
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 
-from benchmarks.hierarchy_metrics import (
+from benchmarks.hierarchy_benchmarks.hierarchy_metrics import (
     HierarchyBenchmarkTracker,
     AggregatedMetrics,
 )
-from benchmarks.hierarchy_strategies import (
+from benchmarks.hierarchy_benchmarks.hierarchy_strategies import (
     HierarchyType,
     HierarchyStrategy,
     create_hierarchy_strategy,
 )
-from benchmarks.hierarchy_environments import (
+from benchmarks.hierarchy_benchmarks.hierarchy_environments import (
     HierarchyEnvironment,
     create_environment,
 )

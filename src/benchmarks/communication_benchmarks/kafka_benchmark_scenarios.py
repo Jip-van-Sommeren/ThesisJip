@@ -15,7 +15,7 @@ import subprocess
 import socket
 from typing import Dict, Any, List, Optional
 import concurrent.futures
-from benchmarks.communication_benchmark import generate_payload
+from benchmarks.communication_benchmarks.communication_benchmark import generate_payload
 
 from benchmarks.communication.kafka.kafka_communication_agent import (
     KafkaCommunicationEnvironment,
@@ -24,7 +24,7 @@ from benchmarks.communication.communication_config import (
     CommunicationConfiguration,
     TopologyPattern,
 )
-from benchmarks.communication_benchmark import (
+from benchmarks.communication_benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )

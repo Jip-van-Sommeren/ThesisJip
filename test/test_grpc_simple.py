@@ -3,7 +3,7 @@
 Simple gRPC test to verify the implementation works correctly.
 """
 
-from benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
+from benchmarks.communication_benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
 
 
 def test_grpc_simple_benchmark():

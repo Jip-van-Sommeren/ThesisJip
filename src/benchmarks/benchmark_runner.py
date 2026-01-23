@@ -22,20 +22,20 @@ from benchmarks.communication.communication_config import TopologyPattern
 
 
 # Import protocol-specific benchmark scenarios
-from benchmarks.rest_benchmark_scenarios import create_rest_benchmark_scenarios
-from benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
-from benchmarks.mqtt_benchmark_scenarios import (
+from benchmarks.communication_benchmarks.rest_benchmark_scenarios import create_rest_benchmark_scenarios
+from benchmarks.communication_benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
+from benchmarks.communication_benchmarks.mqtt_benchmark_scenarios import (
     create_mqtt_benchmark_scenarios,
 )
-from benchmarks.kafka_benchmark_scenarios import (
+from benchmarks.communication_benchmarks.kafka_benchmark_scenarios import (
     create_kafka_benchmark_scenarios,
 )
 from benchmarks.config_loader import load_config_from_yaml
-from benchmarks.communication_benchmark import CommunicationBenchmark
-from benchmarks.hierarchy_benchmark_scenarios import (
+from benchmarks.communication_benchmarks.communication_benchmark import CommunicationBenchmark
+from benchmarks.hierarchy_benchmarks.hierarchy_benchmark_scenarios import (
     HierarchyComparisonBenchmark,
 )
-from benchmarks.hierarchy_strategies import HierarchyType
+from benchmarks.hierarchy_benchmarks.hierarchy_strategies import HierarchyType
 
 
 class EnumEncoder(json.JSONEncoder):
@@ -199,7 +199,7 @@ class ProtocolBenchmarkRunner:
 
         if "mqtt" in self.config.protocols:
             print("  Starting MQTT broker...")
-            from benchmarks.mqtt_benchmark_scenarios import (
+            from benchmarks.communication_benchmarks.mqtt_benchmark_scenarios import (
                 start_mqtt_docker,
                 is_mqtt_running,
             )
@@ -211,7 +211,7 @@ class ProtocolBenchmarkRunner:
 
         if "kafka" in self.config.protocols:
             print("  Starting Kafka broker...")
-            from benchmarks.kafka_benchmark_scenarios import (
+            from benchmarks.communication_benchmarks.kafka_benchmark_scenarios import (
                 start_kafka_docker,
                 is_kafka_running,
             )
@@ -1164,7 +1164,7 @@ Examples:
 
         # Run ablation study if requested
         if args.hierarchy_ablation:
-            from benchmarks.hierarchy_benchmark_scenarios import (
+            from benchmarks.hierarchy_benchmarks.hierarchy_benchmark_scenarios import (
                 BenchmarkConfiguration as HierarchyConfig,
             )
 

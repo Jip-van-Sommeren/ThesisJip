@@ -459,7 +459,6 @@ class BenchmarkAnalyzer:
             r, c = divmod(idx, cols)
             axes[r][c].axis("off")
 
-        # Build legend handles manually because seaborn's ecdfplot drops the Axes legend
         unique_variants = sorted(df["Variant"].unique())
         handles = []
         labels = []
@@ -935,14 +934,10 @@ class BenchmarkAnalyzer:
                         cpu_line += f" ({physical}C/{logical}T)"
                     f.write(f"  CPU: {cpu_line}\n")
                     if cpu_info.get("max_mhz"):
-                        f.write(
-                            f"  CPU Max MHz: {cpu_info['max_mhz']:.0f}\n"
-                        )
+                        f.write(f"  CPU Max MHz: {cpu_info['max_mhz']:.0f}\n")
 
                 if memory_info.get("total_gb"):
-                    f.write(
-                        f"  Memory: {memory_info['total_gb']:.2f} GB\n"
-                    )
+                    f.write(f"  Memory: {memory_info['total_gb']:.2f} GB\n")
                 if hardware.get("python_version"):
                     f.write(f"  Python: {hardware['python_version']}\n")
 
@@ -996,7 +991,9 @@ class BenchmarkAnalyzer:
 
             # Find best overall performers
             # Helper function to get metrics for a protocol across all variants
-            def get_protocol_metrics(protocol: str, scenario: str, metric_key: str, default_value):
+            def get_protocol_metrics(
+                protocol: str, scenario: str, metric_key: str, default_value
+            ):
                 """Get all metrics for a protocol (including variants) in a scenario."""
                 metrics = []
                 protocol_lower = protocol.lower()
@@ -1018,8 +1015,11 @@ class BenchmarkAnalyzer:
                     [
                         metric
                         for s in self.get_available_scenarios()
-                        for metric in get_protocol_metrics(p, s, "avg_latency_ms", float("inf"))
-                    ] or [float("inf")]  # Fallback if no metrics found
+                        for metric in get_protocol_metrics(
+                            p, s, "avg_latency_ms", float("inf")
+                        )
+                    ]
+                    or [float("inf")]  # Fallback if no metrics found
                 ),
             )
 
@@ -1029,8 +1029,11 @@ class BenchmarkAnalyzer:
                     [
                         metric
                         for s in self.get_available_scenarios()
-                        for metric in get_protocol_metrics(p, s, "throughput_msg_per_sec", 0)
-                    ] or [0]  # Fallback if no metrics found
+                        for metric in get_protocol_metrics(
+                            p, s, "throughput_msg_per_sec", 0
+                        )
+                    ]
+                    or [0]  # Fallback if no metrics found
                 ),
             )
 
@@ -1040,8 +1043,11 @@ class BenchmarkAnalyzer:
                     [
                         metric
                         for s in self.get_available_scenarios()
-                        for metric in get_protocol_metrics(p, s, "success_rate_percent", 0)
-                    ] or [0]  # Fallback if no metrics found
+                        for metric in get_protocol_metrics(
+                            p, s, "success_rate_percent", 0
+                        )
+                    ]
+                    or [0]  # Fallback if no metrics found
                 ),
             )
 
