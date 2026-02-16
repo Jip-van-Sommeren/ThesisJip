@@ -1,0 +1,117 @@
+\section{Battery Digital Twin: From Hybrid Model to Multi-Agent System}
+\label{sec:battery-twin-mas}
+
+This section connects the original hybrid digital twin formulation for Li-ion batteries to its realization as a multi-agent system (MAS). We first introduce the generic MAS framework (\texttt{src/mas}) grounded in the formal agent tuple of Section~\ref{sec:Proposed Agent-Based Architecture for Digital Twins} ($A=(id,State,Goal,Perception,Action,Decision)$), then summarize the original hybrid twin, and finally describe the battery-twin MAS architecture and implementation (\texttt{src/battery\_twin}).
+
+
+
+\subsection{Generic MAS Implementation (src/mas)}
+\label{subsec:generic-mas-impl}
+
+We implement a reusable MAS toolkit under \texttt{src/mas} that realizes the formal agent tuple and the organizational/communication substrate:
+
+\begin{itemize}
+  \item \textbf{Core agents (\texttt{src/mas/core})}. The abstract \texttt{Agent} encapsulates $A=(id,State,Goal,Perception,Action,Decision)$ with a sense–decide–act step. Specializations provide canonical styles: \texttt{ReactiveAgent} (stimulus–response, no goals), \texttt{BDIAgent} (beliefs, desires, intentions with plan library and intentions), and \texttt{HybridAgent} (layered reactive+deliberative with emergency rules).
+  \item \textbf{Communication (\texttt{src/mas/communication})}. A transport abstraction (\texttt{Transport}) with a production \texttt{MqttTransport} supports publish/subscribe; \texttt{TopicManager} formats/validates topics from YAML; \texttt{Mailbox} buffers messages as the $MB_i$ perception channel.
+  \item \textbf{Organization (\texttt{src/mas/organization})}. \texttt{RoleManager} implements $R=(responsibilities,permissions,requirements,expectations)$; \texttt{GroupManager} manages groups $G$; \texttt{HierarchyManager} manages tree relations $Sup,Sub$, escalation paths, and message passing.
+  \item \textbf{Identity.} \texttt{AgentId(app,type,instance)} provides hierarchical uniqueness (e.g., \texttt{battery\_twin.physics\_model.B0005}).
+\end{itemize}
+
+\paragraph{Generic framework architecture.} The framework is explicitly layered into (i) an \emph{agent kernel} that implements the formal tuple and decision styles, (ii) a \emph{message-oriented communication substrate} for decoupled interaction, and (iii) an \emph{organizational substrate} that encodes coordination structure. This separation keeps digital-twin logic in domain agents while reusing infrastructure across twins and deployments.
+
+\paragraph{Agent kernel (dataflow and control).} Each agent maintains a belief-based \texttt{State} (internal/external beliefs) and an optional set of \texttt{Goal}s. \texttt{Perception} filters the environment into observations and updates beliefs. \texttt{Decision} selects an action by first evaluating prioritized \texttt{ReactiveRule}s and otherwise applying deliberation. Actions are modeled as \texttt{Action}s with preconditions and effects, executed through the standard sense--decide--act step. \texttt{BDIAgent} and \texttt{HybridAgent} extend this kernel with intentions and a plan library; \texttt{HybridAgent} implements a layered policy where emergency/fast reactive rules take precedence over goal-driven deliberation.
+
+\paragraph{Communication substrate (publish/subscribe).} Inter-agent interaction is implemented through a protocol-agnostic \texttt{Transport} interface with an MQTT implementation (\texttt{MqttTransport}) and an in-memory test double (\texttt{MockTransport}). Topics are defined as YAML templates and resolved via \texttt{TopicManager}, which formats concrete topics and generates wildcard subscription patterns. Messages can be represented as typed Pydantic models (e.g., heartbeats, commands) and transported as JSON payloads. When agents require decoupling between network callbacks and reasoning, \texttt{Mailbox} provides a thread-safe buffer for deferred processing during an agent’s perception/decision cycle.
+
+\paragraph{Organizational substrate (roles, groups, hierarchy).} The framework models a control plane orthogonal to the data plane: \texttt{Role}s define responsibilities, permissions, requirements, and expectations; \texttt{Group}s collect agents around shared purpose and role compatibility; \texttt{HierarchyManager} maintains supervisor/subordinate relations and supports hierarchical messaging (commands, reports, escalations). Together, these components support orchestration patterns such as supervisory control, escalation paths, and role-based access to shared resources.
+
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{images/generic_mas.png}
+  \caption{generic mas}
+\end{figure}
+
+\subsection{Original Hybrid Digital Twin}
+
+The original hybrid digital twin implements capacity prediction by combining a physics-based degradation model with a data-driven residual correction model:
+
+\begin{itemize}
+  \item \textbf{Physics model.} A first-principles degradation law describes capacity evolution. In simplified form: $C_{\text{phys}} = C_0\, e^{-f_d}$, with a degradation rate $f_d$ that depends on operating conditions (e.g., temperature $T_c$, cycle index $i$, and charge time $t$), often linearized as $f_d = k\,T_c\, i / t$.
+  \item \textbf{Residual learning.} A machine learning model learns the correction $\Delta C$ from features (including $C_{\text{phys}}$ and telemetry-derived inputs), yielding $C_{\text{hyb}} = C_{\text{phys}} + \Delta C$.
+  \item \textbf{Training pipeline.} The physics model is first calibrated; its predictions are used to compute residuals that supervise the ML component. Evaluation reports physics, ML, and hybrid metrics.
+  \item \textbf{Inputs/outputs.} Inputs are per-cycle summaries and/or telemetry-derived features (cycle number, temperature, time, etc.). Output is capacity prediction, optionally with uncertainty.
+  \item \textbf{Data.} The approach targets standard battery datasets (e.g., NASA PCoE), using discharge/charge cycles to build features and targets.
+  \item \textbf{Benefits.} Physics-guided ML improves accuracy and robustness, reduces data needs, and preserves interpretability by separating known dynamics from learned residuals.
+\end{itemize}
+
+\subsection{Multi-Agent Architecture}
+
+Building on the generic MAS toolkit of Section~\ref{subsec:generic-mas-impl}, we realize the hybrid twin within an agent-based architecture mediated by a message bus. The \emph{Environment} provides a global state and interaction medium (e.g., telemetry streams, message broker, data stores). Agents perceive via topic subscriptions and act by publishing messages or writing to storage. Each agent follows the abstract model $A=(id,State,Goal,Perception,Action,Decision)$.
+
+\paragraph{Environment.} $S$ contains the evolving telemetry and inferred states; transitions $\tau$ are driven by agent actions and exogenous events. Observations $O_i$ are filtered by agent roles. In practice, the environment is implemented by: (i) an MQTT broker for inter-agent communication; (ii) optional storage backends (InfluxDB for time series, MongoDB for configurations/samples, Neo4j for relations, Redis for caching); and (iii) a replay or live sensor feed for raw telemetry.
+
+\paragraph{Agent roles and responsibilities.} The system uses role-specialized agents that cooperate to reproduce and extend the hybrid twin pipeline:
+\begin{itemize}
+  \item \textbf{Telemetry Ingestor (Reactive).} Cleans and validates raw measurements; detects outliers and gaps; publishes cleaned telemetry on \texttt{battery/\{id\}/telemetry/clean}.
+  \item \textbf{State Estimator (BDI).} Runs an EKF for SoC/SoH and internal parameters; monitors uncertainty; publishes state estimates on \texttt{battery/\{id\}/state/estimate}.
+  \item \textbf{Health Monitor (BDI).} Tracks degradation, computes health indicators and RUL, and publishes periodic reports on \texttt{battery/\{id\}/health/report} (and raises alerts as needed).
+  \item \textbf{Physics Model Agent (Hybrid).} Accumulates per-cycle features (e.g., average temperature, charge time), computes physics-based capacity predictions, and publishes on \texttt{battery/\{id\}/prediction/physics}.
+  \item \textbf{ML Residual Agent (BDI/ML).} Consumes physics predictions and features, learns residuals online, and produces hybrid predictions on \texttt{battery/\{id\}/prediction/hybrid}.
+  \item \textbf{Orchestrator (Coordinator).} Manages lifecycle and monitoring and may host shared services (e.g., a single embedded hybrid twin); in the codebase this is implemented as a coordinator component rather than a MAS \texttt{Agent} subclass.
+\end{itemize}
+
+\paragraph{Perception and action.} Communication topics constitute the perception channels; actions are message publications and storage writes. For example, Telemetry Ingestor perceives \texttt{battery/\{id\}/raw} and acts by publishing cleaned data; Physics Model perceives cleaned telemetry and acts by emitting physics predictions.
+
+\paragraph{Groups and hierarchy.} The generic MAS toolkit provides explicit support for roles, groups, and hierarchical relations (\texttt{src/mas/organization}). The battery-twin implementation primarily coordinates through topic-based interactions and (optional) orchestration; a declarative hierarchy blueprint is provided in \texttt{src/battery\_twin/config/hierarchy\_config.yaml} but is not required for the core dataflow.
+
+
+
+\subsection{Multi-Agent Implementation}
+
+The implementation instantiates the above architecture with concrete modules, topics, and APIs that embed the original hybrid twin within the MAS while avoiding tight coupling.
+
+\paragraph{Communication.} Agents communicate via the generic \texttt{Transport} abstraction (\texttt{MqttTransport} in production, \texttt{MockTransport} in tests) with topic templating provided by \texttt{TopicManager} (\texttt{src/battery\_twin/config/mqtt\_topics.yaml}). Canonical streams include: \texttt{battery/\{id\}/raw} (raw input), \texttt{battery/\{id\}/telemetry/clean} (cleaned data), \texttt{battery/\{id\}/state/estimate}, \texttt{battery/\{id\}/health/report}, \texttt{battery/\{id\}/prediction/physics}, \texttt{battery/\{id\}/prediction/hybrid}, and \texttt{battery/\{id\}/capacity} (measurements). Message schemas carry telemetry, state estimates, predictions, and capacity records.
+
+\paragraph{Shared hybrid service.} The Orchestrator embeds a single instance of the hybrid twin (physics+ML) and exposes two internal APIs: \textit{(i)} \emph{train\_hybrid\_twin} to fit/update the hybrid model with new samples (feature summaries plus capacity), and \textit{(ii)} \emph{predict\_hybrid\_capacity} to produce predictions (optionally with decomposition and uncertainty). This prevents model duplication across agents and centralizes online learning.
+
+\paragraph{Feature buffering and cycles.} To ensure consistent inputs for both live and replayed data, agents buffer per-cycle statistics (e.g., average temperature, cycle duration) before emitting physics predictions and training samples. End-of-cycle events trigger finalization and publication of features and labels.
+
+\paragraph{Roles mapped to code.} Each agent specializes the abstract tuple:
+\begin{itemize}
+  \item \textbf{Telemetry Ingestor:} $id=\texttt{battery\_twin.telemetry\_ingestor.\{instance\}}$; $State$ holds validation statistics and sliding windows; $Goal$ is to provide clean, timely data; $Perception$ subscribes to raw topics; $Action$ publishes cleaned telemetry and writes time series; $Decision$ is reactive condition--action.
+  \item \textbf{State Estimator:} $id=\texttt{battery\_twin.state\_estimator.\{instance\}}$; $State$ encodes EKF parameters and covariances; $Goal$ maintains accurate SoC/SoH; $Perception$ is cleaned telemetry; $Action$ publishes state estimates (including confidence/filter-health flags); $Decision$ is BDI-style monitoring and adaptation.
+  \item \textbf{Health Monitor:} $id=\texttt{battery\_twin.health\_monitor.\{instance\}}$; $State$ stores health metrics and thresholds; $Goal$ is safety and prognostics; $Perception$ includes state estimates and measurements; $Action$ publishes health reports and alerts; $Decision$ is BDI trigger-based.
+  \item \textbf{Physics Model:} $id=\texttt{battery\_twin.physics.\{instance\}}$; $State$ maintains cycle features and model parameters; $Goal$ is accurate physics prediction and parameter upkeep; $Perception$ is cleaned telemetry; $Action$ publishes physics predictions and (optionally) parameter updates; $Decision$ is hybrid (reactive for accumulation, deliberative for adaptation).
+  \item \textbf{ML Residual:} $id=\texttt{battery\_twin.ml.\{instance\}}$; $State$ stores model status/performance and training buffers; $Goal$ is to minimize residual error; $Perception$ consumes physics predictions and capacity labels; $Action$ trains residual model and publishes hybrid predictions; $Decision$ is BDI with learning policies.
+  \item \textbf{Orchestrator:} \texttt{src/battery\_twin/orchestrator.py} maintains the agent registry/metrics and (optionally) an embedded hybrid twin service; it coordinates lifecycle and provides shared training/prediction APIs rather than implementing the generic \texttt{Agent} interface.
+\end{itemize}
+
+\paragraph{Storage (optional).} Time-series metrics and predictions are persisted in InfluxDB; configurations and hybrid training samples (feature/label pairs) are kept in MongoDB; relations (e.g., role memberships) can be represented in Neo4j; hot state may be cached in Redis. These backends are optional and configured per deployment.
+
+\paragraph{Validation and testing.} Integration tests exercise the end-to-end pipeline by streaming synthetic telemetry, physics predictions, and capacity labels, verifying that the Orchestrator publishes hybrid outputs and logs training samples. A dataset validation mode replays real cycles (e.g., NASA) to assess SoC/SoH estimation and capacity prediction accuracy.
+
+\paragraph{Benefits of the MAS realization.} The MAS preserves the hybrid twin’s modeling strengths while adding: modularity (clear roles), scalability (parallel agents), resilience (supervision and isolation), and observability (per-agent metrics). The formal agent tuple provides a precise contract for each component and a foundation for further extensions (e.g., multiple assets, role replication, or hierarchical coordination).
+
+
+\subsection{Battery Twin on Generic MAS (src/battery\_twin)}
+\label{subsec:battery-twin-on-mas}
+
+The battery twin composes domain agents from the generic MAS primitives with a thin mixin for transport/storage integration:
+
+\begin{itemize}
+  \item \textbf{Agent base (\texttt{agents/battery\_agent\_base.py})}. Wraps \texttt{ReactiveAgent}, \texttt{BDIAgent}, and \texttt{HybridAgent} as \emph{BatteryReactive/BDI/Hybrid} with injected \texttt{Transport}, per-action MQTT subscriptions, heartbeats, and optional storage hooks.
+  \item \textbf{Telemetry Ingestor (Reactive).} Subscribes \texttt{battery/\{id\}/raw}, cleans/validates, publishes \texttt{.../telemetry/clean}, persists to time-series storage.
+  \item \textbf{State Estimator (BDI+EKF).} Consumes clean telemetry to estimate SoC/SoH and parameters, publishes \texttt{.../state/estimate}, adapts based on uncertainty/divergence.
+  \item \textbf{Health Monitor (BDI).} Consumes state estimates, tracks degradation and RUL, emits alerts and periodic health reports.
+  \item \textbf{Physics Model (Hybrid).} Accumulates per-cycle features, produces physics capacity predictions on \texttt{.../prediction/physics}, monitors error to trigger parameter adaptation.
+  \item \textbf{ML Residual (BDI).} Accumulates physics predictions + capacity labels as training pairs, trains residual model, publishes \texttt{.../prediction/hybrid}.
+  \item \textbf{Orchestrator + Hybrid Service.} Hosts a shared \emph{HybridDigitalTwin} backend that buffers per-cycle features from MQTT, trains on capacity events, and can publish hybrid predictions to avoid per-agent duplication.
+  \item \textbf{Topics.} Logical topics are resolved by \texttt{TopicManager} from \texttt{src/battery\_twin/config/mqtt\_topics.yaml} (e.g., \texttt{raw\_telemetry}, \texttt{clean\_telemetry}, \texttt{physics\_prediction}, \texttt{hybrid\_prediction}, \texttt{state\_estimate}, \texttt{capacity}).
+\end{itemize}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{images/battery_twin.png}
+  \caption{Battery twin implementation on the generic MAS.}
+\end{figure}

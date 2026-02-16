@@ -1,0 +1,549 @@
+\section{Proposed Agent-Based Architecture for Digital Twins}
+\subsection{Proposed architecture (high-level view)}
+
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{images/framework_overview_new.drawio.png}
+  \caption{generic mas}
+\end{figure}
+
+\subsection{Agent Model (general definitions)}
+
+\subsubsection{Abstract agent}
+
+Formally, an agent can be represented as a tuple combining identity, mental state, perception, actions, and decision mechanism (with goals and other extensions as needed). In this architecture, the previously separate interface concepts (communication, control, sensing) are subsumed into the Action component, yielding a more modular design. The components are detailed below, using predicates, sets, and functions to ensure rigor and compatibility with a hybrid BDI-reactive model.
+\paragraph{definition:}
+An agent $a_i \in \mathcal{A}$ is represented as:
+\begin{equation*}
+    a_i = \langle ID, State, Goals, Perception, Action, Decision \rangle
+\end{equation*}
+where:
+\begin{itemize}
+    \item ID: Unique identifier for the agent.
+    \item State: The internal state of the agent.
+    \item Goals: The goal set of the agent.
+    \item Perception: Observation and belief update (how environment state and messages become beliefs).
+    \item Action: The agent’s action function.
+    \item Decision: The agent’s decision function.
+    
+\end{itemize}
+All the parts of the agent are discussed in the subsection below:
+
+\paragraph{Agent Identity (Id)}
+
+Each agent has a unique identity that distinguishes it within the multi-agent system. 
+
+Let $\mathcal{A}$ be the set of all agents and $\mathcal{I}$ be the set of all possible identifiers. A function $Id: \mathcal{A} \to \mathcal{I}$ is defined, mapping every agent $a_i \in \mathcal{A}$ to its identifier $id_i$. For any two agents $a_i$ and $a_j$, if $i \neq j$ then $id_i \neq id_j$. The identity can be structured hierarchically for clarity. A tuple $id_i = (app, type, instance)$ can be defined, consisting of the application domain, the agent’s type or role, and an instance number. This ensures IDs are globally unique and carry organizational context. 
+
+% In summary:
+% Id: $id_A \in \mathcal{I}$ is a unique identifier for agent $A$, potentially segmented by domain, type, and instance.
+
+\paragraph{Internal State (State)}
+
+The state of an agent represents its internal knowledge and context. In a logical sense, this corresponds to the agent’s beliefs about itself and the world. An agent’s state is defined as a set  of facts or variables that the agent considers to be true. 
+
+Let $State_{a_i}$ denote the state of agent $a_i$. We can decompose this into parts capturing different aspects of an agents' knowledge:
+\begin{itemize}
+    \item $B^{\text{ext}}_{a_i}$: External beliefs, information $a_i$ has about the external environment and other agents. This is the agent’s understanding of the world outside, as in a belief base about the environment (possibly incomplete or outdated).
+
+    \item $B^{\text{int}}_{a_i}$: Internal state, information about $a_i$’s own condition (e.g. its goals, last action, internal variables). This includes private attributes and any self-model the agent maintains.
+\end{itemize}
+
+Thus $State_{a_i}$ can be defined as a tuple $State_{a_i} = \langle B^{\text{int}}_{a_i}, B^{\text{ext}}_{a_i} \rangle$, capturing both internal and external belief state. 
+In BDI terms, $State_{a_i}$ corresponds largely to the agent’s belief base $B$. An agent’s state may also encode uncertainty about certain beliefs. For example, the agent might associate a confidence level with each fact (e.g. $70\%$ sure of a particular condition). This can be modeled by having beliefs as pairs $(fact, c)$ with $c \in [0,1]$ indicating probability or certainty. A belief predicate $Belief_{a_i}(p, c)$ is defined, meaning agent $a_i$ believes proposition $p$ with confidence $c$. This allows the state to include both definite knowledge and probabilistic belief.
+
+Moreover, the state is an internal model the agent uses for decision-making. It is distinct from the true environment state; $a_i$’s external beliefs $B^{\text{ext}}_{a_i}$ are the agent’s perceived world, which may be incomplete or partially incorrect. For a multi-agent system, each agent’s state is private to itself, all though agents may share information to influence each other’s state via communication.
+
+In practice, the state may be modeled as a time-series of snapshots rather than a single static representation. Each snapshot is timestamped, and history can be maintained to enable inference about trends or evolution of the system. Older snapshots can be discarded due to memory constraints, but retaining a limited history makes agents more adaptive and “smarter” in their reasoning. 
+
+
+
+\paragraph{Goals}
+
+Goals represent the outcomes or states of the world that the agent is attempting to bring about. A component $Goals_{a_i}$ for agent $a_i$ is defined as a set of propositions or conditions that $a_i$ currently aims to achieve. Each goal $g \in Goals_{a_i}$ can be thought of as a desired world-state condition that the agent will try to make true. 
+
+Let $Goals_{a_i} \subseteq \Phi$, where $\Phi$ is the set of all possible propositions about the world. The agent’s goals influence its decisions by serving as evaluation criteria for actions and plans. Intrinsic and extrinsic goals are disitinguished as follows:
+\begin{itemize}
+    \item Intrinsic goals: Long-term or built-in objectives arising from the agent’s design or role. For example, a SensorAgent might have an intrinsic goal to continuously monitor and report a certain environmental variable, since that is part of its core function. These goals persist regardless of the specific context in which the agent is deployed.
+
+    \item Extrinsic goals: Objectives given to the agent by an external context, such as a user or a higher-level application. These are often scenario-specific. For instance, in a particular digital twin application, an agent may be assigned the goal of achieving an energy savings target or optimizing a process, on top of its intrinsic duties.
+    \item Workflow goals: execution-oriented objectives, e.g. completing a digital twin process or task.
+    \item Performance goals: optimization objectives, e.g. minimizing latency, maximizing efficiency, or satisfying service quality constraints.
+\end{itemize}
+
+We can represent this distinction by partitioning the goal set, e.g. $Goals_{a_i} = Goals_{a_i}^{\text{int}} \cup Goals_{a_i}^{\text{ext}}$, but for decision-making they collectively inform the agent’s intentions. Not all desires will necessarily be pursued at once; some goals might be mutually exclusive or deferred. In a BDI framework, the agent’s intentions would be the subset of $Goals_{a_i}$ it is actively committed to at a given time. However, for our formal model here we treat goals as the set of current high-level objectives. The agent’s state may include meta-information about goals (such as priority or deadlines), but for simplicity we consider $Goals_{a_i}$ as the logical target conditions themselves.
+
+
+
+
+\paragraph{Perception}
+
+Perception defines how an agent observes its environment and updates its state. We model perception as a function that maps the global environment state (or changes in it) to information the agent can understand.
+
+Let $S$ be the set of possible environment states and $\mathcal{O}$ the set of possible observations (percepts). Each agent $a_i$ has an observation function $O_i: S \to \mathcal{O}_i$ that yields the percepts observable by $a_i$ given the current environment, where $\mathcal{O}_i \subseteq \mathcal{O}$ is the subset of environment features accessible to $a_i$. In other words, $O_i(s)$ projects or filters the environment state $s$ to the agent’s perspective (determined by its sensors, location, and access rights). 
+	
+For example, if the environment is modeled as a set of variables or fluents, $O_i(s)$ might return a set of key--value pairs for those variables that agent $a_i$ can sense. Formally, one could define $O_i(s) = \{x = v \mid x \text{ is an observable property for $a_i$ in state } s\}$. The perception process then updates the agent’s state (beliefs) based on these observations.
+	
+Let $upd$ be a belief update function $upd: State \times \mathcal{O} \times MB \to State$, where $MB_i$ denotes the current mailbox contents for agent $a_i$ (possibly empty). When agent $a_i$ perceives observation $o = O_i(s)$ from environment state $s$, its belief state changes as: $State_{a_i} := upd(State_{a_i}; o, MB_i)$. This operation revises $a_i$’s $B^{\text{ext}}_{a_i}$ (external beliefs) to reflect the new information (for instance, adding new facts or modifying existing ones). In a reactive sense, $o$ might also trigger immediate condition-action rules (see Decision below).
+
+Conceptually perception is separated as the input channel, but in implementation this can be seen as a continuous sensing action. Sensing can be modeled as a special kind of action. For example, a built-in action like “listen()” that the agent performs to fetch observations. Here we maintain it as a distinct component for clarity, but the architecture allows treating certain perceptual operations as actions of the agent itself. The key property is that perception is selective and partial, each agent observes only a subset of the world (often determined by its role or physical situation). This perceived information is what populates the agent’s state (its beliefs).
+
+\paragraph{Action}
+
+The Action component defines how the agent interacts with the environment and other agents. This encompasses all forms of influence an agent can exert, such as physical/digital actions, communications, even sensing operations under a unified framework. 
+
+The set of all possible action types in the system is denoted as $\mathcal{U}$. Each agent $a_i$ is characterized by an action capability set $Act_i \subseteq \mathcal{U}$: the collection of actions that $a_i$ is capable of performing, restricted by its role, permissions, and embodiment. For example, a “Controller” agent might have actions to adjust setpoints, whereas a “Sensor” agent might only send readings and not directly change the environment. Every action $a \in Act_i$ is described formally as an operation on the environment and possibly on agents’ internal states:
+
+An action is defined as a state-transforming function. For an environment state $s \in S$, $a(s)$ produces a new state $s' = a(s)$ reflecting the action’s effects. If the action also affects the acting agent’s internal state (e.g., consuming an internal resource or updating a record of what it has done), the model can extend $a$ to act on $(State_{a_i}, s)$ and output $(State'_{a_i}, s')$. However, in most cases actions are treated as impacting the environment, with the agent’s own state updated separately via the decision process. 
+
+\begin{itemize}
+    \item \emph{Transient}: actions that finish once executed.
+    \item \emph{Persistent}: actions that, in principle, do not terminate (e.g., continuous monitoring).
+    \item \emph{Periodic}: actions that repeat at intervals.
+\end{itemize}
+
+
+
+
+Each concrete action $a$ may have preconditions and effects. A function $\mathit{exec}$ is defined that maps $(a_i, a, s)$ to the resulting environment state $s'$ (or fails if the preconditions are not met). However, to keep the formal model abstract, it is assumed that the environment or simulator will handle the execution of $a$ and produce observable changes, which the agent will perceive on the next cycle. All agent interactions with the world go through actions; there is no “backdoor” for an outside entity to directly change an agent or environment except via actions. This aligns with encapsulation: the only way to affect an agent or the environment is through the defined actions of an agent. The control of an agent over the digital twin is fully defined by the actions it can perform. Likewise, the sensing interface can be seen as passive observation or a set of sensing actions, and the communication interface is just the set of send/receive actions.
+
+
+\paragraph{Decision Mechanism}
+The Decision component maps the agent’s updated state and current percepts to one next action, consistent with the environment and communication models above. Formally, for agent $a_i$:
+\[
+\delta_i : State_{a_i} \times \mathcal{O}_i \times MB_i \rightarrow Act_i
+\]
+where $Act_i$ contains both environment-level actions and communicative actions (plus an inert fallback):
+\[
+Act_i \;=\; A_i \;\cup\; \{\,send(i,j,m)\mid j\in \mathcal{A},\; m\in\mathcal{M},\; (i,j)\in Comm\,\}\;\cup\;\{wait\}.
+\]
+The decision cycle is implementation-neutral but proceeds through well-defined stages that match the framework’s abstractions:
+
+\begin{enumerate}
+  \item \textbf{Perception and state update.} Ingest the new environment observation and mailbox:
+  \[
+  s' \;\leftarrow\; upd\bigl(State_{a_i},\; O_i(s),\; MB_i\bigr),
+  \]
+  then clear (or mark as consumed) $MB_i$. This keeps the agent’s belief/state aligned with the shared environment and incoming messages.
+
+  \item \textbf{Goal and intention maintenance.} Update $Goals_{a_i}$ and an optional intention store $I_{a_i}$ (e.g., add/remove goals from messages, monitors $\mu$, or application context). This step reconciles intrinsic/extrinsic/workflow goals with current progress.
+
+  \item \textbf{Option generation.} Produce a finite set of candidates
+  \[
+  O \;\leftarrow\; opt_{a_i}(s',\, Goals_{a_i}),
+  \]
+  where each option $o\in O$ carries an \emph{intended action} $a\in Act_i$ and optional metadata (e.g., plan step, task id, estimated cost). Typical sources:
+  \begin{itemize}
+    \item \emph{Primitive environment actions} $a\in A_i$ that are enabled in $s'$.
+    \item \emph{Communicative actions} $send(i,j,m)$ for queries, reports, coordination, or delegation.
+    \item \emph{Digital-application steps:} for tasks $t\in T$ with $\alpha(t)=a_i$ and all predecessors $t_k$ with $(t_k,t)\in Dep$ completed, generate the step that invokes the associated $\sigma\in\Sigma$ (if any).
+    \item \emph{Plan/library steps} or learned policies that map $(s', Goals_{a_i})$ to the next executable step.
+  \end{itemize}
+
+  \item \textbf{Feasibility, safety, and authorization filter.} Retain only options that are admissible:
+  \[
+  O^f \;=\; \{\,o\in O \mid allowed_{a_i}(o)\ \wedge\ safe(o,s')\ \wedge\ resources(o,s')\,\}.
+  \]
+  Here $allowed_{a_i}$ enforces role/permission constraints; $safe$ enforces domain invariants (e.g., interlocks, envelopes); $resources$ checks availability/capacity. This step harmonizes organizational and environment constraints with action choice.
+
+  \item \textbf{Reactive preemption (optional, prioritized).} Evaluate a set of triggers
+  \[
+  T_{a_i} \;=\; \{\,(\varphi, a, p)\,\}
+  \]
+  with conditions $\varphi(s')$, candidate action $a\in Act_i$, and priority $p$. If any $\varphi$ holds and $a$ is feasible (i.e., $a$ has a corresponding option in $O^f$), let $a_r$ be the highest-priority trigger. A mediator $M_{a_i}$ (policy) decides whether to \emph{preempt} and return $a_r$ immediately or to let $a_r$ enter the selection pool with elevated priority. This preserves rapid responses without bypassing safety/authorization.
+
+  \item \textbf{Deliberative selection.} If no trigger preempts, select one action with a policy
+  \[
+  a^\star \;\leftarrow\; \pi_{a_i}\bigl(s',\, O^f,\, Goals_{a_i}\bigr),
+  \]
+  where $\pi_{a_i}$ may be rule-, utility-, search/planning-, or learning-based. It may incorporate goal priorities, task deadlines, expected utility, and workflow progress (e.g., favor options advancing assigned $t\in T$ respecting $Dep$).
+
+  \item \textbf{Commit and bookkeeping.} Update $I_{a_i}$ and progress records (e.g., mark task step started/completed), then emit an audit record
+  \[
+  log_{a_i}\bigl(id_i,\, time,\, s',\, MB_i,\, O,\, O^f,\, a^\star,\, \text{rationale}\bigr).
+  \]
+  Executing $a^\star$ contributes to the next joint action vector; environment actions participate in $\tau$, and $send$ actions are delivered via \textit{deliver} into recipients’ $MB$.
+\end{enumerate}
+
+\noindent\textbf{Timing and reproducibility.} Each $\delta_i$ has a budget $\Delta_i$. If selection cannot finish in time or $O^f=\varnothing$, execute a safe fallback $a_{\text{safe}}\in Act_i$ (e.g., $wait$ or a domain-specific safeguard). For stochastic policies, fix seeds or carry the random state to ensure repeatable runs.
+
+\noindent\textbf{Well-formedness.} Triggers $T_{a_i}$ are subject to the same $allowed/safe/resources$ checks as any option. Communication respects $Comm$; task options for $t$ are generated only when $Dep$ prerequisites hold. The mechanism is agnostic to internal architecture (reactive/BDI/hybrid) yet grounded in the shared models $\mathcal{ENV}$ and $\mathcal{COMM}$ and the digital application tuple $\mathcal{DA}$.
+
+\noindent\textbf{Summary.} The mechanism composes an update–generate–filter–arbitrate–select–commit loop that is (i) compatible with environment dynamics $\tau$ and observations $O_i$, (ii) respects organizational roles/permissions, (iii) integrates digital-application tasks $(T, Dep, \Sigma, \alpha, \mu)$, and (iv) supports both fast reactions and deliberative choice under explicit safety and timing guarantees.
+
+
+
+
+
+
+
+
+% \paragraph{Decision Mechanism}
+% The Decision component encapsulates the agent's reasoning process: It takes the current state of the agent and new perceptions and decides what action to take next. 
+
+% The decision-making is defined as a function or set of functions that implement a sense–think–act cycle. Let $\delta_A$ be the decision function for agent $A$. In general, on each iteration $\delta_A$ will consume the latest percepts, updating the agent’s state $State_A$, then select an action $a \in Act_A$ to execute, based on the agent’s reactive rules and goal-directed deliberation.
+
+% To capture the hybrid reactive/BDI behavior, we define $\delta_A$ as a combination of two decision modalities: a set of condition-action rules for immediate reactions, and a deliberative reasoning function for goal-oriented choice. 
+
+% Let $R_A$ be the set of reactive rules of agent $A$, where each rule $r \in R_A$ has the form $(\phi \rightarrow a)$ meaning “if condition $\phi$ holds (in the current context) then perform action $a$.” Here $\phi$ can be a condition for the agent’s percepts or state. Also, let $f_{BDI}$ represent the agent’s deliberative decision procedure, which uses the agent’s beliefs, goals, and possibly plan library to choose an action or plan step. the decision function can be described$\delta_A$ as follows:
+
+% \begin{equation*}
+% \delta_A(\text{State}_A) =
+% \begin{cases}
+% a, & \text{if there exists a rule } (\varphi \rightarrow a) \in R_A \text{ such that } \text{State}_A \models \varphi, \\[4pt]
+% f_{\text{BDI}}(\text{State}_A, \text{Goals}_A), & \text{otherwise}.
+% \end{cases}
+% \end{equation*}
+
+
+
+% Thus, agent $A$ first checks its reactive rule set $R_A$ to see if any condition $\phi$ is satisfied by the current situation (state/percepts). If so, it immediately chooses the corresponding action $a$. If no reactive rule fires, then the agent engages its deliberative reasoning $f_{BDI}$ to select an action that furthers its current goals. The deliberative function $f_{BDI}$ can be thought of as implementing the classic BDI loop: it may involve generating options (i.e. possible actions or plans) from the agent’s intentions and current beliefs, evaluating which option best advances the goals, and selecting that as the next action. This often entails considering the agent’s plans or intentions: the agent might have a plan library $\Pi_A$ and maintain intentions $I_A$ (a set of committed plans) in its state, as in standard BDI models. This behaviour is abstracted into $f_{BDI}$, which returns an action choice when no immediate rule applies.
+
+% The above definition implicitly includes a mediation strategy between reactive and deliberative outputs. In this formulation, reactive rules take precedence. This priority reflects the idea that certain conditions demand an instant reaction (e.g. safety interlocks or real-time responses) which overrides planned activities. 
+
+% Alternatively, a mediator function $M$ could be created that arbitrates between a candidate reactive action $a_r$ and a deliberative action $a_d$ based on context or urgency. The agent’s decision at any time is a result of either a rule firing or a reasoning process, so the net effect is identical. We assume $\delta_A$ yields a single action at each decision step, allthough internally it might consider multiple options.
+
+% Formally, we can view $\delta_A$ as a mapping $\delta_A: State_A \to Act_A$. However, it can be broken up into stages consistent with the perception-update-action cycle:
+
+% \begin{itemize}
+%     \item Perception update: Incorporate new observations into $State_A$ (this is handled by the Perception component as described above, e.g. via $upd$. This corresponds to belief revision: $B \leftarrow B \cup {new\_percepts}$.
+
+%     \item Option generation: Using the updated state (beliefs) and the goal set, generate possible actions or plans. In BDI terms, this is where the agent considers its desires and current intentions to form a set of options or candidate means to achieve goals. Some options may be immediate one-step actions, while others could be multi-step plans from $\Pi_A$.
+    
+%     \item Reactive check: Simultaneously or prior to deliberation, evaluate $R_A$ against the state to catch any high-priority conditions. If a rule triggers, select its action and skip deliberation.
+
+%     \item Deliberation/selection: If no rule pre-empted the process, choose an action from the options generated. This might involve choosing the highest priority goal to focus on, then selecting a plan or action that advances that goal. The result of deliberation is an intended action (or an intention to execute a plan, which yields the next action step).
+
+%     \item Action execution: Invoke the chosen action $a$ by calling the environment execution model (generating change in $\mathcal{E}$). This will in turn produce new percepts for the next cycle and this close the loop.
+% \end{itemize}
+
+% \begin{tikzpicture}[
+%   node distance = 16mm and 24mm,
+%   >=Latex,
+%   every node/.style = {font=\small},
+%   box/.style   = {draw, rounded corners, align=left, minimum width=40mm, minimum height=8mm, fill=gray!5},
+%   io/.style    = {draw, trapezium, trapezium left angle=75, trapezium right angle=105, align=left, minimum width=40mm, minimum height=8mm, fill=gray!5},
+%   decision/.style = {draw, diamond, aspect=1.6, align=center, inner sep=1.2pt, fill=gray!5},
+%   note/.style  = {draw, align=left, rounded corners, fill=white},
+%   lab/.style   = {align=left}
+% ]
+
+% \node[io]      (percept)   {Perception update\\
+% $\text{State}_A \leftarrow upd(\text{State}_A,\; \Omega_A(e))$\\
+% $B \leftarrow B \cup \{\textit{new\_percepts}\}$};
+
+% \node[box, below=of percept] (options) {Option generation\\
+% From $(\text{State}_A,\;\text{Goals}_A)$ produce candidates\\
+% $O = \{\text{actions or plans from }\Pi_A\}$};
+
+% \node[decision, below=of options] (react) {Reactive check\\
+% $\exists\,(\varphi \to a)\in R_A$ with $\text{State}_A \models \varphi$};
+
+% \node[box, right=28mm of react] (delib) {Deliberation / selection\\
+% $a \leftarrow f_{\text{BDI}}(\text{State}_A,\;\text{Goals}_A)$};
+
+% \node[box, below=of react] (act) {Action execution\\
+% apply $a \in Act_A$ to $\mathcal{E}$};
+
+% \path[->] (percept) edge (options);
+% \path[->] (options) edge (react);
+
+% \path[->] (react) edge node[lab, left] {yes\\$a$ from $R_A$} (act);
+% \path[->] (react) edge node[lab, above] {no} (delib);
+% \path[->] (delib) edge [bend left=12] node[lab, right] {$a = f_{\text{BDI}}(\cdot)$} (act);
+
+% \path[->] (act.west) edge [bend left=35] node[lab, above] {effects on $\mathcal{E}$ yield new $\Omega_A(e)$} (percept.west);
+
+
+% \node[note, above right=1mm and 6mm of percept.east, anchor=west] (legend) {%
+% \textbf{Symbols:}\\
+% $\Omega_A$: observation function\\
+% $upd$: belief update\\
+% $R_A$: reactive rules\\
+% $\Pi_A$: plan library\\
+% $f_{\text{BDI}}$: deliberative choice\\
+% $Act_A$: action set\\
+% $\mathcal{E}$: environment
+% };
+
+% \end{tikzpicture}
+
+% This cycle repeats continuously, meaning the Decision component is essentially a loop that monitors state/goals and issues actions until the agent’s goals are achieved or it is stopped. 
+
+% The subsection above ensures the agent can exhibit both reactivity (through $R_A$ rules mapping percepts directly to actions, as in a purely reactive agent) and proactivity (through goal-driven choice via $f_{BDI}$, as in a deliberative BDI agent).
+
+\subsection{Agent Types in the Context of Digital Twins}
+
+The abstract agent definition established earlier specifies that each agent $a_i \in \mathcal{A}$ can be represented as a tuple:
+\begin{equation*}
+    a_i = \langle ID, State, Goals, Perception, Action, Decision \rangle
+\end{equation*}
+
+where ID uniquely identifies the agent, State captures its internal representation, Goals encode desired outcomes, Perception and Action are the interfaces to the environment, and Decision governs behavior. Within this framework, different agent architectures can be described by how they instantiate or restrict these components. This section details three widely used types of agents—reactive, BDI, and hybrid agents—showing how each can be formally characterized using the abstract agent definition and how they apply to multi-agent digital twin systems.
+
+\subsubsection{Reactive Agents}
+
+Reactive agents are the simplest form of agent architecture. Their behavior is defined by a direct mapping between perceptions and actions, without the use of explicit goals or long-term reasoning.
+
+Formally, a reactive agent can be defined as:
+\begin{equation*}
+    a_{reactive} = \langle ID, State, \emptyset, Perception, Action, Decision_{reactive} \rangle
+\end{equation*}
+\begin{itemize}
+    \item State: The state is minimal and represents the most recent perceptions of the environment. It does not contain a historical or model-based view of the digital twin.
+
+    \item Goals: Absent, denoted by the empty set. Reactive agents do not pursue explicit goals.
+
+    \item Decision: The decision function is a fixed mapping from current state or perception to an action. For instance, in a digital twin of a manufacturing process, a reactive agent may directly trigger a shutdown if a sensor exceeds a threshold.
+
+    \item Perception and Action: Perceptions are directly coupled to actions, allowing for rapid responses.
+\end{itemize}
+
+In digital twin contexts, reactive agents are suited for tasks that require high-speed response, such as anomaly detection or fail-safe mechanisms.
+
+\subsubsection{BDI Agents}
+
+Belief–Desire–Intention (BDI) agents provide a richer architecture by incorporating explicit reasoning about the environment and future actions.
+
+Formally, a BDI agent can be defined as:
+\begin{equation*}
+    a_{BDI}= \langle ID, State_{beliefs}, Goals_{desires}, Perception, Action, Decision_{BDI} \rangle
+\end{equation*}
+\begin{itemize}
+    \item State: Represents the agent’s beliefs, i.e., its model of the environment and digital twin, updated through perception.
+
+    \item Goals: Correspond to desires, from which a subset is selected as intentions to guide behavior.
+
+    \item Decision: The deliberative decision function evaluates beliefs, selects intentions, and generates plans to achieve them.
+
+    \item Perception and Action: Perception updates the belief base, while action executes the chosen plans.
+\end{itemize}
+
+In the digital twin context, BDI agents are well suited for subsystems requiring reasoning and coordination, such as optimizing performance or scheduling predictive maintenance.
+
+\subsubsection{Hybrid Agents}
+
+Hybrid agents combine the immediacy of reactive behavior with the flexibility of deliberative reasoning through a layered decision structure.
+
+Formally, a hybrid agent can be defined as:
+\begin{equation*}
+a_{hybrid}= \langle ID, State_{reactive+deliberative}, Goals, Perception, Action, Decision_{layered} \rangle
+\end{equation*}
+\begin{itemize}
+    \item State: Maintains both short-term perceptual data for reactive actions and structured internal models for deliberation.
+
+    \item Goals: Used by the deliberative layer to guide medium- and long-term behavior.
+
+    \item Decision: Implemented as a layered function, where the reactive layer handles immediate stimuli and the deliberative layer supports planning and reasoning.
+
+    \item Perception and Action: Perceptions feed both layers; actions can originate from either rapid rules or strategic plans.
+\end{itemize}
+
+\subsubsection{Chosen agent type}
+
+Digital twins typically require two capabilities at once: Fast and and predictable control to keep cyber and physical states synchronized in real time, and higher-level reasoning for planning, optimization, and what-if analysis~\cite{jones2020characterising, kritzinger2018digital, tan2024dtsync, Liu2024DTMMReview}. A single architecture can struggle to do both. Hybrid agents combine a time-critical reactive layer with a deliberative layer~\cite{gat1998three, bonasso1997experiences, ark}
+
+\paragraph{Reactive agents}
+Reactive agents provide very low latency behaviour based on stimulus–response rules, which is useful for safety loops and immediate control. However, they have limited explicit state, goal reasoning, and planning, which restricts explainability and long-horizon decisions~\cite{Wooldridge2009MAS, gat1998three}.
+
+\paragraph{BDI agents}
+BDI agents explicitly model beliefs, desires, and intentions, which supports goal management, plan selection, and explainability. BDI works well for coordination and supervision, but timing guarantees are weaker and runtimes can be higher, which is risky for strict real-time loops~\cite{rao1995bdi}. In digital-twin settings, BDI has been used to represent processes and organizations, but practitioners often integrate it with lower-level controllers to meet latency needs~\cite{marah2024adaptive, Alelaimat2023XPlaM}.
+
+\paragraph{Hybrid agents}
+Hybrid architectures layer a fast reactive controller under an executive and a deliberator, so immediate behaviors run predictably, while planners handle complex reasoning when time allows~\cite{gat1998three,bonasso1997experiences}. This mirrors the structure of industrial digital twins, where edge control closes the loop with sensors and actuators, while cloud or on-prem services run optimization, scheduling, and predictive analytics~\cite{jones2020characterising, Liu2024DTMMReview}.
+
+\paragraph{Fit to digital-twin requirements}
+
+The reactive layer keeps twin and asset aligned with low jitter, which allows for real-time synchronization~\cite{tan2024dtsync}.
+In addition, the deliberative layer performs planning, diagnosis, and what-if analysis without blocking control~\cite{jones2020characterising, Liu2024DTMMReview}. The executive and deliberator maintain goals and plans for audit, while the reactive layer handles time-critical policies \cite{rao1995bdi, Alelaimat2023XPlaM}.
+
+% \begin{table}[h]
+% \centering
+% \caption{Comparison of agent types for digital-twin needs}
+% \begin{tabular}{@{}p{3.2cm}p{3.3cm}p{3.3cm}p{3.3cm}@{}}
+% \toprule
+% \textbf{Criterion} & \textbf{Reactive} & \textbf{BDI} & \textbf{Hybrid} \\ \midrule
+% Low-latency control & Excellent & Variable & Excellent \\
+% Long-horizon planning & Limited & Strong & Strong \\
+% Predictable timing & High & Lower & High at reactive layer \\
+% Explainability & Low & High & High at deliberative layer \\
+% DT edge–cloud placement & Edge-oriented & Supervisory & Layered, flexible \\ \bottomrule
+% \end{tabular}
+% \end{table}
+
+
+Because digital twins must satisfy both strict real-time synchronization and higher-level reasoning, hybrid agents provide the best overall fit in practice. Since they retain the latency and robustness of reactive control while adding BDI-like planning and goal management where needed~\cite{gat1998three, bonasso1997experiences, jones2020characterising, Alelaimat2023XPlaM}
+
+
+
+% \subsection{Decision Mechanism per agent type}
+
+
+
+\subsection{Organizational Structure and Components}
+The organizational structure is comprised of three key organizational components: roles, groups, and the hierarchy. This section highlights how they structure agent interactions and task delegation.
+\subsubsection{Roles}
+A role defines an abstract behavior or function within the organization that an agent can fulfill. a Role is defined as an abstract tuple:
+\begin{equation*}
+    R = (responsibilities, permissions, requirements, expectations)
+\end{equation*}
+where:
+\begin{itemize}
+    \item Responsibilities: The duties or tasks the role should perform (what the agent in this role is expected to do).
+    \item Permissions: The rights or authority the role has (what the agent is allowed to do, e.g. access to certain data or ability to issue commands).
+    \item Requirements: Conditions or skills needed to occupy the role (what an agent must have or know to take the role).
+    \item Expectations: Constraints or norms on the role’s behavior (e.g. must respond to superior’s messages within a timeframe, etc).
+\end{itemize}
+Less formally, a role is “the abstract representation of a functional position of an agent in a group”. It specifies a pattern of behavior and interaction that any agent playing that role should follow. Each role comes with interaction protocols relevant to that role. By defining roles, organizational abstraction can be achieved: the system can be designed in terms of roles and their relationships, rather than individual agents.
+
+\subsubsection{Groups}
+A group is a collection of agents (or roles) that share a common objective or context within the organization. Groups often correspond to sub-teams or subsystems in the modeled organization.A Group is defined as an abstract tuple:
+
+\begin{equation*}
+    G = (Name, Roles_G, Purpose)
+\end{equation*}
+where:
+\begin{itemize}
+    \item Name: identifier of the group.
+    \item $Roles_G$: The set of roles that exist in that group.
+    \item Purpose: The common goal or area of activity of the group.
+ \end{itemize}
+ All agents in the group contribute toward the group’s purpose in complementary roles. 
+
+
+\subsubsection{Hierarchy}
+In this framework, agents are organized in a tree-structured hierarchy: each agent occupies a node in a tree, reflecting supervisory relationships (except a top-level root agent with no superior). The agent’s role and position in this hierarchy are explicitly modeled as described above. Let $\mathcal{A}$ be the set of all agents. The hierarchy can be defined by a parent function:
+\begin{equation*}
+    Sup:\mathcal{A}\rightarrow \mathcal{A} \cup \{\perp\}
+\end{equation*}
+mapping each agent to its supervisor, or to a null symbol $\perp$ if it has no supervisor. The subordinate function is defined as:
+\begin{equation*}
+    Sub:\mathcal{A}\rightarrow 2^{\mathcal{A}} 
+\end{equation*}
+
+It maps each agent to the set of agents it directly supervises. These create a tree over agents. Each agent’s role is an attribute Roles(a) drawn from a set of role types. An agent’s role often correlates with its position in the tree, but role can also encode functional specialties orthogonal to the pure hierarchy. 
+
+
+However, not all organizations are strictly hierarchical; a peer-to-peer (fully decentralized or flat) structure is also possible. In a peer-to-peer organization, there is no single root or no fixed layers of authority, all agents operate as equals with no permanent superior-subordinate links. Formally, this can be seen as a special case where $Sup(a) = \perp$ for every agent $a$, meaning no agent reports to any other. Coordination in such a scenario does not rely on a fixed boss/worker chain. Leadership or task allocation might instead be negotiated or emergent among the agents. This flat hierarchy maximizes equality and resilience since there is no single point of failure or authority), though it can face challenges in efficiency and coherence as the system scales.
+
+
+In practice, many multi-agent systems lie between these extremes, combining hierarchical layers with peer-to-peer interactions for flexibility~\cite{Moore2025Taxonomy}. The key point is that the framework can accommodate both a strict tree hierarchy and a peer-to-peer organization by appropriate definition of the $Sup$/$Sub$ relations (from a tall hierarchy to a completely flat structure). The agent’s organizational position is explicitly modeled as part of its state, so a peer-to-peer case would simply have an empty or $\perp$ supervisor field for all agents and no designated chain-of-command, while possibly still assigning roles and groups as needed~\cite{Moore2025Taxonomy}.
+
+The agent’s organizational position is represented as a tuple which part of the agents State:
+ \begin{equation*}
+    (Roles,Sup,Subs,G)
+ \end{equation*}
+where:
+\begin{itemize}
+    \item Roles: the set of roles.
+    \item Sup: the identifier of its supervisor.
+    \item Subs: the set of its subordinate agents.
+    \item G: represents any group affiliations.
+\end{itemize}
+
+
+
+
+\subsection{Communication}
+Communication in a multi-agent digital twin system refers to the exchange of information or requests between agents through explicit message-passing. It is a fundamental mechanism that enables agents to coordinate their actions, share state knowledge, and work collaboratively towards system goals. In the framework, an agent’s communication capability is treated as an integral part of its action rather than a separate module. Each message acts as an action performed by the sending agent. 
+
+
+
+
+\subsubsection{Formal Modeling of Communication}
+The communication model is characterized by a set of formal elements that capture how messages are represented and transmitted among agents. These elements are defined as follows:
+
+\[
+\mathcal{COMM} = \langle \mathcal{M}, Top_{comm}, A_{comm}, MB_i, deliver\rangle
+\]
+Where:
+
+\paragraph{$\mathcal{M}$ (Message Space):} $\mathcal{M}$ is the set of all possible messages that can be communicated between agents. A message $m \in \mathcal{M}$ is an abstract entity which is made up of the content and intent of a communication. Messages can be seen as atomic tokens or data elements. This allows the framework to accommodate any communication language as instances of $\mathcal{M}$. The internal structure or semantics of messages in $\mathcal{M}$ are not fixed; those can be specified by a certain implementation or protocol layer on top of the model.
+
+\paragraph{$Top_{comm}$ (Communication Topology):} Not all agents necessarily communicate with all others. The set of permitted communication links is defined by a relation $Comm \subseteq \mathcal{A} \times \mathcal{A}$, where $\mathcal{A}$ is the set of agents in the system. If $(i,j) \in Comm$, then agent $a_i$ is allowed to send messages to agent $a_j$. The topology $Comm$ encodes the communication network structure, which can be directed or undirected depending on the application. This relation can be seen as a directed graph over the agents. A fully connected network is one where $Comm = \mathcal{A} \times \mathcal{A}$; in this case every agent can directly communicate with every other. However, restricted topologies are allowed. The relation $Comm$ can also be group communication or broadcast channels: for instance, if an agent has a link to a group proxy, that proxy could forward the message to multiple recipients. However, formally this would be modeled via individual $(i,j)$ links or a special broadcast action as described below. It is assumed that $Comm$ is at least reflexive enough to allow an agent to communicate with itself only if needed for internal messaging (this is rarely used, but including $(i,i)$ is not prohibited). In many cases $Comm$ will be dynamic (e.g., if agents join/leave or if links appear/fail), but these dynamics are handled by updating the relation over time rather than altering the communication semantics.
+
+\paragraph{Communication Actions:} Each agent’s action set $Act_i$ (Decision Mechanism) includes communicative actions for sending messages. Formally, for any pair of agents $a_i, a_j$ and any message $m \in \mathcal{M}$, an action is described $send(i,j,m)$ meaning: agent $a_i$ sends message $m$ to agent $a_j$. These sending actions are how messages enter the communication channel.
+We do not distinguish different intents at the level of action naming; the content $m$ itself provides the intent.
+A broadcast is a special communication action: $send(i, \ast, m)$ meaning $a_i$ sends $m$ to all agents or all in a defined group. This can be treated as a shortcut for multiple individual sends to each $a_j$ or to each $a_j$ in a target group. Performing a $send$ action does not directly modify the environment state $S$, since communication is separate from the physical/digital environment. It triggers the transmission of a message through the communication channel. The receive side is passive: an agent does not need to execute an action to receive a message. Reception is handled by the delivery model described below. However, an explicit $receive$ action can be modeled if the architecture required it.
+
+\paragraph{$MB_i$ (Mailbox of agent $a_i$):} To formalize asynchronous communication, we associate each agent $a_i$ with a mailbox $MB_i$. This is a buffer that holds incoming messages for the agent $a_i$ that have been sent by others but not yet processed by $a_i$. $MB_i$ is part of the agent’s perceptual inputs that accumulate between decision cycles. Initially, $MB_i$ is empty for all $i$. The mailbox allows for the decoupling of send and receive timing. Formally, $MB_i$ can be defined as a multiset (or ordered queue) of messages from $\mathcal{M}$. A strict ordering across different senders is not set. By default, messages may be delivered in any order unless a particular implementation guarantees ordering (e.g., FIFO per sender). An agent’s perception function will incorporate $MB_i$ so that the agent becomes aware of new messages. The contents of $MB_i$ are transferred to agent $a_i$ ’s percepts before every decision cycle. After the transfer $MB_i$ may be cleared, assuming messages are consumed. This way, messages in the mailbox effectively become part of $a_i$’s input for decision-making, alongside environmental observations $O_i(s)$.
+
+\paragraph{$deliver$ (Message Delivery Function):} This is an abstract delivery function to model how send actions result in messages appearing in mailboxes. Let $\mathit{deliver}: \mathcal{A} \times \mathcal{A} \times \mathcal{M} \to {\textit{put in mailbox}}$ be the message transmission operation. For each send action performed, $deliver$ takes the tuple $(a_i, a_j, m)$ and produces the effect of $m$ being placed into $MB_j$, given that $(i,j) \in Comm$ (i.e., $i$ is allowed to reach $j$). If at time $t$ agent $a_i$ executes $send(i,j,m)$, then by time $t+\Delta$ (where $\Delta$ represents the communication latency, typically within one simulation step in an abstract model) we will have $m \in MB_j$. Reliable delivery is assumed; this means that other than a change in $Comm$ or agent failure, every send action results in the intended message arriving at its intended destination. 
+% (If needed, unreliability or message loss could be modeled by making $deliver$ a non-deterministic or probabilistic function, but in the core framework we consider idealized reliable channels.) 
+This delivery function is conceptual, in an implementation it could be realized by a network transport, a message broker, or a shared memory mechanism. The key property is that communication actions by agents are effectual in that they lead to messages being received by other agents, rather than vanishing. Formally, the global environment state $s \in S$ does not get modified when a message is sent. Moreover, $deliver$ affects the receiving agent’s mailbox, which is outside $S$, since $S$ represents the shared environment state, but not the internal agent states. The perception update for agent $a_j$ will take $MB_j$ into account. This models that $a_j$ has received those messages. Thus, $deliver(i,j,m)$ formalizes the link between a send action by $a_i$ and the availability of $m$ to $a_j$.
+
+These definitions provide a formal, implementation-independent definition for communication in the framework. Outgoing messages from any agent are just another kind of action it can perform, and incoming messages are handled via mailboxes and the delivery function as part of the agent’s perceptual intake. This design allows for multiple communication patterns to be instantiated. From the perspective of the model, as long as an agent’s send action eventually results in another agent seeing the message in its $MB$, the requirements are satisfied.
+
+
+\subsection{Environment in Multi-Agent Digital Twin Systems}
+
+In multi-agent systems (MAS), the environment is recognized as a first-class component of the model, separate from the agents themselves~\cite{weyns2007environment}. In general terms, “the environment provides the surrounding conditions for agents to exist and mediates both the interaction among agents and the access to resources”~\cite{weyns2007environment}. The environment of an agent is everything outside the agent that the agent can perceive and influence. This includes other agents from an individual agent’s perspective and domain-specific objects or data, but excludes underlying infrastructure like network transport or hardware details. The environment is thus an application-level shared world in which agents are situated, not the low-level platform they run on~\cite{weyns2007environment}. The environment is often treated as an explicit shared abstraction in MAS design, rather than an implicit backdrop, because it can encapsulate domain dynamics and realize agent coordination~\cite{weyns2007environment}.
+
+\subsubsection{Formal Modeling of the Environment}
+
+The environment in a multi-agent framework can be defined by a set of state variables and transition functions that capture how the world changes due to agent actions and on its own. The environment is defined the as:
+
+\[
+\mathcal{ENV} = \langle S, A_i, \tau, O_i\rangle
+\]
+Where:
+
+\paragraph{$S$ (State Space)}: a set of all possible environment states, representing every relevant configuration of the shared world outside the agents~\cite{belenguix2007formalmodel}. Each state $s \in S$ encodes the values of application-specific environmental variables.
+
+\paragraph{$A_i$ (Action Set of Agent $i$)} For each agent $i$ (with $i=1,\dots,n$), a set of actions $A_i$ that the agent can perform on the environment. The joint action space $A = A_1 \times \cdots \times A_n$ represents all combinations of simultaneous actions of the agents $n$ in the system. These actions are defined at the application level, not low-level hardware commands.
+
+\paragraph{$\tau$ (State Transition Function)} A function $\tau: S \times A \to S$ that defines the dynamics of the environment by mapping a state and a joint action to a resulting new state~\cite{zhang2020transfer}. In each time step or interaction cycle, the state of the environment is updated according to $\tau(s, a_1,\dots,a_n)$ when the agents perform actions $(a_1,\dots,a_n) \in A$. This is how agent actions affect the shared state. The transition function can also incorporate environment-led dynamics by modeling spontaneous or   external state changes as part of the state evolution~\cite{belenguix2007formalmodel}. If no agent acts on a given step, $\tau(s, \textit{idle})$ could still produce a new state reflecting natural progress in the simulated world.
+
+\paragraph{$O_i$ (Observation Function)} a mapping that determines what each agent $a_i$ perceives from the environment states). $O_i: S \to \mathcal{O}_i$ yields the percept for agent $a_i$ given the current state, where $\mathcal{O}_i \subseteq \mathcal{O}$ is the agent-specific observation space. This ensures that in partial environments, agents may have limited views of $s$~\cite{weyns2007environment}.
+
+
+\subsubsection{Environment in a Digital Twin Application Context}
+
+In the context of a digital twin application, the environment as defined above corresponds to the virtual world in which the agents operate. The digital twin’s state provides the shared environment $S$ that all agents perceive and act upon. The digital twin is the environment for the agents, representing relevant aspects of the physical asset or process in software form~\cite{Lee2025DigitalTwins}. This environment is shared across agents, any agent’s action can affect the digital twin’s state, and those changes are visible to other agents via the shared state. The environment arbitrates inter-agent interaction by serving as the common medium where agent actions have collective consequences~\cite{weyns2007environment}.
+
+This formal environment definition excludes infrastructure level details. For a digital twin MAS, the network, hardware, or low-level data pipelines are not modeled as part of the environment. Instead, the environment focuses on the application-specific state of the digital twin. By ignoring infrastructure in the formal definition, it is assumed that agents interact with an idealized, centralized environment model, consistent with common agent modeling abstractions~\cite{weyns2007environment}. The environment may be dynamically updated by external data feeds from the physical twin, but those updates are treated as exogenous events changing the state $S$, not as separate networking components~\cite{Lee2025DigitalTwins, Pretel2024SLR}.
+
+The environment in a multi-agent digital twin system can be formally defined as the shared state space and transition model of the digital replica, encapsulating all domain entities and dynamics that agents can sense or influence. The underlying computational infrastructure is abstracted away from the environments~\cite{weyns2007environment}.
+
+
+\subsection{Digital Application in a Multi‑Agent Digital Twin System}
+
+Digital twins are virtual replicas of physical systems, maintained with real-time data for monitoring, simulation, and optimization~\cite{Lee2025DigitalTwins}. In modern architectures, multi-agent systems (MAS) are often integrated with digital twins to create intelligent, distributed platforms~\cite{Xu2025Logistics}. Each agent in the MAS can represent a component or stakeholder of the physical system in the twin, enabling autonomous decision-making and collaboration in the digital realm. A digital application refers to the orchestrated software logic that runs on the digital twin platform, using multiple agents to perform tasks, make decisions, and interact with the twin’s services. The digital application is the functional workflow that binds agents and the digital twin together, enabling complex processes to be carried out in a coordinated, autonomous manner.
+
+\subsubsection{Formal Definition and Components}
+
+Definition: A digital application in a MAS–digital twin environment can be formally defined as a tuple capturing its tasks, workflow structure, interfaces, and agent interactions. It is represented as:
+\[
+\mathcal{DA} = \langle T, Dep, \Pi, \Sigma, \alpha, \mu \rangle
+\]
+
+
+\paragraph{Tasks (T)} A finite set of tasks $\{t_1, t_2, \ldots, t_n\}$ that make up the application’s workflow. Each task is a function or operation within the digital twin. Tasks are the fundamental units of work, potentially corresponding to domain-specific actions. They implement the application’s logic. These tasks form a sequence of jobs to be done, as seen in agent-based workflows. Each task can be thought of as a partial function that consumes certain inputs and produces outputs for use by other tasks or as final results.
+
+\paragraph{Dependencies (Dep)} A set of dependency relations defining the workflow structure or ordering of tasks. $Dep\subseteq T \times T$ is a partial order indicating precedence constraints: $(t_i,t_j) \in Dep $ means $t_i$ must complete before task $t_j$ can begin. This captures sequential flows, parallelism, and synchronization points in the application. Such a dependency graph orchestrates the control flow of the multi-agent workflow~\cite{Kotb_WorkflowNetCooperative}. It ensures, that data-producing tasks happen before data-consuming tasks~\cite{Kotb_WorkflowNetCooperative}.
+
+\paragraph{Parameters ($\Pi$)} The set of input parameters and configurations for the application. $\Pi$ may include initial state data, user-specified settings, or thresholds that govern task execution. These parameters customize the application’s behavior for a given scenario. The digital application can be formalized as a mapping $f : \Pi \rightarrow O$, where $O$ are outputs or outcomes, realized by the agents executing tasks. The parameters are the inputs to this functional mapping. Each task $t_i \in T$ may have an associated set of required parameters (denoted $\Pi_{ti}$) and produce certain outputs that become inputs for other tasks or final results.
+
+\paragraph{Service Interfaces ($\Sigma$)} A set of service interfaces or APIs that the application can call, exposing the digital twin’s functionalities or external services. Each task may invoke one of these interfaces to interact with the twin or other systems. These interfaces connect the agents’ tasks to the digital twin environment. Formally, for each task $t_i$, there may be an associated service operation $\sigma \in \Sigma$ such that executing $t_i$ corresponds to calling $\sigma$. The inclusion of $\Sigma$ in the tuple underlines that the digital application operates not in isolation but within a service-oriented environment. 
+
+\paragraph{Agent Assignment ($\alpha$)} A mapping $\alpha : T \rightarrow \mathcal{A}$, where $\mathcal{A}$ is the set of agents in the MAS that assigns each task to an agent responsible for executing it. This reflects the execution aspect of the application. Tasks do not execute themselves, but are carried out by agents in the system. The assignment can be static or dynamic based on capabilities and availability. In many cases, $\alpha$ is determined by matching task requirements to agent skills or roles. In formal cooperative MAS models, planners transform a high-level goal into tasks and then assign tasks to agents based on their capabilities~\cite{Kotb_WorkflowNetCooperative}. This assignment function is critical in a digital twin context: each agent might correspond to a specific twin component or expertise area. Through $\alpha$, the digital application leverages the distributed nature of MAS, ensuring each part of the workflow is handled by an appropriate agent.
+
+\paragraph{Monitoring and Delegation ($\mu$)} A specification of how task progress and outcomes are monitored, and how tasks may be delegated between agents. $\mu$ is a relation or function defining oversight responsibilities: $\mu(t_j) = a_i$ indicates that agent $a_i$ monitors task $t_j$. Monitoring is tracking execution status, validating results, or handling exceptions. This is  important in digital twins, which are updated in real time. Moreover, agents monitor metrics or task outcomes to decide next steps~\cite{Lee2025DigitalTwins}. Delegation is the dynamic reassignment of a task from one agent to another. If an agent $a_p$ is assigned a task but cannot complete it for any reason, it can delegate the task to another agent $a_q$ that can perform it. Formally, delegation is modeled as an event that changes the assignment mapping $\alpha$ for a task at runtime. Delegation is is carried out through inter-agent communication. The model of delegation in MAS includes the fact that the original agent remains responsible for the outcome. Thus, after delegating, the delegator agent will monitor to ensure the task is eventually completed correctly by the delegate~\cite{NormanReed2002}. This shared responsibility implies that $\mu$ can map a task to multiple agents in a chain. Agents not only perform tasks, but also cooperate to handle them, passing tasks along as needed and verifying their completion~\cite{NormanReed2002}.
+
+
+The tuple is made up out of several elements: what the application does (tasks and their functional interfaces), how it is structured (dependencies and workflow), and who/where it executes (agent assignments and interactions). There is a clear separation of the process logic and the operational execution by agents. The digital application is a blueprint that the multi-agent system enacts on the digital twin.
+
+\subsection{Persistence and Artifacts (optional)}
+
+Storage/persistence is not included in the core tuples for agents or the environment to keep the formal model minimal and twin-agnostic. However, to reason about data access or guarantees, persistence can be introduced via one of the following abstractions.
+
+\paragraph{Option A: Service interfaces in $\Sigma$.} In the digital-application tuple $\mathcal{DA}=\langle T, Dep, \Pi, \Sigma, \alpha, \mu \rangle$, represent persistence as abstract services in $\Sigma$ (e.g., \texttt{kv.get/put}, \texttt{log.append/read}, \texttt{ts.write/query}). Agents invoke storage by executing actions that call some $\sigma\in\Sigma$. For each storage service, declare behavioral guarantees as annotations over operation histories: consistency (e.g., linearizable, per-key FIFO, eventual), durability (durable or ephemeral), ordering (per-key or per-partition), retention, and access control. This keeps persistence orthogonal to the shared application state $S$ while enabling policies whose correctness depends on specific guarantees.
+
+\paragraph{Option B: Environment artifacts.} Extend the environment with explicit resources (artifacts) to obtain
+\[
+\mathcal{ENV}^{+} = \langle S, A_i, \tau, O_i, \mathcal{R} \rangle,
+\]
+where $\mathcal{R}$ is a set of artifacts with operation signatures $\mathrm{Ops}(r)$. A store $r\in\mathcal{R}$ encapsulates internal state; operations $\mathrm{op}(r,\cdot)$ update that state and may emit notifications. Agent observations incorporate artifact notifications via $O_i$, and feasibility/safety/authorization checks apply uniformly to artifact operations, as for other actions.
+
+\paragraph{Execution trace (optional).} For audit and replay, maintain an auxiliary trace $\mathcal{T}$ that appends $\langle k, s, a, s' \rangle$ at each step after applying $\tau$, where $k$ is a step index or timestamp. The trace $\mathcal{T}$ is not part of $S$ and does not affect the semantics; it supports reproducibility and debugging.
