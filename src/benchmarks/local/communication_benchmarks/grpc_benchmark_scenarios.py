@@ -12,7 +12,7 @@ import threading
 from typing import Dict, Any, List, Optional
 import concurrent.futures
 from mas.core import AgentId
-from benchmarks.communication_benchmarks.communication_benchmark import generate_payload
+from benchmarks.local.communication_benchmarks.communication_benchmark import generate_payload
 from benchmarks.communication.grpc.grpc_communication_agent import (
     ExtendedGrpcCommunicatingAgent,
     GrpcCommunicationEnvironment,
@@ -21,7 +21,7 @@ from benchmarks.communication.communication_config import (
     CommunicationConfiguration,
     TopologyPattern,
 )
-from benchmarks.communication_benchmarks.communication_benchmark import (
+from benchmarks.local.communication_benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )

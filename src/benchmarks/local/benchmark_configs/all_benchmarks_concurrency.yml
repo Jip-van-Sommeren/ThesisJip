@@ -1,11 +1,13 @@
 mode: extensive
-latency_mode: app_ack
-output_dir: results/all_benchmarks_extensive_app_ack
+# latency_mode: app_ack
+# output_dir: results/all_benchmarks_extensive_app_ack
+num_trials: 5
+warm_up_operations: 0
 agent_counts:
   - 5
-  - 10
-  - 15
-  - 20
+  - 25
+  - 50
+  - 100
 scenarios:
   - point_to_point_latency
   - broadcast_throughput

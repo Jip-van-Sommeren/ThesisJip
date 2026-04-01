@@ -318,10 +318,13 @@ class ResourceMonitor:
     def _monitor_loop(self):
         """Main monitoring loop."""
         process = psutil.Process()
+        cpu_count = psutil.cpu_count() or 1  # Normalize to 0-100% range
 
         while self.monitoring:
             try:
-                cpu_percent = process.cpu_percent()
+                # cpu_percent() returns per-core %, so divide by cpu_count
+                # to get normalized 0-100% of total system CPU capacity
+                cpu_percent = process.cpu_percent() / cpu_count
                 memory_mb = process.memory_info().rss / 1024 / 1024
 
                 self.cpu_samples.append(cpu_percent)

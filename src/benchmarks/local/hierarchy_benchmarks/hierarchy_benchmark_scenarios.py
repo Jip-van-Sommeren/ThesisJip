@@ -13,19 +13,22 @@ Across multiple metrics and ablation configurations.
 import time
 import json
 import os
+import csv
+import math
+import statistics
 from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 
-from benchmarks.hierarchy_benchmarks.hierarchy_metrics import (
+from benchmarks.local.hierarchy_benchmarks.hierarchy_metrics import (
     HierarchyBenchmarkTracker,
     AggregatedMetrics,
 )
-from benchmarks.hierarchy_benchmarks.hierarchy_strategies import (
+from benchmarks.local.hierarchy_benchmarks.hierarchy_strategies import (
     HierarchyType,
     HierarchyStrategy,
     create_hierarchy_strategy,
 )
-from benchmarks.hierarchy_benchmarks.hierarchy_environments import (
+from benchmarks.local.hierarchy_benchmarks.hierarchy_environments import (
     HierarchyEnvironment,
     create_environment,
 )
@@ -65,6 +68,15 @@ class BenchmarkResult:
     episode_data: List[Dict[str, Any]]
     execution_time: float
     timestamp: float
+    trial_count: int = 1
+    warm_up_operations: int = 0
+    trial_metric_summary: Dict[str, Dict[str, float]] = field(
+        default_factory=dict
+    )
+    trials: List[Dict[str, Any]] = field(default_factory=list)
+
+
+METRIC_FIELDS: Tuple[str, ...] = tuple(AggregatedMetrics.__dataclass_fields__.keys())
 
 
 class HierarchyBenchmarkScenario:
@@ -261,31 +273,78 @@ class HierarchyBenchmarkScenario:
             "primitive_actions": primitive_actions,
         }
 
-    def run_benchmark(self) -> BenchmarkResult:
-        """Run full benchmark with multiple episodes."""
-        print(f"\n{'='*60}")
-        print("Running Hierarchy Benchmark")
-        print(f"Strategy: {self.config.hierarchy_type.value}")
-        print(f"Environment: {self.config.environment_type}")
-        print(f"Agents: {self.config.num_agents}")
-        print(f"Episodes: {self.config.num_episodes}")
-        print(f"{'='*60}\n")
+    def _reset_trial_state(self):
+        """Reset mutable state before a new trial."""
+        self.tracker = HierarchyBenchmarkTracker(r_min=0.0, r_max=100.0)
+        self.hierarchy = None
+        self.environment = None
+
+    def _compute_trial_metric_summary(
+        self, trial_metrics: List[Dict[str, float]]
+    ) -> Dict[str, Dict[str, float]]:
+        """Compute mean/std/95% CI across trials for each metric field."""
+        summary: Dict[str, Dict[str, float]] = {}
+        for field_name in METRIC_FIELDS:
+            values = []
+            for metric in trial_metrics:
+                value = metric.get(field_name)
+                if value is None:
+                    continue
+                values.append(float(value))
+
+            if not values:
+                continue
+
+            mean_value = statistics.mean(values)
+            std_value = statistics.stdev(values) if len(values) > 1 else 0.0
+            margin = (
+                1.96 * std_value / math.sqrt(len(values))
+                if len(values) > 1
+                else 0.0
+            )
+            summary[field_name] = {
+                "mean": mean_value,
+                "std": std_value,
+                "ci95_lower": mean_value - margin,
+                "ci95_upper": mean_value + margin,
+            }
+
+        return summary
+
+    def _metrics_from_summary(
+        self, summary: Dict[str, Dict[str, float]]
+    ) -> AggregatedMetrics:
+        """Materialize AggregatedMetrics from trial summary means."""
+        kwargs: Dict[str, Any] = {}
+        for field_name in METRIC_FIELDS:
+            mean_value = summary.get(field_name, {}).get("mean", 0.0)
+            if field_name in {"total_episodes", "successful_episodes"}:
+                kwargs[field_name] = int(round(mean_value))
+            else:
+                kwargs[field_name] = float(mean_value)
+        return AggregatedMetrics(**kwargs)
+
+    def _run_single_trial(
+        self, trial_index: int, total_trials: int
+    ) -> BenchmarkResult:
+        """Run one measured trial."""
+        self._reset_trial_state()
+        self.setup()
 
         start_time = time.perf_counter()
 
-        # Setup
-        self.setup()
-
-        # Run episodes
-        episode_results = []
         for episode_num in range(self.config.num_episodes):
+            episode_label = (
+                f"Trial {trial_index}/{total_trials} - "
+                if total_trials > 1
+                else ""
+            )
             print(
-                f"Episode {episode_num + 1}/{self.config.num_episodes}...",
+                f"{episode_label}Episode {episode_num + 1}/{self.config.num_episodes}...",
                 end=" ",
             )
 
             episode_result = self.run_episode()
-            episode_results.append(episode_result)
 
             print(
                 f"✓ Success: {episode_result['success']}, "
@@ -294,17 +353,85 @@ class HierarchyBenchmarkScenario:
             )
 
         execution_time = time.perf_counter() - start_time
-
-        # Get aggregated metrics
         metrics = self.tracker.get_aggregated_metrics()
+        trial_summary = self._compute_trial_metric_summary([asdict(metrics)])
 
-        # Create result
-        result = BenchmarkResult(
+        return BenchmarkResult(
             configuration=self.config,
             metrics=metrics,
             episode_data=self.tracker.export_results()["episodes"],
             execution_time=execution_time,
             timestamp=time.time(),
+            trial_count=1,
+            warm_up_operations=0,
+            trial_metric_summary=trial_summary,
+            trials=[],
+        )
+
+    def run_benchmark(
+        self, num_trials: int = 1, warm_up_operations: int = 0
+    ) -> BenchmarkResult:
+        """Run full benchmark with optional multi-trial aggregation."""
+        if num_trials < 1:
+            raise ValueError("num_trials must be >= 1")
+        if warm_up_operations < 0:
+            raise ValueError("warm_up_operations must be >= 0")
+
+        print(f"\n{'='*60}")
+        print("Running Hierarchy Benchmark")
+        print(f"Strategy: {self.config.hierarchy_type.value}")
+        print(f"Environment: {self.config.environment_type}")
+        print(f"Agents: {self.config.num_agents}")
+        print(f"Episodes: {self.config.num_episodes}")
+        print(f"Trials: {num_trials}")
+        print(f"Warm-up Episodes/Trial: {warm_up_operations}")
+        print(f"{'='*60}\n")
+
+        total_start = time.perf_counter()
+        trial_results: List[BenchmarkResult] = []
+
+        for trial_idx in range(1, num_trials + 1):
+            if num_trials > 1:
+                print(f"\n--- Trial {trial_idx}/{num_trials} ---")
+
+            if warm_up_operations > 0:
+                print(
+                    f"Running {warm_up_operations} warm-up episode(s) "
+                    f"for trial {trial_idx}..."
+                )
+                self._reset_trial_state()
+                self.setup()
+                for _ in range(warm_up_operations):
+                    self.run_episode()
+
+            trial_result = self._run_single_trial(trial_idx, num_trials)
+            trial_results.append(trial_result)
+
+        trial_entries = [
+            {
+                "trial_id": idx + 1,
+                "metrics": asdict(trial.metrics),
+                "execution_time": trial.execution_time,
+                "episode_data": trial.episode_data,
+            }
+            for idx, trial in enumerate(trial_results)
+        ]
+
+        trial_metric_summary = self._compute_trial_metric_summary(
+            [asdict(trial.metrics) for trial in trial_results]
+        )
+        metrics = self._metrics_from_summary(trial_metric_summary)
+
+        result = BenchmarkResult(
+            configuration=self.config,
+            metrics=metrics,
+            episode_data=trial_results[0].episode_data if trial_results else [],
+            execution_time=time.perf_counter() - total_start,
+            timestamp=time.time(),
+            trial_count=num_trials,
+            warm_up_operations=warm_up_operations,
+            trial_metric_summary=trial_metric_summary,
+            trials=trial_entries,
         )
 
         self._print_summary(result)
@@ -318,18 +445,48 @@ class HierarchyBenchmarkScenario:
             f"BENCHMARK RESULTS - {self.config.hierarchy_type.value.upper()}"
         )
         print(f"{'='*60}")
+        print(f" Trials: {result.trial_count}")
+        print(f" Warm-up Episodes/Trial: {result.warm_up_operations}")
 
         metrics = result.metrics
+        success_summary = result.trial_metric_summary.get("success_rate", {})
+        success_ci_lower = success_summary.get("ci95_lower")
+        success_ci_upper = success_summary.get("ci95_upper")
+        makespan_summary = result.trial_metric_summary.get("makespan_mean", {})
+        makespan_ci_lower = makespan_summary.get("ci95_lower")
+        makespan_ci_upper = makespan_summary.get("ci95_upper")
 
         print("\n Task Effectiveness:")
-        print(f"  Success Rate: {metrics.success_rate*100:.1f}%")
+        if (
+            result.trial_count > 1
+            and success_ci_lower is not None
+            and success_ci_upper is not None
+        ):
+            print(
+                "  Success Rate: "
+                f"{metrics.success_rate*100:.1f}% "
+                f"(95% CI: {success_ci_lower*100:.1f}% - {success_ci_upper*100:.1f}%)"
+            )
+        else:
+            print(f"  Success Rate: {metrics.success_rate*100:.1f}%")
         print(
             f"  Normalized Return: {metrics.normalized_return_mean:.3f} ±\
                 {metrics.normalized_return_std:.3f}"
         )
 
         print("\n Time & Resource Efficiency:")
-        print(f"  Makespan (avg): {metrics.makespan_mean:.1f} steps")
+        if (
+            result.trial_count > 1
+            and makespan_ci_lower is not None
+            and makespan_ci_upper is not None
+        ):
+            print(
+                "  Makespan (avg): "
+                f"{metrics.makespan_mean:.1f} steps "
+                f"(95% CI: {makespan_ci_lower:.1f} - {makespan_ci_upper:.1f})"
+            )
+        else:
+            print(f"  Makespan (avg): {metrics.makespan_mean:.1f} steps")
         print(
             f"  Action Efficiency: {metrics.action_efficiency:.1f}\
                 actions/task"
@@ -378,6 +535,8 @@ class HierarchyComparisonBenchmark:
         environment_types: List[str],
         agent_counts: List[int],
         num_episodes: int = 10,
+        num_trials: int = 1,
+        warm_up_operations: int = 0,
     ):
         """Run comprehensive comparison across strategies and environments."""
 
@@ -388,6 +547,8 @@ class HierarchyComparisonBenchmark:
         print(f"Environments: {environment_types}")
         print(f"Agent counts: {agent_counts}")
         print(f"Episodes per config: {num_episodes}")
+        print(f"Trials per config: {num_trials}")
+        print(f"Warm-up episodes per trial: {warm_up_operations}")
         print("=" * 70 + "\n")
 
         # Run benchmarks for each combination
@@ -402,7 +563,10 @@ class HierarchyComparisonBenchmark:
                     )
 
                     scenario = HierarchyBenchmarkScenario(config)
-                    result = scenario.run_benchmark()
+                    result = scenario.run_benchmark(
+                        num_trials=num_trials,
+                        warm_up_operations=warm_up_operations,
+                    )
                     self.results.append(result)
 
         # Export results
@@ -413,6 +577,9 @@ class HierarchyComparisonBenchmark:
         self,
         base_config: BenchmarkConfiguration,
         ablation_params: Dict[str, List[Any]],
+        num_trials: int = 1,
+        warm_up_operations: int = 0,
+        output_suffix: Optional[str] = None,
     ):
         """Run ablation study varying specific parameters."""
 
@@ -421,13 +588,18 @@ class HierarchyComparisonBenchmark:
         print("=" * 70)
         print(f"Base strategy: {base_config.hierarchy_type.value}")
         print(f"Ablation parameters: {list(ablation_params.keys())}")
+        print(f"Trials per config: {num_trials}")
+        print(f"Warm-up episodes per trial: {warm_up_operations}")
         print("=" * 70 + "\n")
 
         start_idx = len(self.results)
 
         # Run baseline
         baseline_scenario = HierarchyBenchmarkScenario(base_config)
-        baseline_result = baseline_scenario.run_benchmark()
+        baseline_result = baseline_scenario.run_benchmark(
+            num_trials=num_trials,
+            warm_up_operations=warm_up_operations,
+        )
         self.results.append(baseline_result)
 
         # Run ablations
@@ -442,6 +614,11 @@ class HierarchyComparisonBenchmark:
                     num_episodes=base_config.num_episodes,
                     num_tasks_per_episode=base_config.num_tasks_per_episode,
                     max_steps=base_config.max_steps,
+                    hierarchy_depth=base_config.hierarchy_depth,
+                    static_roles=base_config.static_roles,
+                    communication_limit=base_config.communication_limit,
+                    planning_frequency=base_config.planning_frequency,
+                    env_params=dict(base_config.env_params),
                 )
 
                 # Set ablation parameter
@@ -449,7 +626,10 @@ class HierarchyComparisonBenchmark:
 
                 # Run benchmark
                 scenario = HierarchyBenchmarkScenario(config)
-                result = scenario.run_benchmark()
+                result = scenario.run_benchmark(
+                    num_trials=num_trials,
+                    warm_up_operations=warm_up_operations,
+                )
                 self.results.append(result)
 
         # Export ablation results only (exclude prior comparison runs)
@@ -458,6 +638,7 @@ class HierarchyComparisonBenchmark:
             ablation_params,
             ablation_results,
             base_config=base_config,
+            output_suffix=output_suffix,
         )
 
     def export_results(self):
@@ -478,9 +659,20 @@ class HierarchyComparisonBenchmark:
                         "num_agents": r.configuration.num_agents,
                         "environment_type": r.configuration.environment_type,
                         "num_episodes": r.configuration.num_episodes,
+                        "num_tasks_per_episode": r.configuration.num_tasks_per_episode,
+                        "max_steps": r.configuration.max_steps,
+                        "hierarchy_depth": r.configuration.hierarchy_depth,
+                        "static_roles": r.configuration.static_roles,
+                        "communication_limit": r.configuration.communication_limit,
+                        "planning_frequency": r.configuration.planning_frequency,
+                        "env_params": r.configuration.env_params,
                     },
                     "metrics": asdict(r.metrics),
                     "execution_time": r.execution_time,
+                    "trial_count": r.trial_count,
+                    "warm_up_operations": r.warm_up_operations,
+                    "trial_metric_summary": r.trial_metric_summary,
+                    "trials": r.trials,
                 }
                 for r in self.results
             ],
@@ -500,35 +692,108 @@ class HierarchyComparisonBenchmark:
             self.output_dir, f"hierarchy_metrics_{timestamp}.csv"
         )
 
-        with open(csv_file, "w") as f:
-            # Header
-            f.write(
-                "Strategy,Environment,Agents,SuccessRate,NormReturn,Makespan,"
-            )
-            f.write(
-                "ActionEfficiency,ManagerUtil,DelegationSuccess,MessagesPerEp,"
-            )
-            f.write("BytesPerStep,CoordLatency\n")
+        fieldnames = [
+            "Strategy",
+            "Environment",
+            "Agents",
+            "Trials",
+            "WarmUpEpisodesPerTrial",
+            "SuccessRate",
+            "SuccessRateStd",
+            "SuccessRateCI95Lower",
+            "SuccessRateCI95Upper",
+            "NormReturn",
+            "NormReturnStd",
+            "NormReturnCI95Lower",
+            "NormReturnCI95Upper",
+            "Makespan",
+            "MakespanStd",
+            "MakespanCI95Lower",
+            "MakespanCI95Upper",
+            "ActionEfficiency",
+            "ActionEfficiencyStd",
+            "ManagerUtil",
+            "ManagerUtilStd",
+            "DelegationSuccess",
+            "DelegationSuccessStd",
+            "MessagesPerEp",
+            "MessagesPerEpStd",
+            "BytesPerStep",
+            "BytesPerStepStd",
+            "CoordLatency",
+            "CoordLatencyStd",
+        ]
 
-            # Data rows
+        with open(csv_file, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
             for result in self.results:
-                m = result.metrics
-                c = result.configuration
-                f.write(
-                    f"{c.hierarchy_type.value},{c.environment_type},\
-                        {c.num_agents},"
-                )
-                f.write(
-                    f"{m.success_rate},{m.normalized_return_mean},\
-                        {m.makespan_mean},"
-                )
-                f.write(
-                    f"{m.action_efficiency},{m.manager_utilization},\
-                        {m.delegation_success_rate},"
-                )
-                f.write(
-                    f"{m.messages_per_episode},{m.bytes_per_step},\
-                        {m.coordination_latency_mean}\n"
+                metrics = result.metrics
+                config = result.configuration
+                summary = result.trial_metric_summary
+
+                def _summary(metric_name: str, field_name: str) -> float:
+                    return float(
+                        summary.get(metric_name, {}).get(field_name, 0.0)
+                    )
+
+                writer.writerow(
+                    {
+                        "Strategy": config.hierarchy_type.value,
+                        "Environment": config.environment_type,
+                        "Agents": config.num_agents,
+                        "Trials": result.trial_count,
+                        "WarmUpEpisodesPerTrial": result.warm_up_operations,
+                        "SuccessRate": metrics.success_rate,
+                        "SuccessRateStd": _summary("success_rate", "std"),
+                        "SuccessRateCI95Lower": _summary(
+                            "success_rate", "ci95_lower"
+                        ),
+                        "SuccessRateCI95Upper": _summary(
+                            "success_rate", "ci95_upper"
+                        ),
+                        "NormReturn": metrics.normalized_return_mean,
+                        "NormReturnStd": _summary(
+                            "normalized_return_mean", "std"
+                        ),
+                        "NormReturnCI95Lower": _summary(
+                            "normalized_return_mean", "ci95_lower"
+                        ),
+                        "NormReturnCI95Upper": _summary(
+                            "normalized_return_mean", "ci95_upper"
+                        ),
+                        "Makespan": metrics.makespan_mean,
+                        "MakespanStd": _summary("makespan_mean", "std"),
+                        "MakespanCI95Lower": _summary(
+                            "makespan_mean", "ci95_lower"
+                        ),
+                        "MakespanCI95Upper": _summary(
+                            "makespan_mean", "ci95_upper"
+                        ),
+                        "ActionEfficiency": metrics.action_efficiency,
+                        "ActionEfficiencyStd": _summary(
+                            "action_efficiency", "std"
+                        ),
+                        "ManagerUtil": metrics.manager_utilization,
+                        "ManagerUtilStd": _summary(
+                            "manager_utilization", "std"
+                        ),
+                        "DelegationSuccess": metrics.delegation_success_rate,
+                        "DelegationSuccessStd": _summary(
+                            "delegation_success_rate", "std"
+                        ),
+                        "MessagesPerEp": metrics.messages_per_episode,
+                        "MessagesPerEpStd": _summary(
+                            "messages_per_episode", "std"
+                        ),
+                        "BytesPerStep": metrics.bytes_per_step,
+                        "BytesPerStepStd": _summary("bytes_per_step", "std"),
+                        "CoordLatency": metrics.coordination_latency_mean,
+                        "CoordLatencyStd": _summary(
+                            "coordination_latency_mean", "std"
+                        ),
+                    }
                 )
 
         print(f" CSV exported to: {csv_file}")
@@ -538,27 +803,48 @@ class HierarchyComparisonBenchmark:
         ablation_params: Dict[str, List[Any]],
         results: Optional[List[BenchmarkResult]] = None,
         base_config: Optional[BenchmarkConfiguration] = None,
+        output_suffix: Optional[str] = None,
     ):
         """Export ablation study results."""
         if results is None:
             results = self.results
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
+        suffix = f"_{output_suffix}" if output_suffix else ""
         ablation_file = os.path.join(
-            self.output_dir, f"ablation_study_{timestamp}.json"
+            self.output_dir, f"ablation_study{suffix}_{timestamp}.json"
         )
-        results = [
-            {
-                "config": {
-                    "hierarchy_depth": r.configuration.hierarchy_depth,
-                    "planning_frequency": r.configuration.planning_frequency,
-                    "communication_limit": r.configuration.communication_limit,
-                    "static_roles": r.configuration.static_roles,
-                },
-                "metrics": asdict(r.metrics),
-            }
-            for r in results
-        ]
+        serialized_results = []
+        for result in results:
+            serialized_results.append(
+                {
+                    "configuration": {
+                        "hierarchy_type": result.configuration.hierarchy_type.value,
+                        "num_agents": result.configuration.num_agents,
+                        "environment_type": result.configuration.environment_type,
+                        "num_episodes": result.configuration.num_episodes,
+                        "num_tasks_per_episode": result.configuration.num_tasks_per_episode,
+                        "max_steps": result.configuration.max_steps,
+                        "hierarchy_depth": result.configuration.hierarchy_depth,
+                        "planning_frequency": result.configuration.planning_frequency,
+                        "communication_limit": result.configuration.communication_limit,
+                        "static_roles": result.configuration.static_roles,
+                    },
+                    # Backward-compatible field used by existing analysis scripts.
+                    "config": {
+                        "hierarchy_depth": result.configuration.hierarchy_depth,
+                        "planning_frequency": result.configuration.planning_frequency,
+                        "communication_limit": result.configuration.communication_limit,
+                        "static_roles": result.configuration.static_roles,
+                        "hierarchy_type": result.configuration.hierarchy_type.value,
+                    },
+                    "metrics": asdict(result.metrics),
+                    "trial_count": result.trial_count,
+                    "warm_up_operations": result.warm_up_operations,
+                    "trial_metric_summary": result.trial_metric_summary,
+                    "trials": result.trials,
+                }
+            )
         export_data = {
             "timestamp": timestamp,
             "ablation_parameters": {
@@ -567,6 +853,12 @@ class HierarchyComparisonBenchmark:
             },
             "base_config": (
                 {
+                    "hierarchy_type": base_config.hierarchy_type.value,
+                    "num_agents": base_config.num_agents,
+                    "environment_type": base_config.environment_type,
+                    "num_episodes": base_config.num_episodes,
+                    "num_tasks_per_episode": base_config.num_tasks_per_episode,
+                    "max_steps": base_config.max_steps,
                     "hierarchy_depth": base_config.hierarchy_depth,
                     "planning_frequency": base_config.planning_frequency,
                     "communication_limit": base_config.communication_limit,
@@ -575,7 +867,7 @@ class HierarchyComparisonBenchmark:
                 if base_config
                 else None
             ),
-            "results": results,
+            "results": serialized_results,
         }
 
         with open(ablation_file, "w") as f:

@@ -1,111 +1,61 @@
 \section{Results}
 
 
-\subsection{Communication protocols}
+\subsection{Communication Benchmarks}
 
 
-Key trade-offs  such as throughput, overhead, simplicity, and robustness are investigated to determine feasibility for the mas framework.
+Communication performance is a key scalability constraint in MAS architectures. The benchmarks in this section quantify latency, throughput, reliability, and resource overhead for representative messaging patterns across multiple protocol families.
 
 
-\subsubsection{Communication Protocols in Multi-Agent Systems}
-Inter-agent communication is critical  MAS  it enables agents to coordinate, share knowledge, and work towards common goals. Moreover, communication is essential so agents can combine their efforts towards the overall objective. The choice of communication protocol determines how efficiently
-and reliably agents can exchange messages, especially as the system grows. Below several communication protocol options are explored:
+\subsubsection{Protocol options}
+Inter-agent communication enables coordination, knowledge sharing, and joint decision making in multi-agent systems (MAS). As agent populations and message rates increase, protocol semantics (synchronous request/response versus brokered publish--subscribe), serialization formats, and transport behavior determine both performance and robustness. Table~\ref{tab:comm-protocol-options} summarizes the protocol options and variants evaluated in the benchmark suite.
 
-\paragraph{RESTful HTTP}
-REST over HTTP is a text-based request/response protocol. Agents expose or call HTTP APIs using standard verbs (GET, POST, etc.), often with JSON
-messages. It is stateless by design, meaning each request is independent (no persistent session), which simplifies horizontal scaling and fail-over.
-\begin{itemize}
-    \item Ease of Implementation \& Interoperability: REST is simple. Virtually any language can use HTTP libraries, and tools like cURL or Postman make testing easy. This ubiquity makes REST a highly interoperable choice; web services, microservices, and agents on different platforms can all communicate via HTTP.
-    \item  Performance \& Overhead: A major downside is performance overhead. REST typically carries verbose text(e.g. JSON) and runs over HTTP/1.x, incurring extra latency and bandwidth usage. Compared to binary protocols, REST can be slower and less efficient, especially for large or frequent messages. For example, experiments in an IoT context found HTTP to have the highest bandwidth and latency footprint among common protocols . Human-readable headers and payloads make REST flexible but contribute to larger message sizes and slower parsing. In fact, JSON-based REST calls often return more data than needed or require multiple calls, adding inefficiency.
-    \item Scalability: The stateless nature of REST helps in scaling – one can add more server instances behind a load balancer easily. Caching is also supported (HTTP caching headers), which can reduce load for read heavy interactions. However, because REST is synchronous request/reply, throughput is limited by how fast endpoints can handle requests. For high-frequency or real-time MAS interactions, REST may become a bottleneck. Studies indicate MQTT (a lightweight pub/sub protocol) can achieve orders-of-magnitude higher throughput than HTTP in certain scenarios (e.g. ~93× faster in one benchmark) due to HTTP’s heavier headers and handshakes . Thus, while REST is fine for low/moderate message rates and simpler MAS prototypes, it might struggle if agents must rapidly exchange large volumes of data.
-    \item Reliability \& Flexibility: REST over HTTP is typically reliable (built on TCP), but there’s no built-in message
-    queue or retry beyond basic HTTP timeouts. If an agent is down, requests fail (unless clients implement retries). This lack of asynchronous buffering means agents must be online concurrently to communicate. On the other hand, REST APIs are very flexible and general-purpose – agents can use them for many types of interactions (querying info, invoking actions, etc.). HTTP is a well-established standard, so using REST aligns with many existing tools and security mechanisms (TLS, OAuth, etc.). 
-\end{itemize}
-In summary, REST offers maximum simplicity and interoperability at the cost of performance overhead and without native asynchronous messaging features.
+\begin{table}[H]
+\centering
+\caption{Communication protocol options evaluated in the benchmark suite}
+\label{tab:comm-protocol-options}
+\begin{tabular}{l|l|l|l}
+\toprule
+\textbf{Protocol} & \textbf{Interaction model} & \textbf{Serialization} & \textbf{Variants benchmarked} \\
+\midrule
+REST (HTTP) & Request/response & JSON over HTTP/1.1/2 & \texttt{http1}, \texttt{http2} \\
+gRPC & RPC (unary/streaming) & Protobuf over HTTP/2 & \texttt{unary}, \texttt{streaming} \\
+MQTT & Pub/sub via broker & MQTT frames over TCP & \texttt{qos0}, \texttt{qos1}, \texttt{qos2} \\
+Kafka & Pub/sub via broker log & Kafka records over TCP & \texttt{acks0}, \texttt{acks1}, \texttt{acksall} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
+The table reports the interaction model, serialization format, and the concrete variant identifiers used by the benchmark runner for each protocol.
 
-\paragraph{gRPC (Google RPC Framework)}
-gRPC is a modern, high-performance Remote Procedure Call protocol built on HTTP/2 andProtocol Buffers (Protobuf) for binary data serialization. Agents using gRPC define service interfaces in a protobuf schema, and the framework generates client/server stubs for strongly typed method calls. gRPC supports unary RPCs as well as streaming (server push, client stream, or bidirectional streaming), all multiplexed over a single long-lived HTTP/2 connection~\cite{grpc_docs}.
-Trade-Offs:
-\begin{itemize}
-    \item Performance: gRPC is designed for low-latency, high-throughput communication. By using a binary format (Protobuf) instead of text JSON, it significantly reduces message size and parsing time. In addition, HTTP/2 features such as header compression and multiplexing further improve efficiency. gRPC typically outperforms REST in terms of speed and bandwidth usage. This often reduces bandwidth needs by 20–30\% for equivalent data and provides faster communication due to HTTP/2 pipelining. Thus, gRPC is ideal when an MAS requires high-frequency, low-latency messaging or real-time data exchange among agents.
-    
-    \item Complexity \& Development: gRPC does increase complexity in setup and tooling. Using gRPC requires defining .proto interface files and generating code. Developers must understand Protobuf schemas and manage the build process for stub generation. Debugging can also be trickier – since messages are binary, developers need specialized tools to inspect traffic. However, strong typing and autogenerated client libraries improve type safety and reduce runtime errors~\cite{grpc_docs}.
-    
-    \item Scalability \& Pattern: gRPC is typically used for direct service-to-service communication. Like REST, it often follows a request-response pattern, but streaming RPCs allow asynchronous flows within the connection. There is no broker or buffering between agents, this means latency is minimal, but if the receiving agent is slow or down, the caller must handle it (via timeouts or retries). gRPC performs well inside microservice-style MAS deployments where agents are services in a cloud environment. Moreover, it integrates with load balancers and service discovery (e.g. with Kubernetes) and supports features like bidirectional streaming for real-time updates. For MAS scenarios requiring high performance and tightly coupled interactions, gRPC is a strong choice. But it’s less suited to loosely coupled, asynchronous communication across dozens of agents. A messaging or pub/sub protocol might be more appropriate in these cases~\cite{grpc_docs}.
-    
-    \item Interoperability: gRPC’s interoperability is good across programming languages, but it is not as open and universal as REST. For example, web browsers cannot directly call gRPC services. If agents are deployed in different environments, gRPC can complicate direct communication~\cite{grpc_docs}.
-\end{itemize}
-In summary, gRPC offers high throughput and efficiency for agent communication at the cost of requiring a more complex, code-generation-driven development process and a more restricted usage environment compared to plain HTTP.
+\paragraph{REST (HTTP).}
+RESTful communication exposes agent interactions as stateless HTTP requests (typically JSON payloads)~\cite{Fielding2000REST,RFC9110}. Its main strengths are interoperability and tooling: HTTP is universally available, easy to debug, and integrates naturally with standard security mechanisms. The cost is higher per-message overhead due to verbose headers and text serialization, and a synchronous round trip that can become a bottleneck under high-frequency traffic. Reliability is end-to-end and typically depends on client retry logic, since the protocol does not provide broker-side buffering.
 
-\paragraph{MQTT (Message Queuing Telemetry Transport)}
-MQTT is a lightweight publish/subscribe messaging protocol widely used in IoT and M2M (machine-to-machine) contexts. It employs a broker server to which clients (agents) connect. Agents publish messages to topics, and the broker forwards those messages to any agents subscribed to those
-topics. MQTT is designed for low-bandwidth, unreliable networks and resource-constrained devices. It keeps overhead extremely low and can operate over persistent TCP connections.
-Trade-Offs:
-\begin{itemize}
-    \item Performance \& Overhead: MQTT is optimized for efficiency. It uses a minimal packet header (only 2 bytes) and binary encoding, making messages much smaller than HTTP-based communication . This translates to significantly higher throughput in low-bandwidth conditions – e.g. one study found MQTT could achieve roughly 93× the throughput of HTTP in a cellular network test . Its lightweight design means lower latency and bandwidth usage per message, especially useful when agents frequently send small updates or sensor readings. However, MQTT brokers typically assume each client’s throughput is modest (bytes or kilobytes per second). MQTT does not batch or compress data like Kafka; it prioritizes real-time delivery. Thus, for huge volumes of data (e.g. hundreds of MB/s), a single MQTT broker may become abottleneck, whereas Kafka or a distributed system might handle it better~\cite{mqtt_org, mqtt_v5_0}.
-    \item Scalability: MQTT shines in scaling to a large number of client connections. Because each message is small and the protocol is simple, a robust MQTT broker can handle millions of connected agents, as long as their individual message rates are low . This makes MQTT attractive for MAS deployments like sensor networks or large fleets of simple agents reporting state. To scale throughput or avoid a single point of failure, MQTT brokers can be deployed in clusters or bridged together, but this is typically an extra configuration (the MQTT standard itself doesn’t define clustering). MQTT v5 introduced shared subscriptions to allow load-balancing of messages among multiple consumers, partially addressing scaling of consumers. In summary, MQTT offers excellent scalability in number of agents, but scaling the message volume or broker redundancy requires additional broker-level solutions (e.g. horizontal scaling of brokers with a front-end load balancer or bridging between brokers)~\cite{mqtt_org, mqtt_v5_0}.
-    \item Reliability \& QoS: Unlike REST or gRPC, MQTT is inherently asynchronous and decoupled – publishers and subscribers need not be aware of each other or online simultaneously, as the broker mediates. MQTT supports configurable Quality of Service levels: at most once, at least once, and exactly once delivery, giving flexibility in reliability vs. performance trade-offs . This is useful in MAS scenarios to ensure critical messages are not lost (at the cost of a bit more overhead for acknowledgments in QoS 2). However, fault tolerance of the broker is a concern – the standard does not specify how to recover if a broker fails . In practice, many MQTT implementations offer high-availability clusters or bridge to other brokers, but these are broker-specific features. In contrast, Kafka (below) has built-in replication for broker failures. So, while MQTT guarantees message delivery to connected subscribers, you must architect redundancy if the broker itself must not be a single point of failure~\cite{mqtt_org, mqtt_v5_0}.
-    \item Complexity \& Use Cases: MQTT is relatively simple for clients to use – agent code just connects to the broker and publishes or subscribes to topic strings. There’s no need for interface definitions or heavy libraries. It’s ideal for event-driven communication: agents can broadcast events or state updates, and any interested agents react, enabling loose coupling. This suits MAS patterns like blackboard systems or trigger-based coordination. However, MQTT’s pub/sub model may not fit scenarios requiring direct one-toone queries or commands (though one can simulate request/response by having the requester subscribe to a response topic). Also, MQTT is less general-purpose than HTTP. It covers fewer use cases out-of-the-box than HTTP/REST (which easily handles request-response interactions). MQTT may be a good choice when agents need to send many small messages or sensor updates efficiently, and loose coupling and asynchronous communication is required, but it introduces a broker component and is not as straightforward as REST for query-style interactions.
-\end{itemize}
+\paragraph{gRPC.}
+gRPC provides typed remote procedure calls using Protocol Buffers over HTTP/2 and supports unary requests as well as streaming semantics~\cite{grpc_docs}. Binary serialization and connection multiplexing generally reduce message size and latency relative to JSON/HTTP, which is beneficial for frequent service-to-service messaging. In exchange, gRPC introduces schema and code-generation tooling and is less universally accessible than plain HTTP, which can complicate heterogeneous deployments.
 
-\paragraph{Apache Kafka (Distributed Event Streaming)}
-Description: Apache Kafka is a distributed streaming platform and messaging system that excels at high-volume, persistent event logging. In Kafka’s model, producers (agents) publish messages to named topics, which are partitioned and stored on a cluster of brokers (servers). Consumers (agents) subscribe and read from these topic partitions, typically within consumer groups that load-balance consumption. Kafka retains messages (as a commit log) for a configurable duration, allowing consumers to replay or catch up on events. It’s effectively a pub/sub system with strong persistence and horizontal scalability.
-Trade-Offs:
-\begin{itemize}
-    \item Performance \& Throughput: Kafka is designed for massive scale and throughput. It can handle very high message rates (millions of messages per second) and large volumes of data by distributing load across multiple brokers and partitions. Thanks to features like batched, sequential disk writes and zero-copy transfers, Kafka achieves high throughput with low overhead per message. It also allows tuning of durability versus latency. For a MAS that must ingest or circulate huge data streams (e.g. a swarm of agents continuously publishing telemetry or events), Kafka provides the capacity and low-latency streaming needed. The trade-off is that Kafka’s optimizations target aggregate throughput over many messages; for a single interaction or small bursts, it may not be as fast as a direct RPC. There is inherent end-to-end latency added by the need to write to and read from a log (often a few milliseconds to tens of milliseconds, which is still very fast for many use cases). Moreover, introducing a broker layer means messaging systems are generally slower than direct RPC due to the extra step and processing. Kafka sacrifices a bit of point-to-point latency in exchange for resilient high-volume streaming and decoupling~\cite{apache_kafka_docs, kreps2014_benchmarking_kafka}.
-    
-    \item Scalability \& Fault-Tolerance: Scalability is Kafka’s key selling point. Throughput can be increased by adding brokers and partitions, and it can scale across datacenters. Kafka is built to be fault tolerant: topic partitions are replicated across brokers, and if one broker fails, a replica takes over as leader for that partition. This replication and automatic failover provide robust reliability, the system keeps working even with server outages. Kafka’s fault-tolerant design ensures reliability in data processing and avoids losing messages. For a MAS, this means the communication backbone can be highly reliable and available. However, achieving this requires deploying and managing a Kafka cluster, which adds complexity. Also, Kafka guarantees at-least-once delivery by default (messages might be redelivered on failure), and exactly once semantics require careful configuration or use of Kafka Streams/ transactions. So while Kafka prevents data loss and handles failures, the application (agents) must handle potential duplicate messages or ordering issues in some scenarios~\cite{apache_kafka_docs}.
-    
-    \item Decoupling \& Asynchrony: One of Kafka’s biggest architectural advantages is how it decouples producers and consumers. Agents publishing messages do not stall or wait for consumers; they just write to the log and proceed. Consumers can process at their own pace, replay events, or join later to read past events. This decoupling is great for MAS systems if scalability or resilience needs to demonstrated. For example, if some agents produce data faster than others can consume, Kafka will buffer the stream, acting as a shock absorber. It also allows asynchronous event-driven architectures: a chain of agents can react to events without tight timing coordination. This is harder to achieve with synchronous protocols like REST/gRPC. Decoupling is a critical property for large MAS deployments that must handle uneven workloads gracefully~\cite{apache_kafka_docs}.
-    
-    \item Complexity \& Suitability: The main cost is complexity in both the infrastructure and the programming model. Operating a Kafka cluster is a non-trivial DevOps task. For a small MAS prototype, standing up Kafka might be overkill unless high throughput is a key requirement. Using Kafka requires understanding asynchronous programming, agents need to listen on topics and handle streaming data potentially out-of-order or with duplicates. Debugging and testing event-driven behaviors can be more complex than step-by-step RPC calls. Kafka provides rigid throughput, scalability, and fault tolerance for agent messaging for the cost of added system complexity. It is  best suited when a MAS involves heavy data flows or needs to buffer and replay messages, and when one can afford the overhead of running a distributed log service as the communication medium.
-\end{itemize}
+\paragraph{MQTT.}
+MQTT is a lightweight publish--subscribe protocol in which agents communicate via a broker and topic-based addressing~\cite{mqtt_org,mqtt_v5_0}. Persistent connections and small frame overhead make MQTT well suited for frequent small messages and large numbers of connected clients. QoS levels expose explicit trade-offs between throughput and delivery guarantees, but operational robustness depends on broker availability and high-availability support in the selected broker implementation.
 
-\subsubsection{Benchmark scenarios}
+\paragraph{Apache Kafka.}
+Apache Kafka is a distributed event streaming platform built around partitioned, replicated logs and a producer/consumer programming model~\cite{apache_kafka_docs,kreps2014_benchmarking_kafka}. Kafka is optimized for high-throughput ingestion, durable storage, and replayable streams, enabling loosely coupled pipelines and buffering between producers and consumers. These advantages come with higher operational complexity and an interaction model that favors continuous streams over low-latency request/response; small, latency-sensitive exchanges can incur additional end-to-end delay due to broker mediation and acknowledgement policies.
 
+\subsubsection{Benchmark design}
 
-\paragraph{Point-to-Point Latency} 
-measure fundamental round-trip time and per-message overhead between two agents. Configuration: 2 agents, 50–100 sequential messages. Reported metrics: average, P95/P99, min/max, and standard deviation. 
-Percentile latency is critical for user-perceived performance and service reliability. 
+\paragraph{Implementation overview.}
+Protocol adapters and transport abstractions are implemented in \texttt{src/benchmarks/communication/}, while scenario definitions, orchestration, and analysis utilities are provided in \texttt{src/benchmarks/communication\_benchmarks/} and \texttt{src/benchmarks/benchmark\_runner.py}. The extensive experiment matrix used for the reported results is specified in \texttt{src/benchmarks/benchmark\_configs/all\_benchmarks\_concurrency.yml}. Raw outputs (JSON/CSV summaries and plots) are stored under \texttt{src/results/}; figures are included in this section via the \texttt{results/...} paths.
 
-\paragraph{Broadcast Throughput} 
-evaluate one-to-many fan-out efficiency and replication overhead. Configuration: 5 agents in simple mode and a 5--20 agent sweep in extensive mode; one broadcaster sends 30--50 broadcasts to all others with a fixed 20~ms inter-broadcast pause. Reported metrics: messages/s, average broadcast latency, and success rate. Motivation: models state dissemination and notifications in multi-agent coordination; pub-sub systems like MQTT and Kafka target this pattern. 
+\paragraph{Architecture and real network communication.}
+The communication benchmarks exercise the full network stack using real protocols and servers, in contrast to hierarchy benchmarks that simulate message passing in memory. REST is evaluated via a local Flask service (JSON over HTTP/1.1 or HTTP/2)~\cite{Fielding2000REST,RFC9110}. gRPC uses Protocol Buffers over HTTP/2 for typed RPC and streaming~\cite{gRPCConcepts,gRPCProto}. MQTT uses a Mosquitto broker to assess publish--subscribe under different QoS semantics~\cite{MQTTv5Spec}. Kafka uses an Apache Kafka cluster to measure broker-mediated event streaming under different producer acknowledgement policies~\cite{apache_kafka_docs,KafkaProducerAcks}.
+The benchmark runner instantiates standardized scenarios (point--to--point, broadcast, concurrent load, sustained stress), manages agents and their mailboxes, and collects metrics via latency, throughput, reliability, and resource trackers. Agents interact through protocol--specific clients that serialize and transmit messages to services or brokers.
 
-\paragraph{Concurrent Messaging} assess contention behavior, connection pooling, and queue management under concurrent peer-to-peer traffic. Configuration: simple mode uses 4 agents; extensive mode sweeps 5--20 agents; 100 messages per agent by default; random P2P with concurrency. A separate concurrency matrix sweep (default senders 1, 4, 16, 64) is used to characterize scaling under contention. Reported metrics: throughput, latency distribution, delivery failures and timeouts, CPU and memory under load. Motivation: aligns with multi-client benchmarking practice for concurrent workloads.
+\paragraph{Goals and design.}
+The communication benchmark suite provides apples--to--apples comparisons across REST, gRPC, MQTT, and Kafka by reusing the same high--level scenarios, normalizing configuration in a single runner, and collecting a consistent set of metrics (latency, throughput, reliability, resource usage). Results are exported to JSON/CSV for cross--protocol analysis and plotting.
 
-\paragraph{Scalability Stress} Maximum sustainable throughput, degradation near saturation, and recovery behavior is determined. Configuration: 3–20 agents; 3–5 seconds continuous high-rate sending. Reported metrics include: peak messages/s, total delivered, failure rate, and resource trends.  
+\paragraph{Hardware and software environment.}
+All communication benchmark results in this section were collected on a single host running Ubuntu 22.04.5 LTS (Linux kernel \texttt{6.8.0-90-generic}) with an AMD Ryzen 9 5900HX (8 physical cores / 16 threads, 0.40--4.68~GHz reported) and 30.75~GB RAM, using Python 3.10.12.
 
-
-\paragraph{Topology comparison} Team topology and how it influences protocol performance using four patterns is measured: Fully-Connected, Star, Ring, and Chain. In extensive mode, the runner executes \texttt{concurrent\_messaging} on each topology (default: 20 agents, 50 messages per agent) so routing overheads, load distribution, and protocol--topology fit can be compared. 
-
-
-\paragraph{Scalability analysis} Trends in latency, throughput, CPU, memory, and success rate as the number of agents grows is measured. 
-\subsection{Communication Benchmarks: Core Architecture and Measurement}
-
-\subsubsection{Architecture and Real Network Communication}
-The communication benchmarks exercise the full network stack using real protocols and servers, in contrast to hierarchy benchmarks that simulate message passing in memory. The implementation evaluates:
-\begin{enumerate}
-    \item \textbf{REST} over HTTP using a Flask web service for JSON request--response handling \cite{Fielding2000REST,RFC9110}.
-    \item \textbf{gRPC} using Protocol Buffers over HTTP/2 for typed RPC and streaming \cite{gRPCConcepts,gRPCProto}.
-    \item \textbf{MQTT} using a Mosquitto broker to assess publish--subscribe with QoS semantics \cite{MQTTv5Spec}.
-    \item \textbf{Kafka} using an Apache Kafka cluster to measure high--throughput event streaming with broker acknowledgments~\cite{apache_kafka_docs,KafkaProducerAcks}.
-\end{enumerate}
-
-The benchmark runner instantiates scenarios (point--to--point, broadcast, concurrent load), manages agents and their mailboxes, and collects metrics via latency, throughput, and resource trackers. Agents interact through protocol--specific clients that serialize and transmit messages to services or brokers.
-
-\subsubsection{Goals and Design}
-The communication benchmark suite provides apples--to--apples comparisons across REST, gRPC, MQTT, and Kafka by reusing the same high--level scenarios, normalizing configuration in a single runner, and collecting a consistent set of metrics (latency, throughput, reliability, resource usage). Results export to JSON/CSV for cross--protocol analysis and plotting. Built--in defaults support quick "simple" runs and deeper "extensive" sweeps.
-
-\subsubsection{Benchmark Hardware and Environment}
-All communication benchmark results in this section were collected on a single host with the following configuration:
-\begin{itemize}
-    \item OS: Ubuntu 22.04.5 LTS, Linux kernel \texttt{6.8.0-90-generic}
-    \item CPU: AMD Ryzen 9 5900HX (8 physical cores / 16 threads, 0.40--4.68 GHz reported)
-    \item Memory: 30.75 GB RAM
-\end{itemize}
-
-\subsubsection{Message Flow Example (REST, Point--to--Point)}
+\paragraph{Message Flow Example (REST, Point--to--Point).}
 The listing below shows a simplified end--to--end path for REST. The sender issues a real HTTP request; the Flask server parses, enqueues, and responds; the benchmark records the measured interval.
 
 \begin{lstlisting}[language=Python, caption={REST point-to-point message path}]
@@ -128,8 +78,8 @@ benchmark.latency_tracker.end_message_timing("msg_123")
 
 This measures network transfer, serialization and deserialization, HTTP request/response handling, queue operations, and server routing.
 
-\subsubsection{Latency Modes and the Fairness Problem}
-Protocols differ in their default synchronization points. REST and typical synchronous gRPC clients block until the server responds to the request; MQTT and Kafka often expose asynchronous publishing that returns before any subscriber receives data. Measuring only the send operation would make asynchronous publish--subscribe appear faster, since broker handoff is shorter than end--to--end delivery. To address this, the benchmark supports three modes: \texttt{send\_only}, \texttt{end\_to\_end}, and \texttt{app\_ack}. This separation aligns measurement with user intent and avoids misleading comparisons \cite{Tene2015Latency,DeanBarroso2013TailAtScale,Jain1991PerformanceAnalysis}.
+\paragraph{Latency Modes and the Fairness Problem.}
+Protocols differ in their default synchronization points. REST and typical synchronous gRPC clients block until the server responds to the request; MQTT and Kafka often expose asynchronous publishing that returns before any subscriber receives data. Measuring only the send operation would make asynchronous publish--subscribe appear faster, since broker handoff is shorter than end--to--end delivery. To address this, the benchmark supports three modes: \texttt{send\_only}, \texttt{end\_to\_end}, and \texttt{app\_ack}. This separation aligns measurement with user intent and avoids misleading comparisons \cite{Tene2015Latency,DeanBarroso2013TailAtScale,Jain1991PerformanceAnalysis}. Table~\ref{tab:protocol-behavior-measurement} summarizes the default behavior and the resulting measurement scope for each protocol family.
 
 \begin{table}[H]
 \centering
@@ -198,6 +148,9 @@ stop_timer()
 \paragraph{Mode 2: \texttt{end\_to\_end} (Transport Round--Trip).}
 Measure from the sender’s initiation until the transport's default completion point. No explicit application--level ACK is awaited; instead, the blocking call’s completion serves as the synchronization point for REST (HTTP response), gRPC (RPC response), and Kafka (producer acknowledgments when enabled). MQTT publishing is asynchronous in this harness, so \texttt{end\_to\_end} measures publish call completion (broker handoff) rather than receiver processing; \texttt{app\_ack} is used for strict end-to-end delivery.
 
+\paragraph{Mode 3: \texttt{app\_ack} (Application--Level Round Trip).}
+Extends \texttt{end\_to\_end} by measuring a full round trip including an application--level ACK sent by the receiver. Each scenario implements a lightweight ACK loop using a dedicated ACK message type so the sender stops timing only after receiving matching ACK(s). Figure~\ref{fig:timing-boundaries-ack} illustrates the timing boundaries used in this mode. This provides the strictest, protocol--agnostic comparison of end--to--end behavior when feasible.
+
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
@@ -240,11 +193,6 @@ Measure from the sender’s initiation until the transport's default completion 
 \label{fig:timing-boundaries-ack}
 \end{figure}
 
-The synchronous blocking points and included operations are summarized in Table~\ref{tab:protocol-blocking-included}.
-
-\paragraph{Mode 3: \texttt{app\_ack} (Application--Level Round Trip).}
-Extends \texttt{end\_to\_end} by measuring a full round trip including an application--level ACK sent by the receiver. Each scenario implements a lightweight ACK loop using a dedicated ACK message type so the sender stops timing only after receiving matching ACK(s). Figure~\ref{fig:timing-boundaries-ack} illustrates the timing boundaries used in this mode. This provides the strictest, protocol--agnostic comparison of end--to--end behavior when feasible.
-
 \begin{table}[H]
 \centering
 
@@ -262,8 +210,10 @@ Kafka & Broker ack (when enabled)  & Send + broker acknowledgment (via \texttt{F
 \caption{Synchronous blocking points and included operations per protocol}
 \end{table}
 
-\subsection{Broadcast Mechanisms}
-Broadcast semantics differ by protocol. In this implementation, REST and gRPC use a single broadcast request to the communication service, which performs the fan--out loop internally; MQTT and Kafka provide topic--based fan--out.
+Table~\ref{tab:protocol-blocking-included} links each protocol to its synchronous completion point in the benchmark harness and enumerates the operations included in the timed interval.
+
+\paragraph{Broadcast Mechanisms.}
+Broadcast semantics differ by protocol. In this implementation, REST and gRPC use a single broadcast request to the communication service, which performs the fan--out loop internally; MQTT and Kafka provide topic--based fan--out. Table~\ref{tab:protocol-broadcast} summarizes the broadcast mechanism implemented per protocol in the benchmark harness.
 
 \begin{table}[H]
 \centering
@@ -281,7 +231,7 @@ Kafka & Single send to shared topic (one consumer group per agent) \\
 \caption{Broadcast mechanisms per protocol}
 \end{table}
 
-\subsubsection{Benchmark Scenarios}
+\paragraph{Benchmark Scenarios.}
 \paragraph{(1) \texttt{point\_to\_point\_latency}.}
 Goal: measure basic message delivery speed between two agents over a chosen topology. Typical configuration uses 50 sequential messages in simple mode and 100 in extensive mode. Report the mean, percentiles (p95, p99), minimum, maximum, and success rate \cite{DeanBarroso2013TailAtScale,Jain1991PerformanceAnalysis}.
 
@@ -300,7 +250,7 @@ for i in range(message_count):
 \end{lstlisting}
 
 \paragraph{(3) \texttt{concurrent\_messaging}.}
-Goal: assess behavior under concurrent load with $N$ agents sending to random peers. Simple runs use $N=4$ with 100 messages per agent; extensive runs sweep $N \in \{5,10,15,20\}$ with the same per-agent message count. A separate concurrency matrix (default senders 1, 4, 16, 64) characterizes scaling under contention.
+Goal: assess behavior under concurrent load with $N$ agents sending to random peers. Simple runs use $N=4$ with 100 messages per agent; extensive runs sweep $N \in \{5,10,15,20\}$ with the same per-agent message count. A separate concurrency matrix (senders 1, 4, 8, 16 in the extensive configuration) characterizes scaling under contention.
 
 \begin{lstlisting}[language=Python, caption={Concurrent messaging workload}]
 def agent_messaging_task(agent, agent_index):
@@ -319,11 +269,11 @@ for t in threads: t.join()
 \paragraph{(4) \texttt{scalability\_stress}.}
 Goal: stress the system by having all agents send at a high rate for a fixed duration. Report sustained throughput, resource usage (CPU, RSS), and error rates under sustained load.
 
-Defaults are summarized in Table~\ref{tab:benchmark-configs}.
+Defaults are summarized in Table~\ref{tab:benchmark-configs}, which contrasts simple-mode defaults with the extensive thesis sweep configuration and indicates when an additional concurrency matrix is executed.
 
 \begin{table}[H]
 \centering
-\caption{Default communication benchmark configurations (runner defaults; YAML can override)}
+\caption{Communication benchmark configurations (simple mode defaults; extensive mode thesis configuration)}
 \label{tab:benchmark-configs}
 \begin{tabular}{l|l|l|l}
 \toprule
@@ -333,14 +283,14 @@ Defaults are summarized in Table~\ref{tab:benchmark-configs}.
 % \hline
 point\_to\_point\_latency & $N=2$, messages=50 & $N\in\{5,10,15,20\}$, messages=100 & -- \\
 broadcast\_throughput & $N=5$, broadcasts=30, 20~ms & $N\in\{5,10,15,20\}$, broadcasts=50, 20~ms & -- \\
-concurrent\_messaging & $N=4$, 100 msg/agent & $N\in\{5,10,15,20\}$, 100 msg/agent & senders $\in\{1,4,16,64\}$, $N=\max(\text{senders},4)$ \\
+concurrent\_messaging & $N=4$, 100 msg/agent & $N\in\{5,10,15,20\}$, 100 msg/agent & senders $\in\{1,4,8,16\}$, $N=\max(\text{senders},4)$ \\
 scalability\_stress & $N=5$, duration=3~s & $N\in\{5,10,15,20\}$, duration=5~s & -- \\
 topology\_comparison & -- & $N=20$, 50 msg/agent, 4 topologies & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Metrics and Instrumentation}
+\paragraph{Metrics and Instrumentation.}
 \paragraph{Latency tracker.}
 A monotonic, high-resolution clock (\texttt{time.perf\_counter}) is used for start/stop timing. Completed latencies feed percentile summaries for reporting \cite{PythonTime,DeanBarroso2013TailAtScale,Tene2015Latency}.
 
@@ -396,187 +346,30 @@ class ResourceMonitor:
         Thread(target=self._monitor_loop, daemon=True).start()
 \end{lstlisting}
 
-\subsubsection{Topology Patterns}
+\paragraph{Topology Patterns.}
 Scenarios can run over different communication topologies. Built--in patterns include \texttt{fully\_connected}, \texttt{star}, \texttt{ring}, and \texttt{chain}. The setup phase builds the topology and installs directed links (sender $\rightarrow$ receiver) so that each protocol exercises the same overlay.
 
-\subsubsection{Metrics Collected}
+\paragraph{Metrics Collected.}
 Across scenarios the harness records a consistent set of metrics: latency (avg, min, max, std, p50, p95, p99, p99.9, jitter; sampled latencies for plots), throughput (average and 1~s--window peak; per--second history), reliability (success rate, delivery/timeouts; ordering violations and duplicates when tracked), resources (process CPU\% and RSS), and test metadata (agent count, total messages, duration, topology density, payload size, latency mode).
 
-\subsubsection{Runner Orchestration and Variants}
+\paragraph{Runner Orchestration and Variants.}
 The unified runner ensures protocol environments are ready (e.g., MQTT/Kafka brokers) before measurements, instantiates protocol--specific scenario factories, iterates configured protocol variants, and optionally sweeps topologies in extensive mode. Protocol variants map to common settings: REST \texttt{http1}/\texttt{http2}; gRPC \texttt{unary}/\texttt{streaming}; MQTT \texttt{qos0}/\texttt{qos1}/\texttt{qos2}; Kafka \texttt{acks0}/\texttt{acks1}/\texttt{acksall} (note: \texttt{acks0} is skipped in \texttt{app\_ack} mode). For \texttt{concurrent\_messaging}, a concurrency matrix can vary the number of concurrent senders per variant.
 
-\subsection{Defaults and Outputs}
-Simple runs use small message counts and a single agent count for quick sanity checks; extensive runs sweep agent counts and topologies, and may include a concurrency matrix. Each run writes JSON and CSV to an output directory with the latency mode in the filename, including full per--protocol results and cross--protocol summaries (latency, throughput, and resource usage CSVs).
+\paragraph{Experiment matrix.}
+Benchmarks are executed with a unified runner that sweeps protocol variants (Table~\ref{tab:comm-protocol-options}), scenarios (Table~\ref{tab:benchmark-configs}), and agent counts in extensive mode. In the extensive configuration used for these results (YAML: \texttt{src/benchmarks/benchmark\_configs/all\_benchmarks\_concurrency.yml}), agent counts are swept over $N \in \{5,10,15,20\}$ on a fully connected topology. The runner additionally performs a topology sweep over \texttt{fully\_connected}, \texttt{star}, \texttt{ring}, and \texttt{chain} for \texttt{concurrent\_messaging} at $N=20$, and a concurrency matrix for \texttt{concurrent\_messaging} that varies the number of concurrent senders (senders $\in \{1,4,8,16\}$).
 
+\paragraph{Trials and repetition.}
+Each configuration point (protocol $\times$ variant $\times$ scenario $\times$ agent count $\times$ latency mode, plus optional topology/concurrency sweeps) is repeated for $K$ independent trials. In our benchmark configuration we use $K=5$ trials and 0 warm-up operations per trial; the runner exports bootstrap 95\% confidence intervals (CI) for the per-trial means to JSON/CSV.
 
-\subsubsection{Results: send\_only vs. app\_ack vs. end\_to\_end}
-The reults for all modes are discussed in this section
+\paragraph{Outputs.}
+Simple runs use small message counts and a single agent count for quick sanity checks; extensive runs sweep agent counts and topologies, and may include a concurrency matrix. Each run writes JSON and CSV to an output directory, including full per--protocol results and cross--protocol summaries (latency, throughput, and resource usage CSVs).
 
-\subsection{Results: app\_ack (Application-level ACK Round Trip)}
-In app\_ack mode the sender measures a full application loop (send \(\rightarrow\) receiver processing \(\rightarrow\) receiver ACK \(\rightarrow\) sender receives ACK). As expected, average throughput numbers are much lower than in transport-only modes because the measurement includes receiver compute and app-level signaling. The artifact CSVs are located under \texttt{results/all\_benchmarks\_extensive\_app\_ack/}.
+\subsubsection{Results}
+Results are reported for three latency modes: \texttt{send\_only}, \texttt{end\_to\_end}, and \texttt{app\_ack}. The results shown below summarize the extensive benchmark runs executed on 2026--02--17 (five trials per configuration point).
 
-\begin{table}[H]
-\centering
-
-\label{tab:concurrent-app-ack}
-\begin{tabular}{l|r|r|r}
-\toprule
-\textbf{Protocol Variant} & \textbf{Avg Latency (ms)} & \textbf{Avg Throughput (msg/s)} & \textbf{Success (\%)} \\
-\midrule
-rest/http1        & 27.47  & 283.1 & 100.0 \\
-rest/http2        & 29.29  & 271.4 & 100.0 \\
-grpc/unary        &  3.27  & 681.8 & 100.0 \\
-grpc/streaming    &  7.61  & 546.3 & 100.0 \\
-mqtt/qos0         &  2.33  & 747.8 & 100.0 \\
-mqtt/qos1         &  2.37  & 731.2 & 100.0 \\
-mqtt/qos2         &  4.38  & 644.6 & 100.0 \\
-kafka/acks1       & 23.66  & 247.6 &  98.8 \\
-kafka/acksall     & 23.67  & 276.8 &  99.5 \\
-\bottomrule
-\end{tabular}
-\caption{Concurrent messaging (app\_ack): average latency and throughput}
-\end{table}
-
-\begin{figure}[H]
-  \centering
-  % Row 1
-    \begin{minipage}{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_app_ack/p99_vs_concurrency.png}\\[0.2em]
-    {\small (c) p99 latency vs concurrency}
-  \end{minipage}\hfill
-  \begin{minipage}{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_app_ack/throughput_comparison.png}\\[0.2em]
-    {\small (b) Throughput by protocol (app\_ack)}
-  \end{minipage}
-
-  % Row 2
-  % \\[0.8em]
-  \begin{minipage}{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_app_ack/performance_radar.png}\\[0.2em]
-    {\small (d) Performance radar (app\_ack)}
-  \end{minipage}
-\begin{minipage}{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_app_ack/latency_comparison.png}\\[0.2em]
-    {\small (d) Performance radar (app\_ack)}
-  \end{minipage}
-
-
-
-  \caption{Communication benchmarks in app\_ack mode: latency distribution, throughput, tail latency under concurrency, aggregate performance, payload sensitivity, and overall ranking.}
-  \label{fig:comm-app-ack-multi}
-\end{figure}
-
-\paragraph{Discussion}
-App\_ack attributes more of the end-to-end time to receiver processing and application-level signaling, which lowers throughput across all protocols relative to transport-only modes. In this run, MQTT achieves the highest app-level throughput (QoS0/1), gRPC follows closely with the lowest average latency, and REST/Kafka trail in throughput while still maintaining near-perfect success rates. Kafka \texttt{acks=all} slightly improves success over \texttt{acks=1} with similar throughput.
-
-% \begin{figure*}[H]
-%   \centering
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_send_only/latency_comparison.png}\\[-0.2em]
-%     {\small (a) Latency comparison (send\_only)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_app_ack/latency_comparison.png}\\[-0.2em]
-%     {\small (b) Latency comparison (app\_ack)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_end_to_end/latency_comparison.png}\\[-0.2em]
-%     {\small (c) Latency comparison (end\_to\_end)}
-%   \end{minipage}
-%   \caption{Latency comparison across modes (send\_only, app\_ack, end\_to\_end).}
-%   \label{fig:latency-comparison-modes}
-% \end{figure*}
-
-% \begin{figure*}[H]
-%   \centering
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_send_only/throughput_comparison.png}\\[-0.2em]
-%     {\small (a) Throughput comparison (send\_only)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_app_ack/throughput_comparison.png}\\[-0.2em]
-%     {\small (b) Throughput comparison (app\_ack)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_end_to_end/throughput_comparison.png}\\[-0.2em]
-%     {\small (c) Throughput comparison (end\_to\_end)}
-%   \end{minipage}
-%   \caption{Throughput comparison across modes (send\_only, app\_ack, end\_to\_end).}
-%   \label{fig:throughput-comparison-modes}
-% \end{figure*}
-
-% \begin{figure*}[H]
-%   \centering
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_send_only/latency_cdf.png}\\[-0.2em]
-%     {\small (a) Latency CDF (send\_only)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_app_ack/latency_cdf.png}\\[-0.2em]
-%     {\small (b) Latency CDF (app\_ack)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_end_to_end/latency_cdf.png}\\[-0.2em]
-%     {\small (c) Latency CDF (end\_to\_end)}
-%   \end{minipage}
-%   \caption{Latency distribution across modes (send\_only, app\_ack, end\_to\_end).}
-%   \label{fig:latency-cdf-modes}
-% \end{figure*}
-
-% \begin{figure*}[H]
-%   \centering
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_send_only/p99_vs_concurrency.png}\\[-0.2em]
-%     {\small (a) p99 vs concurrency (send\_only)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_app_ack/p99_vs_concurrency.png}\\[-0.2em]
-%     {\small (b) p99 vs concurrency (app\_ack)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_end_to_end/p99_vs_concurrency.png}\\[-0.2em]
-%     {\small (c) p99 vs concurrency (end\_to\_end)}
-%   \end{minipage}
-%   \caption{Tail latency vs concurrency across modes (send\_only, app\_ack, end\_to\_end).}
-%   \label{fig:p99-concurrency-modes}
-% \end{figure*}
-
-% \begin{figure*}[H]
-%   \centering
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_send_only/performance_radar.png}\\[-0.2em]
-%     {\small (a) Performance radar (send\_only)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_app_ack/performance_radar.png}\\[-0.2em]
-%     {\small (b) Performance radar (app\_ack)}
-%   \end{minipage}\\[0.4em]
-%   \begin{minipage}{0.98\linewidth}
-%     \centering
-%     \includegraphics[width=0.98\linewidth]{results/all_benchmarks_extensive_end_to_end/performance_radar.png}\\[-0.2em]
-%     {\small (c) Performance radar (end\_to\_end)}
-%   \end{minipage}
-%   \caption{Performance radar across modes (send\_only, app\_ack, end\_to\_end).}
-%   \label{fig:performance-radar-modes}
-% \end{figure*}
+\paragraph{Mode: \texttt{send\_only}.}
+Measure only the sender-side send/publish call. Artifacts are located under \texttt{results/all\_benchmarks\_extensive\_send\_only/}.
+Table~\ref{tab:concurrent-send-only} reports the cross-protocol summary for the \texttt{concurrent\_messaging} scenario in extensive mode (mean over $N \in \{5,10,15,20\}$ on a fully connected topology).
 
 \begin{table}[H]
 \centering
@@ -586,51 +379,54 @@ App\_ack attributes more of the end-to-end time to receiver processing and appli
 \toprule
 \textbf{Protocol Variant} & \textbf{Avg Latency (ms)} & \textbf{Avg Throughput (msg/s)} & \textbf{Success (\%)} \\
 \midrule
-rest/http1        & 2.68 & 243.0 & 100.0 \\
-rest/http2        & 2.38 & 246.2 & 100.0 \\
-grpc/unary        & 0.96 & 260.6 & 100.0 \\
-grpc/streaming    & 1.12 & 269.1 & 100.0 \\
-mqtt/qos0         & 0.24 & 278.9 & 100.0 \\
-mqtt/qos1         & 0.26 & 263.6 & 100.0 \\
-mqtt/qos2         & 0.26 & 277.6 & 100.0 \\
-kafka/acks0       & 1.17 & 245.6 & 100.0 \\
-kafka/acks1       & 0.99 & 245.0 & 100.0 \\
-kafka/acksall     & 1.50 & 253.5 & 100.0 \\
+rest/http1        & 12.37 & 435.7 & 100.0 \\
+rest/http2        & 13.34 & 419.3 & 100.0 \\
+grpc/unary        &  0.77 & 821.7 & 100.0 \\
+grpc/streaming    &  1.58 & 775.1 & 100.0 \\
+mqtt/qos0         &  0.11 & 854.0 & 100.0 \\
+mqtt/qos1         &  0.12 & 856.7 & 100.0 \\
+mqtt/qos2         &  0.13 & 857.8 & 100.0 \\
+kafka/acks0       &  1.32 & 759.2 & 100.0 \\
+kafka/acks1       &  1.91 & 692.7 & 100.0 \\
+kafka/acksall     &  1.94 & 704.4 & 100.0 \\
 \bottomrule
 \end{tabular}
-\caption{Concurrent messaging results (send\_only): average latency and throughput}
+\caption{Concurrent messaging results (\texttt{send\_only}): average latency and throughput}
 \end{table}
+
 \begin{figure}[H]
   \centering
-   % Row 1
-    \begin{minipage}{0.48\linewidth}
+  % Row 1
+  \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_send_only/p99_vs_concurrency.png}\\[0.2em]
-    {\small (c) p99 latency vs concurrency}
+    {\small (a) p99 latency vs concurrency}
   \end{minipage}\hfill
   \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_send_only/throughput_comparison.png}\\[0.2em]
-    {\small (b) Throughput by protocol (send\_only)}
+    {\small (b) Throughput by protocol (\texttt{send\_only})}
   \end{minipage}
 
   % Row 2
-  % \\[0.8em]
   \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_send_only/performance_radar.png}\\[0.2em]
-    {\small (d) Performance radar (send\_only)}
-  \end{minipage}
-\begin{minipage}{0.48\linewidth}
+    {\small (c) Performance radar (\texttt{send\_only})}
+  \end{minipage}\hfill
+  \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_send_only/latency_comparison.png}\\[0.2em]
-    {\small (d) Performance radar (send\_only)}
+    {\small (d) Latency comparison (\texttt{send\_only})}
   \end{minipage}
 
-
-  \caption{Communication benchmarks in send\_only mode: latency distribution, throughput, tail latency under concurrency, aggregate performance, payload sensitivity, and overall ranking.}
+  \caption{Communication benchmarks in \texttt{send\_only} mode: latency/throughput comparison and concurrency scaling.}
   \label{fig:comm-send-only-multi}
 \end{figure}
+
+\paragraph{Mode: \texttt{end\_to\_end}.}
+Measure the transport-level completion point without an application-level ACK. Artifacts are located under \texttt{results/all\_benchmarks\_extensive\_end\_to\_end/}.
+Table~\ref{tab:concurrent-end-to-end} reports the corresponding \texttt{concurrent\_messaging} summary under transport-level completion points (mean over $N \in \{5,10,15,20\}$ on a fully connected topology).
 
 \begin{table}[H]
 \centering
@@ -640,131 +436,148 @@ kafka/acksall     & 1.50 & 253.5 & 100.0 \\
 \toprule
 \textbf{Protocol Variant} & \textbf{Avg Latency (ms)} & \textbf{Avg Throughput (msg/s)} & \textbf{Success (\%)} \\
 \midrule
-rest/http1        & 9.51 & 484.5 & 100.0 \\
-rest/http2        & 10.31 & 472.6 & 100.0 \\
-grpc/unary        & 0.82 & 826.7 & 100.0 \\
-grpc/streaming    & 1.52 & 784.5 & 100.0 \\
-mqtt/qos0         & 0.17 & 856.5 & 100.0 \\
-mqtt/qos1         & 0.18 & 835.3 & 100.0 \\
-mqtt/qos2         & 0.19 & 858.4 & 100.0 \\
-kafka/acks0       & 5.88 & 593.4 & 100.0 \\
-kafka/acks1       & 6.99 & 558.7 & 100.0 \\
-kafka/acksall     & 6.81 & 555.5 & 100.0 \\
+rest/http1        & 12.21 & 438.1 & 100.0 \\
+rest/http2        & 13.45 & 418.9 & 100.0 \\
+grpc/unary        &  0.81 & 818.5 & 100.0 \\
+grpc/streaming    &  1.58 & 773.0 & 100.0 \\
+mqtt/qos0         &  0.11 & 859.2 & 100.0 \\
+mqtt/qos1         &  0.12 & 859.7 & 100.0 \\
+mqtt/qos2         &  0.12 & 862.4 & 100.0 \\
+kafka/acks0       &  5.81 & 600.2 & 100.0 \\
+kafka/acks1       &  7.16 & 547.9 & 100.0 \\
+kafka/acksall     &  7.10 & 549.0 & 100.0 \\
 \bottomrule
 \end{tabular}
-\caption{Concurrent messaging results (end\_to\_end): average latency and throughput}
+\caption{Concurrent messaging results (\texttt{end\_to\_end}): average latency and throughput}
 \end{table}
 
 \begin{figure*}[H]
   \centering
-   % Row 1
-    \begin{minipage}{0.48\linewidth}
+  % Row 1
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_end_to_end/p99_vs_concurrency.png}\\[0.2em]
+    {\small (a) p99 latency vs concurrency}
+  \end{minipage}\hfill
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_end_to_end/throughput_comparison.png}\\[0.2em]
+    {\small (b) Throughput by protocol (\texttt{end\_to\_end})}
+  \end{minipage}
+
+  % Row 2
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_end_to_end/performance_radar.png}\\[0.2em]
+    {\small (c) Performance radar (\texttt{end\_to\_end})}
+  \end{minipage}\hfill
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_end_to_end/latency_comparison.png}\\[0.2em]
+    {\small (d) Latency comparison (\texttt{end\_to\_end})}
+  \end{minipage}
+
+  \caption{Communication benchmarks in \texttt{end\_to\_end} mode: latency/throughput comparison and concurrency scaling.}
+  \label{fig:comm-end-to-end-multi}
+\end{figure*}
+
+\paragraph{Mode: \texttt{app\_ack} (Application-level ACK Round Trip).}
+In \texttt{app\_ack} mode the sender measures a full application loop (send \(\rightarrow\) receiver processing \(\rightarrow\) receiver ACK \(\rightarrow\) sender receives ACK). As expected, average throughput numbers are lower than in transport-only modes because the measurement includes receiver compute and app-level signaling. The artifact CSVs are located under \texttt{results/all\_benchmarks\_extensive\_app\_ack/}.
+Table~\ref{tab:concurrent-app-ack} reports the \texttt{concurrent\_messaging} summary when an explicit application-level acknowledgment is included (mean over $N \in \{5,10,15,20\}$ on a fully connected topology).
+
+\begin{table}[H]
+\centering
+
+\label{tab:concurrent-app-ack}
+\begin{tabular}{l|r|r|r}
+\toprule
+\textbf{Protocol Variant} & \textbf{Avg Latency (ms)} & \textbf{Avg Throughput (msg/s)} & \textbf{Success (\%)} \\
+\midrule
+rest/http1        & 36.36  & 234.4 & 100.0 \\
+rest/http2        & 38.38  & 228.0 & 100.0 \\
+grpc/unary        &  3.60  & 674.3 & 100.0 \\
+grpc/streaming    &  8.25  & 527.6 & 100.0 \\
+mqtt/qos0         &  1.30  & 789.0 & 100.0 \\
+mqtt/qos1         &  1.36  & 770.1 & 100.0 \\
+mqtt/qos2         &  1.38  & 770.9 & 100.0 \\
+kafka/acks1       & 38.14  & 173.2 &  98.8 \\
+kafka/acksall     & 27.08  & 224.9 &  99.0 \\
+\bottomrule
+\end{tabular}
+\caption{Concurrent messaging (\texttt{app\_ack}): average latency and throughput}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  % Row 1
+  \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_app_ack/p99_vs_concurrency.png}\\[0.2em]
-    {\small (c) p99 latency vs concurrency}
+    {\small (a) p99 latency vs concurrency}
   \end{minipage}\hfill
   \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_app_ack/throughput_comparison.png}\\[0.2em]
-    {\small (b) Throughput by protocol (end\_to\_end)}
+    {\small (b) Throughput by protocol (\texttt{app\_ack})}
   \end{minipage}
 
   % Row 2
-  % \\[0.8em]
   \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_app_ack/performance_radar.png}\\[0.2em]
-    {\small (d) Performance radar (end\_to\_end)}
-  \end{minipage}
-\begin{minipage}{0.48\linewidth}
+    {\small (c) Performance radar (\texttt{app\_ack})}
+  \end{minipage}\hfill
+  \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{results/all_benchmarks_extensive_app_ack/latency_comparison.png}\\[0.2em]
-    {\small (d) Performance radar (end\_to\_end)}
+    {\small (d) Latency comparison (\texttt{app\_ack})}
   \end{minipage}
 
+  \caption{Communication benchmarks in \texttt{app\_ack} mode: latency/throughput comparison and concurrency scaling.}
+  \label{fig:comm-app-ack-multi}
+\end{figure}
 
-  \caption{Communication benchmarks in end\_to\_end mode: latency distribution, throughput, tail latency under concurrency, aggregate performance, payload sensitivity, and overall ranking.}
-  \label{fig:comm-end-to-end-multi}
-\end{figure*}
+\paragraph{Discussion.}
+As expected, \texttt{app\_ack} yields higher measured latency and lower throughput than transport-only modes because receiver processing and the application-level acknowledgment loop are included in the timing boundaries. In these experiments, MQTT achieves the highest throughput across modes with consistently low latencies, while gRPC (unary) provides low-latency RPC communication at high throughput. REST exhibits substantially higher latencies under concurrent load, reflecting the overhead of HTTP request/response handling and text-based serialization. Kafka shows higher end-to-end costs in \texttt{app\_ack} due to broker mediation and acknowledgement semantics; \texttt{acks=all} improves both throughput and success rate relative to \texttt{acks=1} in this configuration, but remains below MQTT and gRPC for latency-sensitive communication.
 
-\section{Hierarchy and Organizational Structures in MAS}
-
-
-Equally critical to an MAS architecture is how the agents are organized and how control or decision making is distributed. The “hierarchy structure” of a MAS refers to whether there are one or more leader/coordinator agents and how authority and tasks flow between agents. This structural design affects scalability, fault-tolerance , complexity of coordination protocols, and performance.
-
-
-
-\subsubsection{Tree-Based Hierarchy (Centralized or Multi-level Hierarchies)}
-Description: In a hierarchical MAS, agents are arranged in a tree or pyramid structure. A single root agent(or a small set of top-level agents) acts as a central coordinator or manager, overseeing the system. Mid-level agents might coordinate sub-teams, and leaf-level agents perform the low-level tasks. Orders and information flow up and down the chain~\cite{Moore2025Taxonomy}.
-Trade-Offs:
-\paragraph{Scalability and performance}
-The primary advantage of hierarchical organization is that it addresses scalability through divide-and-conquer. By delegating subsets of tasks to intermediate leader agents, the system can manage a much larger number of agents without overwhelming any single communication channel. A flat fully-connected team may struggle with communication overhead or global coherence as the agent count grows, whereas introducing hierarchy allows intermediate aggregation of information and decisions. Each leader agent reduces the complexity by handling a portion of the problem, improving global efficiency in large groups. Thus, hierarchies tend to be more efficient in decision making for large systems, since decisions can be made or aggregated at higher levels with a broad view, then dispersed downstream~\cite{Moore2025Taxonomy}.
-\paragraph{Coherence and conflict resolution}
-A hierarchy imposes an authority structure that often makes coordination simple. With clear roles, the system avoids indecision. This can prevent thrashing or deadlock in coordination that might occur in decentralized MAS. Coherence of plans is also easier to ensure, the top agent can maintain a global plan and ensure the actions of local agents are aligned with the global, rather than relying on agreement~\cite{Moore2025Taxonomy}.
-\paragraph{Robustness and single point of failure} 
-The biggest drawback is reliance on the leader(s). A purely centralized MAS with a single leading agent has an obvious single point of failure. If the coordinator agent crashes or malfunctions, the entire system could fail. Even multi-level hierarchies suffer from fragile links: if a mid-level manager agent fails, the corresponding subtree of workers becomes isolated. Hierarchies typically have to sacrifice robustness for improved efficiency. A hierarchy is less fault tolerant, it needs redundancy or recovery strategies for leader agents to avoid single points of failure. Moreover, a heavily centralized architecture can become a bottleneck: the top agent can only handle so many messages or decisions per second, so performance might degrade if the scale exceeds the leader’s capacity. This can be mitigated by multi-tier hierarchies or by limiting how much work the top needs to do by delegating most decisions downstream~\cite{Moore2025Taxonomy}.
-\paragraph{Complexity and flexibility}
-Conceptually, hierarchical MAS are often easier to design since assigning roles is straightforward. The communication protocols in a hierarchy can also be simpler, in most cases a request/reply pattern between levels suffices, rather than complex peer-to-peer negotiation. However, this structure can be inflexible if the environment changes in ways that weren’t anticipated by the top-down strategy. Workers may have limited autonomy to adapt if the leader’s instructions are suboptimal. The system’s success rests on the leader’s strategy.
-
-Despite these issues, hierarchies are a proven way to manage complexity and have been effectively used in many large-scale MAS. The key trade-off is efficiency and coherence versus robustness and adaptability.
-
-
-\subsubsection{Peer-to-Peer (Fully Decentralized)}
-In a peer-to-peer MAS, all agents are equal – there is no fixed coordinator or leader. Control is distributed: each agent makes decisions autonomously and coordinates with others through negotiation, voting, or other protocols. Communication in such an MAS might be broadcast-based or gossip-based, and any agent may talk to any other as needed. There might  still be logical roles, but roles are not arranged in a strict superiority hierarchy.
-Trade-Offs:
-\paragraph{Robustness and fault-tolerance}
-The decentralized approach maximizes resilience. With no central dependency, the system can continue functioning when individual agents fail or leave. There is no single point whose failure can bring down the whole MAS . This means peer-to-peer is inherently fault-tolerant: if one agent that was contributing to a task goes offline, others can often compensate or reroute around it. The failure of one agent does not cause the failure of the entire system~\cite{Shehory1998Architectural}.
-\paragraph{Flexibility and adaptability}
-Without a rigid hierarchy, agents can flexibly re-organize. The system is adaptable to changing conditions. If a new goal is introduced, any agent sensing it can initiate a response, without needing orders from above. Decentralized systems often promote emergent behavior, where complex global patterns arise from simple local interactions. This can be powerful in cases where a top-down plan might not be optimal or possible. Each agent can pursue local optimizations and the group behavior emerges~\cite{Moore2025Taxonomy}.
-    
-\paragraph{Coordination complexity}
-Achieving coherent cooperation is harder with no central coordinator. Agents must use more complex protocols to reach agreement or synchronize. As agent population grows, a fully connected peer-to-peer network can be overwhelmed by messaging needs since each agent is potentially communicating with all others. A purely flat organization may struggle with communication overhead and maintaining global coherence as the number of agents increases. Moreover, scalability can become a concern since the system might bog down in lengthy negotiations or message floods. Decentralized MAS sometimes faces indecision if agents cannot easily decide on a common strategy . Without a hierarchy to break ties or set direction, agents can enter endless loops~\cite{Moore2025Taxonomy}.
-    
-\paragraph{Performance}
-Removing the central bottleneck means no waiting for a single leader’s decision; many agents can work in parallel on different subproblems, potentially speeding up the overall task. However, the overhead of multilateral coordination can slow things down when agents need to reach consensus. Fully decentralized teams may be less efficient in achieving global objectives for large groups, compared to a well-coordinated hierarchy. Inefficiencies might come from redundant work e.g. multiple agents unknowingly doing the same thing, or from suboptimal local decisions that don’t add up to a global optimum. In practice, decentralized MAS can work well for certain problems. For problems requiring tight global optimization or quick conflict resolution, pure peer-to-peer can be challenging~\cite{Moore2025Taxonomy}.
-
-A peer-to-peer architecture is suitable when robustness is required, or when the environment is too uncertain for a static hierarchy. For massively distributed systems (like sensor networks or peer computing), a decentralized approach avoids any central coordinator that could become a bottleneck. The design philosophy here is often to keep agent logic simple and let complex group behavior emerge. The trade-off summary: maximal fault-tolerance and flexibility at the cost of potentially high coordination overhead and unpredictability in global behavior.
-
-\subsubsection{Federated or Hybrid Models}
-Between the extremes of pure hierarchy and pure peer-to-peer lie hybrid architectures. A federated MAS can be thought of as multiple clusters or organizations of agents that cooperate. For instance, agents might be grouped into semi-autonomous clusters each with an internal leader or local hierarchy, and then these clusters interact in a decentralized or lightly centralized manner. Another implementation of federation is where there is no single global leader, but multiple leaders who must coordinate a “council” of agents. This is when federated models introduce a degree of hierarchy or modularization while avoiding a single monolithic chain of command. This can lead to two-tier system (with local and global agents separate), or a network of sub-hierarchies. An example is a holonic architecture where agents form groups (holons) that themselves act as higher-level agents in a recursive hierarchy.
-Trade-Offs:
-\paragraph{Balance of Efficiency and Robustness}
-Hybrid/federated structures aim to get the best of both worlds, the coordination efficiency of hierarchies and the robustness of decentralization. \citeauthor{Moore2025Taxonomy} highlights: “hybridization of hierarchical and decentralized mechanisms” is viewed as a crucial strategy for achieving scalability while maintaining adaptability~\cite{Moore2025Taxonomy}. By having local hierarchies, communication overload is reduced since agents in a cluster handle their issues internally, and by having multiple such clusters instead of one boss over everything, single-point failure risk also gets reduced. If one cluster’s leader fails, it might affect that cluster but not the entire system, and perhaps neighboring clusters can assist. This modularity contains failures and allows parts of the MAS to continue independently if other parts go down. It also allows scaling out by adding more clusters, since each cluster can operate semi-independently, the whole MAS can accommodate more agents by increasing the number of federated groups~\cite{Moore2025Taxonomy}.
-    
-\paragraph{Global coordination}
-Global coordination is looser than in a strict hierarchy. Federated systems might operate via periodic synchronization or negotiation between cluster leaders. There may not be an instant, single source of truth for the entire MAS at any given moment. This means global optimality has to be approximated rather than perfectly achieved at all times, but it also means the system is more adaptable, each region can tweak its strategy to local conditions without awaiting central commands. The overall performance will likely not match a perfectly optimized centralized solution, but it can be "good enough" and is far more resilient~\cite{Moore2025Taxonomy}.
-
-
-\paragraph{Complexity}
-Designing a federated MAS is the most complex approach between the centralized and decentralized approaches. The agents must be partitioned into groups, how those groups form or dissolve, and what communication protocol is used between groups vs. within groups. Both paradigms effectively get combined: intra group which might be hierarchical or cooperative and inter group which might be a peer-to-peer among leaders, or another hierarchy one level up. Avoiding the downsides of the strict centralized and decentralized approaches while gaining their benefits can be non-trivial. Another risk is added latency if inter group coordination goes through multiple steps (e.g. agent $\rightarrow$ local leader $\rightarrow$ another local leader $\rightarrow$ agent). However, if properly designed, each layer can filter and abstract information, so that only necessary data goes to the next layer, avoiding overload~\cite{Moore2025Taxonomy}.
-
-
-
-
-\subsection{Hierarchy structure experiments in Multi-Agent Systems}
-
-\subsubsection{Benchmark environments}
-\paragraph{Collaborative environment} Evaluate tight coordination for interdependent subtasks requiring joint effort. Workload. Agents must exchange state and partial plans to complete a shared objective.Relevance. Tests synchronization overheads and the impact of organizational structure on coordination latency and consistency 
-
-\paragraph{Resource-allocation environment} Evaluate distributed matching of agents to scarce resources. Workload. Agents discover, bid for, or allocate resources; conflicts arise under contention. Relevance. Probes how hierarchies handle arbitration compared with decentralized negotiation and pub-sub notification.
-
-\paragraph{Task-distribution environment} Evaluate throughput when many independent tasks must be assigned and tracked. Workload. Agents produce and consume task tokens with deadlines or priorities.Relevance. Measures load-balancing behavior, queue buildup, and the effect of fan-out/fan-in paths on end-to-end latency .
-
-
-
-
-
-
-
-\subsection{Hierarchy Benchmarks: Architecture, Scenarios, and Metrics}
+\subsection{Hierarchy Benchmarks}
 \label{sec:hierarchy-benchmarks}
 
-\subsubsection{Purpose and scope}
-The hierarchy benchmarks evaluate organizational strategies for multi-agent systems using a simulated execution model. In contrast to communication benchmarks that use real network protocols, these benchmarks isolate coordination logic and task allocation under three strategies: tree hierarchy, peer-to-peer (P2P), and a hybrid that combines a hierarchical backbone with peer links. This design aligns with well-studied organizational patterns in multi-agent systems and distributed systems \cite{Wooldridge2009MAS,VanSteenTanenbaum2017DistributedSystems,Dignum2004AgentOrganizations}.
+Equally critical to an MAS architecture is how the agents are organized and how control or decision making is distributed. While the communication benchmarks measure transport-layer performance using real protocols and servers, the hierarchy benchmarks isolate coordination logic by simulating organizational strategies in memory. The benchmark suite is implemented in \texttt{src/benchmarks/hierarchy\_benchmarks/} and compares Tree, Peer-to-Peer (P2P), and Hybrid structures.
 
-\subsubsection{Core architecture}
-Agents are in-memory state objects. Coordination records are tracked as Python objects for counting and bookkeeping; they are not transmitted or delivered. There is no serialization or network transmission in this suite. Coordination effects are applied through direct state updates on agent records. To avoid confusion with real network messages, this section refers to these simulated items as coordination records. Table~\ref{tab:msg-semantics} summarizes the contrast with the communication benchmarks.
+\subsubsection{Hierarchy Options (Tree, Peer-to-Peer, Hybrid)}
+Inter-agent coordination can be organized around explicit managers, purely decentralized negotiation, or a mix of both. Table~\ref{tab:hierarchy-options} summarizes the three options evaluated.
 
+\begin{table}[H]
+\centering
+\caption{Hierarchy strategies evaluated in the benchmark suite}
+\label{tab:hierarchy-options}
+\begin{tabular}{l|l|l|l}
+\toprule
+\textbf{Strategy} & \textbf{Structure} & \textbf{Coordination pattern} & \textbf{Expected trade-offs} \\
+\midrule
+Tree         & Manager--worker hierarchy (depth $d$) & Delegation + aggregation & Low overhead; bottlenecks; leader sensitivity \\
+Peer-to-peer & Flat graph                             & Proposals / gossip       & Robust; higher coordination cost \\
+Hybrid       & Hierarchical backbone + peer links      & Delegation + local peer exchanges & Balance between control and flexibility \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Tree.}
+Agents are arranged in a manager--worker hierarchy. Managers allocate tasks, collect status, and reassign work when necessary~\cite{Moore2025Taxonomy,VanSteenTanenbaum2017DistributedSystems}. This structure can reduce coordination overhead via fan-out/fan-in, but introduces bottlenecks and sensitivity to manager failures.
+
+\paragraph{Peer-to-peer (P2P).}
+All agents are equal and coordinate via distributed proposals and agreement. This improves robustness (no fixed leader) but can increase coordination complexity and overhead as the number of agents grows~\cite{Shehory1998Architectural,Eugster2003PubSubSurvey,Kempe2003Gossip}.
+
+\paragraph{Hybrid.}
+A hierarchical backbone handles global delegation, while additional peer links support local coordination to bypass bottlenecks. Such mixed organizational designs are commonly used to balance efficiency and adaptability~\cite{Dignum2004AgentOrganizations,Wooldridge2009MAS}.
+
+\subsubsection{Hierarchy Benchmark Design}
+\paragraph{Purpose and scope.}
+The hierarchy benchmarks compare organizational strategies on coordination-heavy workloads without transport noise. They measure task success, efficiency, and coordination overhead for Tree, P2P, and Hybrid strategies across multiple team sizes and environments~\cite{Wooldridge2009MAS,VanSteenTanenbaum2017DistributedSystems,Dignum2004AgentOrganizations}.
+
+\paragraph{Execution model (simulated coordination records).}
+Agents are in-memory state objects. Coordination effects are applied through direct state updates on agent records; there is no serialization or network transmission. To avoid confusion with real network messages, the benchmark counts synthetic \emph{coordination records} created for bookkeeping only. Table~\ref{tab:msg-semantics} summarizes the contrast with the communication benchmarks.
 
 \begin{table}[H]
 \centering
@@ -778,37 +591,33 @@ Creation  & Python object            & Serialized (JSON or Protobuf) \\
 Sending   & Append to in-memory list & Network transmission          \\
 Delivery  & Not modeled              & Real delivery to mailbox      \\
 Receipt   & Not modeled              & Retrieved and processed       \\
-Purpose   & Counting only            & Actual coordination           \\
-Latency   & Zero                     & Real network delay            \\
+Purpose   & Counting/proxy overhead  & Actual coordination           \\
+Latency   & No network delay         & Real network delay            \\
 \bottomrule
 \end{tabular}
 \end{table}
-% \begin{table}[H]
-% \centering
-% \caption{Hierarchy vs. communication benchmarks}
-% \label{tab:hier-vs-comm}
-% \begin{tabular}{lll}
-% \toprule
-% \textbf{Aspect} & \textbf{Hierarchy Benchmarks} & \textbf{Communication Benchmarks} \\
-% \midrule
-% Network     & Simulated (in memory)                      & Real protocols (HTTP, gRPC, MQTT, Kafka) \\
-% Messages    & Python objects, counted for metrics        & Serialized and transmitted over network   \\
-% Latency     & Zero (instant state updates)               & Real network delays                       \\
-% Reliability & Always succeeds (by design)                & Can fail (timeouts, errors)               \\
-% Focus       & Coordination logic and organization        & Infrastructure and protocol performance   \\
-% Metrics     & Task success, makespan, message counts     & Throughput, latency, bandwidth            \\
-% \bottomrule
-% \end{tabular}
-% \end{table}
 
-\subsubsection{Strategies evaluated}
-\paragraph{Tree hierarchy.} A manager node allocates tasks to workers, aggregates status, and reassigns when needed. Spanning tree structures reduce redundant paths and bound hop counts \cite{Gallager1983MST,VanSteenTanenbaum2017DistributedSystems}.
+\paragraph{Environments.}
+Benchmarks are run on three environments defined in \texttt{hierarchy\_environments.py}: \texttt{resource\_allocation} (tasks compete for limited resources), \texttt{task\_distribution} (assign and complete independent tasks), and \texttt{collaborative} (tasks have dependencies and require ordered progress).
 
-\paragraph{Peer-to-peer.} Agents coordinate without a designated manager. Gossip or all-to-all proposals can implement agreement, which improves robustness but may increase coordination complexity and time to converge \cite{Eugster2003PubSubSurvey,Kempe2003Gossip,VanSteenTanenbaum2017DistributedSystems}.
+\paragraph{Metrics.}
+The suite reports task effectiveness (success rate, normalized return), efficiency (makespan in steps-to-success, action efficiency), hierarchy overhead (manager utilization, delegation success, preemption rate), and coordination footprint (coordination records per episode and estimated bytes per step). Coordination latency is measured as wall-clock time between delegation and the first observed worker progress (monotonic timer), and is therefore a proxy for coordination overhead rather than transport delay.
 
-\paragraph{Hybrid.} A hierarchical backbone handles global delegation; short peer links allow local exchanges that bypass bottlenecks. Such organizational designs are common in MAS to balance control and flexibility \cite{Dignum2004AgentOrganizations,Wooldridge2009MAS}.
+\paragraph{Benchmark configuration and statistics.}
+Unless stated otherwise, each configuration point (strategy $\times$ environment $\times$ team size) runs 10 episodes with 5 tasks per episode. Team size is swept over $N \in \{3,5,8,12\}$ agents. Episodes terminate on success or after a fixed step budget (default: 100 steps). Coordination record ``bytes'' are estimated using a fixed envelope size per record (100 bytes) for interpretability; this is not network traffic.
 
-\subsection{Example implementations (simplified)}
+\paragraph{Environment success criteria.}
+To improve interpretability of success/failure conditions, two environments apply explicit thresholds. In \texttt{resource\_allocation}, resources are allocated when a task enters \texttt{in\_progress} and released when it leaves that state (completion or preemption). An episode succeeds if at least 90\% of tasks complete and no resource exceeds its capacity beyond a small tolerance (default 5\%). In \texttt{collaborative}, tasks that start out of dependency order are re-queued (freeing their worker) instead of causing irrevocable failure. Success requires a high completion fraction (default 90\%) and tolerates a bounded rate of dependency violations (default 40\% of tasks may be re-queued).
+
+\paragraph{Ablation studies.}
+In addition to cross-strategy comparisons, we run single-parameter sweeps on the Tree strategy in the \texttt{task\_distribution} environment (8 agents, 5 episodes). Baseline settings are hierarchy depth 2, planning frequency 1, and no coordination record limit (None).
+
+\paragraph{Limitations.}
+These benchmarks do not model network effects, serialization overhead, or delivery failures. They complement the communication benchmarks, which measure those aspects explicitly. Use both to separate organizational effects from protocol effects~\cite{VanSteenTanenbaum2017DistributedSystems,DeanBarroso2013TailAtScale}.
+
+\paragraph{Example implementations (simplified).}
+The benchmark suite implements these strategies in Python; Listings~\ref{lst:tree-simplified}--\ref{lst:hybrid-simplified} provide simplified sketches of the core control loops.
+
 \begin{lstlisting}[language=Python, caption={Tree: manager delegation and worker progress}, label={lst:tree-simplified}]
 class AgentState:
     def __init__(self, agent_id, role, supervisor=None):
@@ -873,75 +682,61 @@ class HybridHierarchy(TreeHierarchy):
         # e.g., siblings swap tasks to reduce imbalance
 \end{lstlisting}
 
-\subsubsection{Scenarios and workloads}
-We use three task environments that reflect common multi-agent requirements \cite{Wooldridge2009MAS}.
-
-\paragraph{Resource allocation.} Agents compete for scarce resources. Metrics include successful allocations, conflicts resolved, and coordination records per allocation.
-
-\paragraph{Task distribution.} A stream of tasks must be assigned and completed. Metrics include makespan, mean waiting time, and manager utilization for hierarchical strategies.
-
-\paragraph{Collaborative problem solving.} Interdependent subtasks require coordination. Metrics include time to first feasible plan, completion rate, and coordination latency.
-
-\subsubsection{Measurement and metrics}
-All timings use a monotonic high-resolution clock in the communication suite. In this hierarchy suite, there is no network delay or delivery; coordination records are simulated and counted as a bookkeeping proxy. Metrics focus on coordination quality and overhead.
-
-\paragraph{Task success and makespan} share of tasks completed and total steps to completion.
-\paragraph{Coordination latency} steps between delegation and first action by a worker.
-\paragraph{Coordination record counts} synthetic coordination records created for bookkeeping (creation only, never delivered).
-\paragraph{Estimated bytes} coordination record count multiplied by a fixed envelope size (proxy only; not network traffic).
-\paragraph{Manager utilization} manager actions per 100 environment steps; values can exceed 100 when multiple managers act in the same step across hierarchy levels.
-
-
-
-\subsubsection{Coordination record semantics}
-For clarity, Table~\ref{tab:msg-semantics} states the simulated coordination record semantics used here. These records are created and counted but are not transmitted or delivered; communication benchmarks use real network messages.
-
-
-
-\subsubsection{Ablation studies}
-We ran single-parameter sweeps on the Tree strategy in the task distribution environment (8 agents, 5 episodes). Baseline settings were hierarchy depth 2, planning frequency 1, and no coordination record limit (None). Table~\ref{tab:hierarchy-ablation} summarizes mean success rate, makespan, manager utilization (actions per 100 steps), and coordination records per episode for each parameter value.
+\subsubsection{Results}
+Tables~\ref{tab:hierarchy-resource-allocation}--\ref{tab:hierarchy-collaborative} report per-team-size outcomes for each strategy (10 episodes per point). Each cell reports success (\%) and makespan (mean steps-to-success over successful episodes).
+Table~\ref{tab:hierarchy-resource-allocation} reports results for \texttt{resource\_allocation}, which emphasizes contention for limited resources.
 
 \begin{table}[H]
 \centering
-
-\label{tab:hierarchy-ablation}
-\begin{tabular}{l|l|r|r|r|r}
+\caption{Resource allocation results across team sizes (success \% / makespan steps)}
+\label{tab:hierarchy-resource-allocation}
+\begin{tabular}{l|c|c|c|c}
 \toprule
-\textbf{Parameter} & \textbf{Value} & \textbf{Success (\%)} & \textbf{Makespan} & \textbf{Manager Util} & \textbf{Coord. Records} \\
+\textbf{Strategy} & \textbf{N=3} & \textbf{N=5} & \textbf{N=8} & \textbf{N=12} \\
 \midrule
-Hierarchy depth & 1 & 100.0 & 16.0 & 100.0 & 75.0 \\
-Hierarchy depth & 2 & 100.0 & 13.2 & 200.0 & 68.8 \\
-Hierarchy depth & 3 & 100.0 & 14.0 & 300.0 & 69.2 \\
-Planning frequency & 1 & 100.0 & 13.2 & 200.0 & 68.8 \\
-Planning frequency & 5 & 100.0 & 13.0 & 40.0 & 21.6 \\
-Planning frequency & 10 & 100.0 & 16.2 & 19.8 & 16.2 \\
-Coordination record limit & None & 100.0 & 13.2 & 200.0 & 68.8 \\
-Coordination record limit & 50 & 100.0 & 14.0 & 200.0 & 69.6 \\
-Coordination record limit & 100 & 100.0 & 14.2 & 200.0 & 70.8 \\
-% \bottomrule
+Tree         & 100.0 / 35.5 & 90.0 / 22.4 & 80.0 / 13.8 & 70.0 / 15.4 \\
+Hybrid       & 100.0 / 33.8 & 80.0 / 22.0 & 50.0 / 14.0 & 70.0 / 12.7 \\
+Peer-to-peer & 100.0 / 24.6 & 40.0 / 11.5 & 60.0 / 13.3 & 70.0 / 12.1 \\
+\bottomrule
 \end{tabular}
-\caption{Hierarchy ablation summary for Tree on task distribution. Each sweep varies one parameter while the others are held at the baseline (depth=2, planning frequency=1, coordination record limit=None). Values are means across runs.}
 \end{table}
 
-\subsubsection{Limitations}
-These benchmarks do not model network effects, serialization overhead, or failures. They complement the communication benchmarks, which measure those aspects explicitly. Use both to separate organizational effects from protocol effects \cite{VanSteenTanenbaum2017DistributedSystems,DeanBarroso2013TailAtScale}.
+Table~\ref{tab:hierarchy-task-distribution} reports results for \texttt{task\_distribution}, which emphasizes sustained assignment and completion of independent tasks.
 
-\subsubsection{Hierarchy Benchmark Configuration}
-To improve realism and interpretability of success criteria, we applied the following adjustments in the hierarchy suite:
+\begin{table}[H]
+\centering
+\caption{Task distribution results across team sizes (success \% / makespan steps)}
+\label{tab:hierarchy-task-distribution}
+\begin{tabular}{l|c|c|c|c}
+\toprule
+\textbf{Strategy} & \textbf{N=3} & \textbf{N=5} & \textbf{N=8} & \textbf{N=12} \\
+\midrule
+Tree         & 100.0 / 34.4 & 100.0 / 23.0 & 100.0 / 14.3 & 100.0 / 15.7 \\
+Hybrid       & 100.0 / 35.0 & 100.0 / 22.4 & 100.0 / 13.6 & 100.0 / 14.9 \\
+Peer-to-peer & 100.0 / 22.7 & 100.0 / 13.4 & 100.0 / 14.4 & 100.0 / 14.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\paragraph{Resource allocation} resources are now allocated when a task enters \texttt{in\_progress} and released when it leaves that state (completion or preemption). An episode succeeds if at least 90\% of tasks complete and no resource exceeds its capacity beyond a small tolerance (default 5\%). This avoids permanent over-allocation from accumulating across tasks and better reflects practical resource lifecycles.
-\paragraph{Collaborative problem solving} tasks that begin out of dependency order are re-queued (and their worker freed) instead of causing irrevocable failure. Success requires a high completion fraction (default 90\%) and tolerates a bounded rate of dependency violations (default 40\% of tasks may be re-queued). This preserves the challenge of dependency management while allowing strategies to recover and finish the plan.
+Table~\ref{tab:hierarchy-collaborative} reports results for \texttt{collaborative}, which emphasizes dependency ordering and coordination to avoid deadlocks.
 
-The measurement focus remains organizational coordination quality (success, makespan, coordination latency, coordination record overhead) without network effects.
+\begin{table}[H]
+\centering
+\caption{Collaborative problem solving results across team sizes (success \% / makespan steps)}
+\label{tab:hierarchy-collaborative}
+\begin{tabular}{l|c|c|c|c}
+\toprule
+\textbf{Strategy} & \textbf{N=3} & \textbf{N=5} & \textbf{N=8} & \textbf{N=12} \\
+\midrule
+Tree         & 100.0 / 35.5 & 90.0 / 25.3 & 80.0 / 14.5 & 90.0 / 19.1 \\
+Hybrid       & 100.0 / 33.9 & 90.0 / 25.0 & 90.0 / 18.2 & 60.0 / 20.0 \\
+Peer-to-peer & 100.0 / 46.2 & 100.0 / 39.5 & 100.0 / 52.3 & 100.0 / 43.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\subsubsection{Hierarchy Benchmark Results}
-We summarize the latest run and include the generated figures. Results were produced on the same harness and agent counts used for the communication study.
-
-\paragraph{Resource allocation.} All strategies achieve high success (Tree 75\%, Hybrid 77.5\%, Peer-to-Peer 80\%). Peer-to-Peer finishes faster (makespan \(\sim\)17.5) but at higher coordination cost (\(\sim\)125 records/episode), while Tree minimizes coordination records (\(\sim\)70) with slightly longer makespan (\(\sim\)22).
-
-\paragraph{Task distribution.} All strategies reach 100\% success. Peer-to-Peer achieves the lowest makespan (\(\sim\)16.7), while Tree and Hybrid are slower (\(\sim\)21). Tree has the lowest coordination overhead (\(\sim\)71 records/episode); Hybrid is highest (\(\sim\)152). Manager utilization follows expectations (Tree\,>\,Hybrid\,>\,P2P=0).
-
-\paragraph{Collaborative problem solving.} Success rates diverge: Tree 67.5\%, Hybrid 82.5\%, Peer-to-Peer 100\%. Peer-to-Peer is most reliable but slower (makespan \(\sim\)43.9) and coordination-heavy (\(\sim\)662 records/episode). Tree and Hybrid are faster (\(\sim\)26 and \(\sim\)24) but less reliable, illustrating a trade-off between centralized ordering speed and distributed robustness under dependencies.
+\paragraph{Discussion.}
+Across environments, Tree structures tend to minimize the coordination footprint (Figure~\ref{fig:hierarchy-multi}d), while P2P tends to improve robustness in dependency-heavy collaborative tasks at the cost of substantially higher coordination overhead. Hybrid often sits between the two, but can incur higher coordination growth with team size due to combining delegation with lateral coordination.
 
 \begin{figure*}[H]
   \centering
@@ -982,37 +777,26 @@ We summarize the latest run and include the generated figures. Results were prod
   \label{fig:hierarchy-multi}
 \end{figure*}
 
-\begin{table}[H]
-\centering
-
-\label{tab:hierarchy-success-summary}
-\begin{tabular}{l|c|c|c}
-\toprule
-\textbf{Strategy} & \textbf{Resource Allocation (\%)} & \textbf{Task Distribution (\%)} & \textbf{Collaborative (\%)} \\
-\midrule
-Tree         & 80.0 & 100.0 & 50.0 \\
-Peer To Peer & 70.0 & 100.0 & 100.0 \\
-Hybrid       & 80.0 & 100.0 & 50.0 \\
-% \bottomrule
-\end{tabular}
-\caption{Hierarchy success rates by strategy and environment (summary from latest run)}
-\end{table}
+\paragraph{Ablation results (Tree on task distribution).}
+Table~\ref{tab:hierarchy-ablation} summarizes the effect of varying hierarchy depth, planning frequency, and coordination record limits.
 
 \begin{table}[H]
 \centering
-
-\label{tab:collaborative-detailed}
-\begin{tabular}{l|r|r|r|r}
+\label{tab:hierarchy-ablation}
+\begin{tabular}{l|l|r|r|r|r}
 \toprule
-\textbf{Strategy} & \textbf{Success (\%)} & \textbf{Avg Makespan (steps)} & \textbf{Coordination Records} & \textbf{Manager Util} \\
+\textbf{Parameter} & \textbf{Value} & \textbf{Success (\%)} & \textbf{Makespan} & \textbf{Manager Util} & \textbf{Coord. Records} \\
 \midrule
-Hybrid       & 50.0  & 22.0 & 88124.8  & 100.0 \\
-Tree         & 50.0  & 17.2 & 43238.9  & 150.0 \\
-Peer To Peer & 100.0 & 37.5 & 110985.4 & 0.0   \\
-% \bottomrule
+Hierarchy depth & 1 & 100.0 & 12.2 & 100.0 & 68.0 \\
+Hierarchy depth & 2 & 100.0 & 15.2 & 200.0 & 72.2 \\
+Hierarchy depth & 3 & 100.0 & 15.8 & 300.0 & 73.6 \\
+Planning frequency & 1 & 100.0 & 12.8 & 200.0 & 70.0 \\
+Planning frequency & 5 & 100.0 & 16.0 & 40.0 & 23.2 \\
+Planning frequency & 10 & 100.0 & 22.2 & 19.8 & 17.8 \\
+Coordination record limit & None & 100.0 & 15.4 & 200.0 & 73.8 \\
+Coordination record limit & 50 & 100.0 & 14.0 & 200.0 & 69.2 \\
+Coordination record limit & 100 & 100.0 & 13.2 & 200.0 & 67.8 \\
+\bottomrule
 \end{tabular}
-\caption{Collaborative environment detailed metrics (latest run)}
+\caption{Hierarchy ablation summary for Tree on \texttt{task\_distribution} (8 agents, 5 episodes). Each sweep varies one parameter while the others are held at the baseline (depth=2, planning frequency=1, coordination record limit=None). Values are means across episodes.}
 \end{table}
-
-\paragraph{Numerical highlights (this run).}
-Resource Allocation successes: Tree 80\%, Hybrid 80\%, P2P 70\%; Task Distribution: all 100\%; Collaborative: Tree 50\%, Hybrid 50\%, P2P 100\%. Collaborative makespan favors Tree (\(\sim\)17 steps) over Hybrid (\(\sim\)22) and P2P (\(\sim\)38), while P2P pays with higher coordination record counts (Table~\ref{tab:collaborative-detailed}). Overall success summaries appear in Table~\ref{tab:hierarchy-success-summary}, and visual comparisons in Figure~\ref{fig:hierarchy-multi}.

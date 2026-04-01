@@ -11,4 +11,4 @@
 # *.tex
 *.drawio
 *.graphml
-# /sections
+/sections

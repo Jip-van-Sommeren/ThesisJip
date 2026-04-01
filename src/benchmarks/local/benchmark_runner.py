@@ -22,20 +22,14 @@ from benchmarks.communication.communication_config import TopologyPattern
 
 
 # Import protocol-specific benchmark scenarios
-from benchmarks.communication_benchmarks.rest_benchmark_scenarios import create_rest_benchmark_scenarios
-from benchmarks.communication_benchmarks.grpc_benchmark_scenarios import create_grpc_benchmark_scenarios
-from benchmarks.communication_benchmarks.mqtt_benchmark_scenarios import (
-    create_mqtt_benchmark_scenarios,
+from benchmarks.local.config_loader import load_config_from_yaml
+from benchmarks.local.communication_benchmarks.communication_benchmark import (
+    CommunicationBenchmark,
 )
-from benchmarks.communication_benchmarks.kafka_benchmark_scenarios import (
-    create_kafka_benchmark_scenarios,
-)
-from benchmarks.config_loader import load_config_from_yaml
-from benchmarks.communication_benchmarks.communication_benchmark import CommunicationBenchmark
-from benchmarks.hierarchy_benchmarks.hierarchy_benchmark_scenarios import (
+from benchmarks.local.hierarchy_benchmarks.hierarchy_benchmark_scenarios import (
     HierarchyComparisonBenchmark,
 )
-from benchmarks.hierarchy_benchmarks.hierarchy_strategies import HierarchyType
+from benchmarks.local.hierarchy_benchmarks.hierarchy_strategies import HierarchyType
 
 
 class EnumEncoder(json.JSONEncoder):
@@ -104,6 +98,38 @@ def _get_hardware_metadata() -> Dict[str, Any]:
     }
 
 
+def _create_rest_benchmark(latency_mode: str):
+    from benchmarks.local.communication_benchmarks.rest_benchmark_scenarios import (
+        create_rest_benchmark_scenarios,
+    )
+
+    return create_rest_benchmark_scenarios(latency_mode=latency_mode)
+
+
+def _create_grpc_benchmark(latency_mode: str):
+    from benchmarks.local.communication_benchmarks.grpc_benchmark_scenarios import (
+        create_grpc_benchmark_scenarios,
+    )
+
+    return create_grpc_benchmark_scenarios(latency_mode=latency_mode)
+
+
+def _create_mqtt_benchmark(latency_mode: str):
+    from benchmarks.local.communication_benchmarks.mqtt_benchmark_scenarios import (
+        create_mqtt_benchmark_scenarios,
+    )
+
+    return create_mqtt_benchmark_scenarios(latency_mode=latency_mode)
+
+
+def _create_kafka_benchmark(latency_mode: str):
+    from benchmarks.local.communication_benchmarks.kafka_benchmark_scenarios import (
+        create_kafka_benchmark_scenarios,
+    )
+
+    return create_kafka_benchmark_scenarios(latency_mode=latency_mode)
+
+
 @dataclass
 class BenchmarkConfig:
     """Configuration for benchmark execution."""
@@ -120,6 +146,8 @@ class BenchmarkConfig:
     latency_mode: str = "end_to_end"  # "send_only", "end_to_end", or "app_ack"
     protocol_variants: Dict[str, List[str]] = None
     variant_settings: Dict[str, Dict[str, Any]] = None
+    num_trials: int = 1
+    warm_up_operations: int = 0
     # Hierarchy benchmark options
     hierarchy_mode: bool = False
     hierarchy_types: List[str] = None
@@ -184,10 +212,10 @@ class ProtocolBenchmarkRunner:
 
         # Protocol factory mapping
         self.protocol_factories = {
-            "rest": create_rest_benchmark_scenarios,
-            "grpc": create_grpc_benchmark_scenarios,
-            "mqtt": create_mqtt_benchmark_scenarios,
-            "kafka": create_kafka_benchmark_scenarios,
+            "rest": _create_rest_benchmark,
+            "grpc": _create_grpc_benchmark,
+            "mqtt": _create_mqtt_benchmark,
+            "kafka": _create_kafka_benchmark,
         }
 
         # Ensure output directory exists
@@ -199,7 +227,7 @@ class ProtocolBenchmarkRunner:
 
         if "mqtt" in self.config.protocols:
             print("  Starting MQTT broker...")
-            from benchmarks.communication_benchmarks.mqtt_benchmark_scenarios import (
+            from benchmarks.local.communication_benchmarks.mqtt_benchmark_scenarios import (
                 start_mqtt_docker,
                 is_mqtt_running,
             )
@@ -211,7 +239,7 @@ class ProtocolBenchmarkRunner:
 
         if "kafka" in self.config.protocols:
             print("  Starting Kafka broker...")
-            from benchmarks.communication_benchmarks.kafka_benchmark_scenarios import (
+            from benchmarks.local.communication_benchmarks.kafka_benchmark_scenarios import (
                 start_kafka_docker,
                 is_kafka_running,
             )
@@ -275,7 +303,10 @@ class ProtocolBenchmarkRunner:
 
         # Exclude incompatible variants for certain modes
         # In app_ack mode, Kafka acks=0 is incompatible with reliable app-level ACKs
-        if protocol == "kafka" and str(self.config.latency_mode).lower() == "app_ack":
+        if (
+            protocol == "kafka"
+            and str(self.config.latency_mode).lower() == "app_ack"
+        ):
             variants = [v for v in variants if v.lower() != "acks0"]
 
         protocol_results = {
@@ -380,7 +411,12 @@ class ProtocolBenchmarkRunner:
                 params["protocol_variant"] = variant
                 params["protocol_name"] = protocol
 
-                result = benchmark.run_scenario(scenario, **params)
+                result = benchmark.run_scenario(
+                    scenario,
+                    num_trials=self.config.num_trials,
+                    warm_up_operations=self.config.warm_up_operations,
+                    **params,
+                )
                 variant_results["scenarios"][scenario] = self._extract_metrics(
                     result
                 )
@@ -398,7 +434,12 @@ class ProtocolBenchmarkRunner:
                     params["protocol_variant"] = variant
                     params["protocol_name"] = protocol
 
-                    result = benchmark.run_scenario(scenario, **params)
+                    result = benchmark.run_scenario(
+                        scenario,
+                        num_trials=self.config.num_trials,
+                        warm_up_operations=self.config.warm_up_operations,
+                        **params,
+                    )
                     scenario_results[f"{agent_count}_agents"] = (
                         self._extract_metrics(result)
                     )
@@ -424,7 +465,10 @@ class ProtocolBenchmarkRunner:
                 params.update(topology_overrides)
 
                 result = benchmark.run_scenario(
-                    "concurrent_messaging", **params
+                    "concurrent_messaging",
+                    num_trials=self.config.num_trials,
+                    warm_up_operations=self.config.warm_up_operations,
+                    **params,
                 )
                 topology_results[topology.value] = self._extract_metrics(
                     result
@@ -560,7 +604,12 @@ class ProtocolBenchmarkRunner:
                 }
             )
 
-            result = benchmark.run_scenario("concurrent_messaging", **params)
+            result = benchmark.run_scenario(
+                "concurrent_messaging",
+                num_trials=self.config.num_trials,
+                warm_up_operations=self.config.warm_up_operations,
+                **params,
+            )
             matrix_results[str(level)] = self._extract_metrics(result)
 
         return matrix_results
@@ -569,6 +618,137 @@ class ProtocolBenchmarkRunner:
         """Extract key metrics from benchmark result."""
         if result is None:
             return {}
+
+        is_multi_trial = hasattr(result, "trial_count") and hasattr(
+            result, "latency_avg_mean"
+        )
+
+        if is_multi_trial:
+            trials = list(getattr(result, "trials", []) or [])
+            latency_samples_sec = []
+            peak_throughputs = []
+            durations = []
+            total_messages_all_trials = 0
+            total_delivery_failures = 0
+            total_timeout_failures = 0
+            weighted_successes = 0.0
+            weighted_total_messages = 0.0
+            trial_count = int(getattr(result, "trial_count", 0) or 0)
+
+            for trial in trials:
+                metrics = getattr(trial, "metrics", None)
+                if metrics is None:
+                    continue
+                latency_samples_sec.extend(
+                    getattr(metrics, "latency_samples", []) or []
+                )
+                peak_throughputs.append(
+                    getattr(metrics, "throughput_peak", 0.0)
+                )
+                durations.append(getattr(metrics, "test_duration", 0.0))
+                trial_total_messages = int(
+                    getattr(metrics, "total_messages", 0) or 0
+                )
+                total_messages_all_trials += trial_total_messages
+                total_delivery_failures += int(
+                    getattr(metrics, "delivery_failures", 0) or 0
+                )
+                total_timeout_failures += int(
+                    getattr(metrics, "timeout_failures", 0) or 0
+                )
+                trial_success_rate = float(
+                    getattr(metrics, "success_rate", 0.0) or 0.0
+                )
+                weighted_successes += trial_success_rate * trial_total_messages
+                weighted_total_messages += trial_total_messages
+
+            # Use effective count from collected trials when possible.
+            if not trials:
+                trial_count = max(trial_count, 1)
+            else:
+                trial_count = len(trials)
+
+            latency_samples_ms = [
+                sample * 1000 for sample in latency_samples_sec
+            ]
+            sample_cap = 2000
+            if len(latency_samples_ms) > sample_cap:
+                step = max(len(latency_samples_ms) // sample_cap, 1)
+                latency_samples_ms = latency_samples_ms[::step][:sample_cap]
+
+            peak_throughput_mean = (
+                sum(peak_throughputs) / len(peak_throughputs)
+                if peak_throughputs
+                else 0.0
+            )
+            test_duration_mean = (
+                sum(durations) / len(durations) if durations else 0.0
+            )
+            total_messages_per_trial = (
+                total_messages_all_trials / trial_count
+                if trial_count > 0 and total_messages_all_trials > 0
+                else float(getattr(result, "total_messages", 0) or 0)
+            )
+            delivery_failures_per_trial = (
+                total_delivery_failures / trial_count
+                if trial_count > 0
+                else 0.0
+            )
+            timeout_failures_per_trial = (
+                total_timeout_failures / trial_count
+                if trial_count > 0
+                else 0.0
+            )
+            success_rate_weighted_percent = (
+                (weighted_successes / weighted_total_messages) * 100
+                if weighted_total_messages > 0
+                else result.success_rate_mean * 100
+            )
+
+            return {
+                "avg_latency_ms": result.latency_avg_mean * 1000,
+                "avg_latency_ci_lower_ms": result.latency_avg_ci_lower * 1000,
+                "avg_latency_ci_upper_ms": result.latency_avg_ci_upper * 1000,
+                "p95_latency_ms": result.latency_p95_mean * 1000,
+                "p95_latency_ci_lower_ms": result.latency_p95_ci_lower * 1000,
+                "p95_latency_ci_upper_ms": result.latency_p95_ci_upper * 1000,
+                "p99_latency_ms": result.latency_p99_mean * 1000,
+                "p99_latency_ci_lower_ms": result.latency_p99_ci_lower * 1000,
+                "p99_latency_ci_upper_ms": result.latency_p99_ci_upper * 1000,
+                "throughput_msg_per_sec": result.throughput_mean,
+                "throughput_ci_lower": result.throughput_ci_lower,
+                "throughput_ci_upper": result.throughput_ci_upper,
+                "peak_throughput_msg_per_sec": peak_throughput_mean,
+                "success_rate_percent": result.success_rate_mean * 100,
+                "success_rate_ci_lower_percent": result.success_rate_ci_lower
+                * 100,
+                "success_rate_ci_upper_percent": result.success_rate_ci_upper
+                * 100,
+                "cpu_usage_percent": result.cpu_usage_mean,
+                "cpu_usage_ci_lower": result.cpu_usage_ci_lower,
+                "cpu_usage_ci_upper": result.cpu_usage_ci_upper,
+                "memory_usage_mb": result.memory_usage_mean,
+                "memory_usage_ci_lower_mb": result.memory_usage_ci_lower,
+                "memory_usage_ci_upper_mb": result.memory_usage_ci_upper,
+                # Keep primary counters per-trial to align with mean-based metrics.
+                "total_messages": total_messages_per_trial,
+                "test_duration_sec": test_duration_mean,
+                "delivery_failures": delivery_failures_per_trial,
+                "timeout_failures": timeout_failures_per_trial,
+                # Explicit count scales for analysis/export.
+                "total_messages_per_trial": total_messages_per_trial,
+                "total_messages_all_trials": total_messages_all_trials,
+                "delivery_failures_per_trial": delivery_failures_per_trial,
+                "delivery_failures_all_trials": total_delivery_failures,
+                "timeout_failures_per_trial": timeout_failures_per_trial,
+                "timeout_failures_all_trials": total_timeout_failures,
+                "success_rate_weighted_percent": success_rate_weighted_percent,
+                "latency_samples_ms": latency_samples_ms,
+                "latency_sample_count": len(latency_samples_ms),
+                "payload_size_bytes": result.payload_size_bytes,
+                "num_trials": trial_count,
+                "warm_up_operations": result.warm_up_operations,
+            }
 
         latency_samples_ms = [
             sample * 1000 for sample in getattr(result, "latency_samples", [])
@@ -587,9 +767,18 @@ class ProtocolBenchmarkRunner:
             "test_duration_sec": result.test_duration,
             "delivery_failures": result.delivery_failures,
             "timeout_failures": result.timeout_failures,
+            "total_messages_per_trial": result.total_messages,
+            "total_messages_all_trials": result.total_messages,
+            "delivery_failures_per_trial": result.delivery_failures,
+            "delivery_failures_all_trials": result.delivery_failures,
+            "timeout_failures_per_trial": result.timeout_failures,
+            "timeout_failures_all_trials": result.timeout_failures,
+            "success_rate_weighted_percent": result.success_rate * 100,
             "latency_samples_ms": latency_samples_ms,
             "latency_sample_count": len(latency_samples_ms),
             "payload_size_bytes": result.payload_size_bytes,
+            "num_trials": 1,
+            "warm_up_operations": 0,
         }
 
     def _generate_comparison_data(self):
@@ -873,6 +1062,10 @@ Examples:
   # Full hierarchy comparison with ablation study
   python benchmark_runner.py --hierarchy-only --extensive --hierarchy-ablation
 
+  # Hierarchy-only extensive run via YAML (multi-trial + ablation)
+  python benchmark_runner.py --config-file \
+      src/benchmarks/benchmark_configs/hierarchy_extensive_ablation.yml
+
   # Both benchmarks with extensive mode
   python benchmark_runner.py --extensive
         """,
@@ -961,6 +1154,24 @@ Examples:
         ),
     )
 
+    parser.add_argument(
+        "--num-trials",
+        type=int,
+        default=1,
+        help="Number of trials per configuration point (default: 1)",
+    )
+
+    parser.add_argument(
+        "--warm-up-ops",
+        dest="warm_up_operations",
+        type=int,
+        default=0,
+        help=(
+            "Warm-up count per trial before measurement "
+            "(communication: operations, hierarchy: episodes; default: 0)"
+        ),
+    )
+
     # Benchmark type selection arguments
     parser.add_argument(
         "--hierarchy-only",
@@ -1009,6 +1220,16 @@ Examples:
     )
 
     parser.add_argument(
+        "--hierarchy-agent-counts",
+        nargs="+",
+        type=int,
+        help=(
+            "Override hierarchy benchmark agent counts "
+            "(defaults: simple=[5,8], extensive=[3,5,8,12])"
+        ),
+    )
+
+    parser.add_argument(
         "--hierarchy-ablation",
         action="store_true",
         help="Run hierarchy ablation study",
@@ -1018,12 +1239,36 @@ Examples:
     default_scenarios = parser.get_default("scenarios")
     default_latency_mode = parser.get_default("latency_mode")
     default_output_dir = parser.get_default("output_dir")
+    default_num_trials = parser.get_default("num_trials")
+    default_warm_up_operations = parser.get_default("warm_up_operations")
+    default_hierarchy_only = parser.get_default("hierarchy_only")
+    default_communication_only = parser.get_default("communication_only")
+    default_hierarchy_types = parser.get_default("hierarchy_types")
+    default_hierarchy_environments = parser.get_default(
+        "hierarchy_environments"
+    )
+    default_hierarchy_episodes = parser.get_default("hierarchy_episodes")
+    default_hierarchy_agent_counts = parser.get_default(
+        "hierarchy_agent_counts"
+    )
+    default_hierarchy_ablation = parser.get_default("hierarchy_ablation")
 
     args = parser.parse_args()
 
     yaml_config: Dict[str, Any] = {}
     if args.config_file:
         yaml_config = load_config_from_yaml(args.config_file)
+
+    def _coerce_bool(value: Any, field_name: str) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"1", "true", "yes", "y", "on"}:
+                return True
+            if lowered in {"0", "false", "no", "n", "off"}:
+                return False
+        raise ValueError(f"{field_name} must be a boolean")
 
     # YAML-driven configuration (defaults)
     protocols = yaml_config.get("protocols", args.protocols)
@@ -1048,6 +1293,28 @@ Examples:
     if args.output_dir != default_output_dir:
         output_dir = args.output_dir
 
+    num_trials = yaml_config.get("num_trials", args.num_trials)
+    if args.num_trials != default_num_trials:
+        num_trials = args.num_trials
+    try:
+        num_trials = int(num_trials)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("num_trials must be an integer") from exc
+    if num_trials < 1:
+        raise ValueError("num_trials must be >= 1")
+
+    warm_up_operations = yaml_config.get(
+        "warm_up_operations", args.warm_up_operations
+    )
+    if args.warm_up_operations != default_warm_up_operations:
+        warm_up_operations = args.warm_up_operations
+    try:
+        warm_up_operations = int(warm_up_operations)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("warm_up_operations must be an integer") from exc
+    if warm_up_operations < 0:
+        raise ValueError("warm_up_operations must be >= 0")
+
     comm_agent_counts = yaml_config.get("agent_counts")
     if comm_agent_counts is not None and not isinstance(
         comm_agent_counts, list
@@ -1064,8 +1331,94 @@ Examples:
     yaml_protocol_variants = yaml_config.get("protocol_variants", {})
     yaml_variant_settings = yaml_config.get("variant_settings", {})
 
+    hierarchy_only = args.hierarchy_only
+    if (
+        args.hierarchy_only == default_hierarchy_only
+        and "hierarchy_only" in yaml_config
+    ):
+        hierarchy_only = _coerce_bool(
+            yaml_config["hierarchy_only"], "hierarchy_only"
+        )
+
+    communication_only = args.communication_only
+    if (
+        args.communication_only == default_communication_only
+        and "communication_only" in yaml_config
+    ):
+        communication_only = _coerce_bool(
+            yaml_config["communication_only"], "communication_only"
+        )
+
+    hierarchy_types_raw = yaml_config.get(
+        "hierarchy_types", args.hierarchy_types
+    )
+    if args.hierarchy_types != default_hierarchy_types:
+        hierarchy_types_raw = args.hierarchy_types
+    elif isinstance(hierarchy_types_raw, str):
+        hierarchy_types_raw = [hierarchy_types_raw]
+    hierarchy_types_raw = [str(ht) for ht in hierarchy_types_raw]
+
+    hierarchy_environments = yaml_config.get(
+        "hierarchy_environments", args.hierarchy_environments
+    )
+    if args.hierarchy_environments != default_hierarchy_environments:
+        hierarchy_environments = args.hierarchy_environments
+    elif isinstance(hierarchy_environments, str):
+        hierarchy_environments = [hierarchy_environments]
+    hierarchy_environments = [str(env) for env in hierarchy_environments]
+
+    hierarchy_episodes = yaml_config.get(
+        "hierarchy_episodes", args.hierarchy_episodes
+    )
+    if args.hierarchy_episodes != default_hierarchy_episodes:
+        hierarchy_episodes = args.hierarchy_episodes
+    try:
+        hierarchy_episodes = int(hierarchy_episodes)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("hierarchy_episodes must be an integer") from exc
+    if hierarchy_episodes < 1:
+        raise ValueError("hierarchy_episodes must be >= 1")
+
+    hierarchy_agent_counts = yaml_config.get("hierarchy_agent_counts")
+    if (
+        args.hierarchy_agent_counts != default_hierarchy_agent_counts
+        and args.hierarchy_agent_counts is not None
+    ):
+        hierarchy_agent_counts = args.hierarchy_agent_counts
+    if hierarchy_agent_counts is not None and not isinstance(
+        hierarchy_agent_counts, list
+    ):
+        hierarchy_agent_counts = [hierarchy_agent_counts]
+    if hierarchy_agent_counts is not None:
+        try:
+            hierarchy_agent_counts = [
+                int(value) for value in hierarchy_agent_counts
+            ]
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "All hierarchy_agent_counts entries must be integers"
+            ) from exc
+        if any(count < 1 for count in hierarchy_agent_counts):
+            raise ValueError("All hierarchy_agent_counts entries must be >= 1")
+
+    hierarchy_ablation = args.hierarchy_ablation
+    if (
+        args.hierarchy_ablation == default_hierarchy_ablation
+        and "hierarchy_ablation" in yaml_config
+    ):
+        hierarchy_ablation = _coerce_bool(
+            yaml_config["hierarchy_ablation"], "hierarchy_ablation"
+        )
+
+    hierarchy_ablation_params = copy.deepcopy(
+        yaml_config.get("hierarchy_ablation_params", {})
+    )
+    hierarchy_ablation_base_configs = copy.deepcopy(
+        yaml_config.get("hierarchy_ablation_base_configs", [])
+    )
+
     # Validate conflicting flags
-    if args.hierarchy_only and args.communication_only:
+    if hierarchy_only and communication_only:
         parser.error(
             "Cannot specify both --hierarchy-only and --communication-only"
         )
@@ -1136,58 +1489,132 @@ Examples:
         export_json = bool(yaml_config["export_json"])
 
     # Run hierarchy benchmarks unless --communication-only is specified
-    if not args.communication_only:
+    if not communication_only:
         hierarchy_type_map = {
             "tree": HierarchyType.TREE,
             "peer_to_peer": HierarchyType.PEER_TO_PEER,
             "hybrid": HierarchyType.HYBRID,
         }
         hierarchy_types = [
-            hierarchy_type_map[ht] for ht in args.hierarchy_types
+            hierarchy_type_map[ht] for ht in hierarchy_types_raw
         ]
 
-        hierarchy_runner = HierarchyComparisonBenchmark(
-            output_dir=os.path.join(output_dir, "hierarchy")
-        )
+        hierarchy_runner = HierarchyComparisonBenchmark(output_dir=output_dir)
 
-        if extensive_mode:
-            hierarchy_agent_counts = [3, 5, 8, 12]
-        else:
-            hierarchy_agent_counts = [5, 8]
+        if hierarchy_agent_counts is None:
+            if extensive_mode:
+                hierarchy_agent_counts = [3, 5, 8, 12]
+            else:
+                hierarchy_agent_counts = [5, 8]
 
         hierarchy_runner.run_comparison(
             hierarchy_types=hierarchy_types,
-            environment_types=args.hierarchy_environments,
+            environment_types=hierarchy_environments,
             agent_counts=hierarchy_agent_counts,
-            num_episodes=args.hierarchy_episodes,
+            num_episodes=hierarchy_episodes,
+            num_trials=num_trials,
+            warm_up_operations=warm_up_operations,
         )
 
         # Run ablation study if requested
-        if args.hierarchy_ablation:
-            from benchmarks.hierarchy_benchmarks.hierarchy_benchmark_scenarios import (
+        if hierarchy_ablation:
+            from benchmarks.local.hierarchy_benchmarks.hierarchy_benchmark_scenarios import (
                 BenchmarkConfiguration as HierarchyConfig,
             )
 
-            tree_config = HierarchyConfig(
-                hierarchy_type=HierarchyType.TREE,
-                num_agents=8,
-                environment_type="task_distribution",
-                num_episodes=5,
+            default_ablation_params: Dict[str, List[Any]] = {
+                "hierarchy_depth": [1, 2, 3],
+                "planning_frequency": [1, 5, 10],
+                "communication_limit": [None, 50, 100],
+            }
+            raw_ablation_params = (
+                hierarchy_ablation_params
+                if hierarchy_ablation_params
+                else default_ablation_params
             )
 
-            hierarchy_runner.run_ablation_study(
-                base_config=tree_config,
-                ablation_params={
-                    "hierarchy_depth": [1, 2, 3],
-                    "planning_frequency": [1, 5, 10],
-                    "communication_limit": [None, 50, 100],
-                },
+            ablation_params: Dict[str, List[Any]] = {}
+            for key, values in raw_ablation_params.items():
+                if isinstance(values, list):
+                    ablation_params[str(key)] = values
+                else:
+                    ablation_params[str(key)] = [values]
+
+            base_cfg_map: Dict[str, Dict[str, Any]] = {}
+            for entry in hierarchy_ablation_base_configs:
+                if not isinstance(entry, dict):
+                    continue
+                entry_type = str(entry.get("hierarchy_type", "")).strip()
+                if entry_type:
+                    base_cfg_map[entry_type] = entry
+
+            default_ablation_agents = (
+                hierarchy_agent_counts[-1]
+                if hierarchy_agent_counts
+                else (8 if extensive_mode else 5)
             )
+            default_ablation_episodes = max(5, min(hierarchy_episodes, 10))
+
+            for hierarchy_type in hierarchy_types:
+                strategy_key = hierarchy_type.value
+                strategy_base = base_cfg_map.get(strategy_key, {})
+
+                num_agents = int(
+                    strategy_base.get("num_agents", default_ablation_agents)
+                )
+                environment_type = str(
+                    strategy_base.get("environment_type", "task_distribution")
+                )
+                num_episodes_for_ablation = int(
+                    strategy_base.get(
+                        "num_episodes", default_ablation_episodes
+                    )
+                )
+                num_tasks_per_episode = int(
+                    strategy_base.get("num_tasks_per_episode", 5)
+                )
+                max_steps = int(strategy_base.get("max_steps", 100))
+                hierarchy_depth = int(strategy_base.get("hierarchy_depth", 2))
+                planning_frequency = int(
+                    strategy_base.get("planning_frequency", 1)
+                )
+                communication_limit = strategy_base.get("communication_limit")
+                if communication_limit is not None:
+                    communication_limit = int(communication_limit)
+                static_roles = bool(strategy_base.get("static_roles", True))
+                env_params = strategy_base.get("env_params", {}) or {}
+                if not isinstance(env_params, dict):
+                    raise ValueError(
+                        "env_params in hierarchy_ablation_base_configs "
+                        f"for '{strategy_key}' must be a mapping"
+                    )
+
+                base_config = HierarchyConfig(
+                    hierarchy_type=hierarchy_type,
+                    num_agents=num_agents,
+                    environment_type=environment_type,
+                    num_episodes=num_episodes_for_ablation,
+                    num_tasks_per_episode=num_tasks_per_episode,
+                    max_steps=max_steps,
+                    hierarchy_depth=hierarchy_depth,
+                    static_roles=static_roles,
+                    communication_limit=communication_limit,
+                    planning_frequency=planning_frequency,
+                    env_params=env_params,
+                )
+
+                hierarchy_runner.run_ablation_study(
+                    base_config=base_config,
+                    ablation_params=ablation_params,
+                    num_trials=num_trials,
+                    warm_up_operations=warm_up_operations,
+                    output_suffix=strategy_key,
+                )
 
         print("\nHierarchy benchmarks completed!")
 
     # Run communication benchmarks unless --hierarchy-only is specified
-    if not args.hierarchy_only:
+    if not hierarchy_only:
         # Create configuration for protocol benchmarks
         config = BenchmarkConfig(
             protocols=protocols,
@@ -1198,6 +1625,8 @@ Examples:
             export_csv=export_csv,
             export_json=export_json,
             latency_mode=latency_mode,
+            num_trials=num_trials,
+            warm_up_operations=warm_up_operations,
             agent_counts=(
                 comm_agent_counts
                 if comm_agent_counts is not None

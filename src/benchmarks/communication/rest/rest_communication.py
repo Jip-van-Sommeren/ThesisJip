@@ -207,6 +207,7 @@ class RESTCommunicationService:
             target=self._broadcast_worker, daemon=True
         )
         self.broadcast_worker.start()
+        self._server = None
 
         # Setup routes
         self._setup_routes()
@@ -387,16 +388,49 @@ class RESTCommunicationService:
 
     def start_server(self):
         """Start the REST communication server."""
-        self.app.run(
-            host=self.host, port=self.port, debug=False, threaded=True
+        # Use Werkzeug's WSGI server so we can shut it down and reuse a fixed port
+        # across trials/runs. Flask's development server via app.run() is not
+        # designed to be stopped programmatically when started in a thread.
+        try:
+            from werkzeug.serving import make_server  # type: ignore
+        except Exception:
+            self.app.run(
+                host=self.host,
+                port=self.port,
+                debug=False,
+                threaded=True,
+                use_reloader=False,
+            )
+            return
+
+        self._server = make_server(
+            self.host, self.port, self.app, threaded=True
         )
+        try:
+            self._server.serve_forever()
+        finally:
+            try:
+                self._server.server_close()
+            except Exception:
+                pass
 
     def shutdown(self):
-        """Stop background broadcast worker."""
+        """Stop server and background broadcast worker."""
         self.broadcast_worker_stop.set()
         self.broadcast_queue.put(None)
         if self.broadcast_worker.is_alive():
             self.broadcast_worker.join(timeout=1.0)
+
+        if self._server is not None:
+            try:
+                self._server.shutdown()
+            except Exception:
+                pass
+            try:
+                self._server.server_close()
+            except Exception:
+                pass
+            self._server = None
 
 
 class RestCommunicatingAgent:

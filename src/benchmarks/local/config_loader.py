@@ -31,6 +31,18 @@ def _coerce_concurrency(values: Any) -> List[int]:
     return levels
 
 
+def _coerce_bool(value: Any, field_name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+    raise ValueError(f"{field_name} must be a boolean")
+
+
 def load_config_from_yaml(path: str) -> Dict[str, Any]:
     """Load benchmark configuration from a YAML file."""
     try:
@@ -48,6 +60,23 @@ def load_config_from_yaml(path: str) -> Dict[str, Any]:
         data = yaml.safe_load(handle) or {}
 
     config: Dict[str, Any] = {}
+
+    # Trials / warm-up (optional)
+    if "num_trials" in data:
+        try:
+            config["num_trials"] = int(data["num_trials"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("num_trials must be an integer") from exc
+        if config["num_trials"] < 1:
+            raise ValueError("num_trials must be >= 1")
+
+    if "warm_up_operations" in data:
+        try:
+            config["warm_up_operations"] = int(data["warm_up_operations"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("warm_up_operations must be an integer") from exc
+        if config["warm_up_operations"] < 0:
+            raise ValueError("warm_up_operations must be >= 0")
 
     # Benchmark mode (simple/extensive)
     mode = data.get("mode")
@@ -82,6 +111,83 @@ def load_config_from_yaml(path: str) -> Dict[str, Any]:
     if "output_dir" in data:
         config["output_dir"] = data["output_dir"]
 
+    # Hierarchy benchmark controls
+    for key in ("hierarchy_only", "communication_only", "hierarchy_ablation"):
+        if key in data:
+            config[key] = _coerce_bool(data[key], key)
+
+    if "hierarchy_types" in data:
+        hierarchy_types = [str(v) for v in _as_list(data["hierarchy_types"])]
+        allowed = {"tree", "peer_to_peer", "hybrid"}
+        invalid = [value for value in hierarchy_types if value not in allowed]
+        if invalid:
+            raise ValueError(
+                f"Unsupported hierarchy_types: {invalid}. Allowed: {sorted(allowed)}"
+            )
+        config["hierarchy_types"] = hierarchy_types
+
+    if "hierarchy_environments" in data:
+        hierarchy_envs = [
+            str(v) for v in _as_list(data["hierarchy_environments"])
+        ]
+        allowed_envs = {
+            "task_distribution",
+            "resource_allocation",
+            "collaborative",
+            "fault_recovery",
+            "scalability",
+        }
+        invalid = [value for value in hierarchy_envs if value not in allowed_envs]
+        if invalid:
+            raise ValueError(
+                "Unsupported hierarchy_environments: "
+                f"{invalid}. Allowed: {sorted(allowed_envs)}"
+            )
+        config["hierarchy_environments"] = hierarchy_envs
+
+    if "hierarchy_episodes" in data:
+        try:
+            config["hierarchy_episodes"] = int(data["hierarchy_episodes"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("hierarchy_episodes must be an integer") from exc
+        if config["hierarchy_episodes"] < 1:
+            raise ValueError("hierarchy_episodes must be >= 1")
+
+    if "hierarchy_agent_counts" in data:
+        counts = _as_list(data["hierarchy_agent_counts"])
+        try:
+            parsed_counts = [int(count) for count in counts]
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "hierarchy_agent_counts must contain integers"
+            ) from exc
+        if any(count < 1 for count in parsed_counts):
+            raise ValueError("hierarchy_agent_counts entries must be >= 1")
+        config["hierarchy_agent_counts"] = parsed_counts
+
+    if "hierarchy_ablation_params" in data:
+        ablation_params = data["hierarchy_ablation_params"] or {}
+        if not isinstance(ablation_params, dict):
+            raise ValueError("hierarchy_ablation_params must be a mapping")
+        normalized_params: Dict[str, List[Any]] = {}
+        for key, values in ablation_params.items():
+            normalized_params[str(key)] = _as_list(values)
+        config["hierarchy_ablation_params"] = normalized_params
+
+    if "hierarchy_ablation_base_configs" in data:
+        base_configs = data["hierarchy_ablation_base_configs"] or []
+        if not isinstance(base_configs, list):
+            raise ValueError(
+                "hierarchy_ablation_base_configs must be a list"
+            )
+        for idx, base_cfg in enumerate(base_configs):
+            if not isinstance(base_cfg, dict):
+                raise ValueError(
+                    "hierarchy_ablation_base_configs entries must be mappings "
+                    f"(invalid entry at index {idx})"
+                )
+        config["hierarchy_ablation_base_configs"] = base_configs
+
     # Protocols and variant matrices
     protocols_section = data.get("protocols", {})
 
@@ -114,7 +220,6 @@ def load_config_from_yaml(path: str) -> Dict[str, Any]:
 
     else:
         config["protocols"] = _as_list(protocols_section)
-    print(config)
     return config
 
 

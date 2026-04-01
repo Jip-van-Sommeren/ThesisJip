@@ -332,7 +332,9 @@ class TreeHierarchy(HierarchyStrategy):
 
                 actions_taken["worker"] += 1
 
-        actions_taken["messages"] = len(self.message_queue) - message_count_before
+        actions_taken["messages"] = (
+            len(self.message_queue) - message_count_before
+        )
         return actions_taken
 
     def _manager_coordinate(self, manager_id: str):
@@ -586,7 +588,9 @@ class PeerToPeerHierarchy(HierarchyStrategy):
         if self.step_count % 5 == 0:
             self._synchronize_state()
 
-        actions_taken["messages"] = len(self.message_queue) - message_count_before
+        actions_taken["messages"] = (
+            len(self.message_queue) - message_count_before
+        )
         return actions_taken
 
     def _synchronize_state(self):
@@ -805,7 +809,9 @@ class HybridHierarchy(HierarchyStrategy):
 
                 actions_taken["worker"] += 1
 
-        actions_taken["messages"] = len(self.message_queue) - message_count_before
+        actions_taken["messages"] = (
+            len(self.message_queue) - message_count_before
+        )
         return actions_taken
 
     def _manager_monitor(self, manager_id: str):

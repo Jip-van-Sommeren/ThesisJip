@@ -1,0 +1,62 @@
+# Distributed Benchmark Configuration
+# Runs benchmarks across multiple AWS hosts for real network latency.
+#
+# Prerequisites:
+#   1. Provision infrastructure: cd infra && terraform apply
+#   2. Generate config with real IPs: ./infra/generate_config.sh
+#      OR manually fill in the host IPs below.
+#
+# Usage:
+#   cd src && python3 -m benchmarks.distributed.distributed_runner \
+#     benchmarks/benchmark_configs/distributed_benchmarks.yml
+
+mode: extensive
+num_trials: 3
+latency_mode: app_ack
+output_dir: results/distributed_benchmarks
+
+distributed:
+  enabled: true
+  ssh_user: ubuntu
+  ssh_key: ~/.ssh/benchmark-key.pem
+  code_path: /home/ubuntu/thesis/src
+  agent_placement: round_robin
+
+  time_sync:
+    enabled: true
+    max_offset_ms: 1.0
+    ntp_source: "169.254.169.123"
+
+  hosts:
+    broker:  { ip: "REPLACE_WITH_BROKER_IP", role: broker }
+    agent_0: { ip: "REPLACE_WITH_AGENT_0_IP", role: agent }
+    agent_1: { ip: "REPLACE_WITH_AGENT_1_IP", role: agent }
+
+protocols:
+  rest:
+    variants:
+      http1: {}
+      http2: {}
+  grpc:
+    variants:
+      unary: {}
+      streaming: {}
+  mqtt:
+    variants:
+      qos0: {}
+      qos1: {}
+  kafka:
+    variants:
+      acks0: {}
+      acks1: {}
+      acksall: {}
+
+scenarios:
+  - point_to_point_latency
+  - broadcast_throughput
+  - concurrent_messaging
+
+agent_counts:
+  - 2
+  - 4
+  - 8

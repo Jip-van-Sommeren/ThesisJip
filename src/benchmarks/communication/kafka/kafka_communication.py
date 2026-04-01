@@ -8,6 +8,8 @@ Implements the same formal model as REST and gRPC but using Apache Kafka:
 - Mailboxes (MB_i): Message buffers implemented as Kafka consumers
 - Delivery Function: Message transmission via Kafka producers
 - Communication Actions: send(i,j,m) operations via Kafka messaging
+
+Uses confluent-kafka (librdkafka) for better concurrency performance.
 """
 
 import json
@@ -25,9 +27,8 @@ from benchmarks.communication.base_communication import (
     LatencyMode,
 )
 
-from kafka import KafkaProducer, KafkaConsumer, KafkaAdminClient
-from kafka.admin import NewTopic
-from kafka.errors import TopicAlreadyExistsError
+from confluent_kafka import Producer, Consumer, KafkaError, KafkaException
+from confluent_kafka.admin import AdminClient, NewTopic
 
 
 class KafkaMessageType(Enum):
@@ -139,24 +140,31 @@ class KafkaMailbox:
         self._setup_consumer()
 
     def _setup_consumer(self):
-        """Setup Kafka consumer for this agent's mailbox."""
+        """Setup Kafka consumer for this agent's mailbox using confluent-kafka."""
         try:
             topics = [self.topic]
             if self.broadcast_topic:
                 topics.append(self.broadcast_topic)
 
-            self.consumer = KafkaConsumer(
-                bootstrap_servers=self.kafka_config.get(
-                    "bootstrap_servers", ["localhost:9092"]
-                ),
-                value_deserializer=lambda m: m.decode("utf-8") if m else None,
-                consumer_timeout_ms=1000,
-                auto_offset_reset="latest",
-                group_id=f"agent_{self.agent_id}_consumer",
+            # Get bootstrap servers - handle both list and string formats
+            bootstrap_servers = self.kafka_config.get(
+                "bootstrap_servers", ["localhost:9092"]
             )
+            if isinstance(bootstrap_servers, list):
+                bootstrap_servers = ",".join(bootstrap_servers)
 
-            if topics:
-                self.consumer.subscribe(topics)
+            # confluent-kafka consumer config uses dot notation
+            consumer_config = {
+                "bootstrap.servers": bootstrap_servers,
+                "group.id": f"agent_{self.agent_id}_consumer",
+                "auto.offset.reset": "latest",
+                "enable.auto.commit": True,
+                "session.timeout.ms": 6000,
+                "heartbeat.interval.ms": 2000,
+            }
+
+            self.consumer = Consumer(consumer_config)
+            self.consumer.subscribe(topics)
 
             # Start consumer thread
             self.running = True
@@ -174,24 +182,36 @@ class KafkaMailbox:
         """Background thread to consume messages from Kafka."""
         while self.running and self.consumer:
             try:
-                message_pack = self.consumer.poll(timeout_ms=1000)
-                for topic_partition, messages in message_pack.items():
-                    for message in messages:
-                        if message.value:
-                            kafka_message = KafkaMessage.from_json(
-                                message.value
-                            )
-                            with self.lock:
-                                self.messages.append(kafka_message)
+                # confluent-kafka poll returns single message or None
+                msg = self.consumer.poll(timeout=1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    if msg.error().code() == KafkaError._PARTITION_EOF:
+                        continue
+                    logging.warning(
+                        f"Consumer error for {self.agent_id}: {msg.error()}"
+                    )
+                    continue
+
+                # Decode and parse message
+                value = msg.value()
+                if value:
+                    if isinstance(value, bytes):
+                        value = value.decode("utf-8")
+                    kafka_message = KafkaMessage.from_json(value)
+                    with self.lock:
+                        self.messages.append(kafka_message)
+
             except Exception as e:
-                if self.running:  # Only log if we're supposed to be running
+                if self.running:
                     logging.warning(
                         f"Error consuming messages for {self.agent_id}: {e}"
                     )
                 time.sleep(0.1)
 
     def add_message(self, message: KafkaMessage):
-        """Add message to mailbox (for direct delivery when Kafka\
+        """Add message to mailbox (for direct delivery when Kafka
             not available)."""
         with self.lock:
             self.messages.append(message)
@@ -216,10 +236,13 @@ class KafkaMailbox:
     def close(self):
         """Close the Kafka consumer."""
         self.running = False
-        if self.consumer:
-            self.consumer.close()
         if self.consumer_thread and self.consumer_thread.is_alive():
-            self.consumer_thread.join(timeout=1.0)
+            self.consumer_thread.join(timeout=2.0)
+        if self.consumer:
+            try:
+                self.consumer.close()
+            except Exception as e:
+                logging.debug(f"Error closing consumer for {self.agent_id}: {e}")
 
 
 class KafkaCommunicationTopology:
@@ -269,6 +292,7 @@ class KafkaCommunicationService:
     """
     Kafka-based communication service implementation.
     Manages Kafka topics, producers, and delivery statistics.
+    Uses confluent-kafka for better concurrency handling.
     """
 
     def __init__(
@@ -305,6 +329,12 @@ class KafkaCommunicationService:
         self.producer = None
         self.admin_client = None
         self.is_running = False
+
+        # Track pending deliveries for synchronous sends
+        self._delivery_results: Dict[str, Optional[Exception]] = {}
+        self._delivery_lock = threading.Lock()
+        self._delivery_events: Dict[str, threading.Event] = {}
+
         self.broadcast_queue: "queue.Queue[Tuple[str, Dict[str, Any], Optional[str]]]" = queue.Queue()
         self.broadcast_worker_stop = threading.Event()
         self.broadcast_worker = threading.Thread(
@@ -329,56 +359,86 @@ class KafkaCommunicationService:
                 return acks_value
         return 1
 
+    def _delivery_callback(self, err, msg):
+        """Callback for producer delivery reports."""
+        # Extract message key to identify which send this belongs to
+        key = msg.key()
+        if key and isinstance(key, bytes):
+            key = key.decode("utf-8")
+
+        if key:
+            with self._delivery_lock:
+                if key in self._delivery_events:
+                    self._delivery_results[key] = err
+                    self._delivery_events[key].set()
+
     def _setup_kafka(self):
-        """Setup Kafka producer and admin client."""
+        """Setup Kafka producer and admin client using confluent-kafka."""
         try:
-            producer_kwargs = {
-                "bootstrap_servers": self.kafka_config["bootstrap_servers"],
-                "value_serializer": lambda x: (
-                    x.encode("utf-8") if isinstance(x, str) else x
-                ),
-                "client_id": self.kafka_config.get(
+            # Get bootstrap servers - handle both list and string formats
+            bootstrap_servers = self.kafka_config.get(
+                "bootstrap_servers", ["localhost:9092"]
+            )
+            if isinstance(bootstrap_servers, list):
+                bootstrap_servers = ",".join(bootstrap_servers)
+
+            # confluent-kafka producer config uses dot notation
+            producer_config = {
+                "bootstrap.servers": bootstrap_servers,
+                "client.id": self.kafka_config.get(
                     "client_id", "agent_communication"
                 ),
+                "acks": str(self.producer_acks),
                 "retries": 3,
-                "acks": self.producer_acks,
-                "linger_ms": 5,
-                "batch_size": 32768,
-                "max_in_flight_requests_per_connection": 5,
+                "linger.ms": 5,
+                "batch.size": 32768,
+                "max.in.flight.requests.per.connection": 5,
+                "request.timeout.ms": 10000,
+                "delivery.timeout.ms": 30000,
+                "socket.timeout.ms": 10000,
+                "message.timeout.ms": 10000,
             }
 
+            # Add compression if specified
             compression = (
                 str(self.producer_compression).lower()
                 if self.producer_compression is not None
                 else ""
             )
-            if compression in {"gzip", "snappy", "lz4"}:
-                producer_kwargs["compression_type"] = compression
+            if compression in {"gzip", "snappy", "lz4", "zstd"}:
+                producer_config["compression.type"] = compression
             elif compression not in {"", "none"}:
                 logging.warning(
                     "Kafka compression_type '%s' is not supported; disabling compression",
                     compression,
                 )
 
-            self.producer = KafkaProducer(**producer_kwargs)
-            client_id_value = self.kafka_config.get(
-                "client_id", "agent_communication"
-            )
-            self.admin_client = KafkaAdminClient(
-                bootstrap_servers=self.kafka_config["bootstrap_servers"],
-                client_id=f"{client_id_value}_admin",
-            )
+            self.producer = Producer(producer_config)
 
+            # Setup admin client
+            admin_config = {
+                "bootstrap.servers": bootstrap_servers,
+                "client.id": f"{self.kafka_config.get('client_id', 'agent_communication')}_admin",
+            }
+            self.admin_client = AdminClient(admin_config)
+
+            # Create broadcast topic
             if self.admin_client:
                 try:
                     broadcast_topic = NewTopic(
-                        name=self.broadcast_topic,
+                        self.broadcast_topic,
                         num_partitions=1,
                         replication_factor=1,
                     )
-                    self.admin_client.create_topics([broadcast_topic])
-                except TopicAlreadyExistsError:
-                    pass
+                    futures = self.admin_client.create_topics([broadcast_topic])
+                    # Wait for topic creation
+                    for topic, future in futures.items():
+                        try:
+                            future.result(timeout=5)
+                        except Exception as e:
+                            # Topic may already exist
+                            if "already exists" not in str(e).lower():
+                                logging.debug(f"Topic creation note: {e}")
                 except Exception as e:
                     logging.warning(
                         f"Could not create broadcast topic '{self.broadcast_topic}': {e}"
@@ -402,16 +462,20 @@ class KafkaCommunicationService:
                 broadcast_topic=self.broadcast_topic,
             )
 
-            # Create Kafka topic for this agent if Kafka is available
+            # Create Kafka topic for this agent if admin client is available
             if self.admin_client:
                 try:
                     topic_name = f"agent_mailbox_{agent_id}"
                     topic = NewTopic(
-                        name=topic_name, num_partitions=1, replication_factor=1
+                        topic_name, num_partitions=1, replication_factor=1
                     )
-                    self.admin_client.create_topics([topic])
-                except TopicAlreadyExistsError:
-                    pass  # Topic already exists, which is fine
+                    futures = self.admin_client.create_topics([topic])
+                    for t, future in futures.items():
+                        try:
+                            future.result(timeout=5)
+                        except Exception as e:
+                            if "already exists" not in str(e).lower():
+                                logging.debug(f"Topic creation note for {agent_id}: {e}")
                 except Exception as e:
                     logging.warning(
                         f"Could not create topic for {agent_id}: {e}"
@@ -442,13 +506,55 @@ class KafkaCommunicationService:
 
         try:
             if self.producer and self.is_running:
-                # Send via Kafka
+                # Send via Kafka using confluent-kafka
                 topic = f"agent_mailbox_{message.receiver_id}"
-                future = self.producer.send(topic, value=message.to_json())
+                msg_value = message.to_json().encode("utf-8")
 
-                # Wait for send to complete (with timeout)
-                if self.latency_mode != LatencyMode.SEND_ONLY:
-                    future.get(timeout=5)
+                if self.latency_mode == LatencyMode.SEND_ONLY:
+                    # Fire and forget - just produce and poll occasionally
+                    self.producer.produce(topic, value=msg_value)
+                    self.producer.poll(0)  # Trigger callbacks without blocking
+                else:
+                    # Synchronous send - use unique key to track delivery
+                    msg_key = f"{message.message_id}_{time.time()}"
+                    event = threading.Event()
+
+                    with self._delivery_lock:
+                        self._delivery_events[msg_key] = event
+                        self._delivery_results[msg_key] = None
+
+                    try:
+                        self.producer.produce(
+                            topic,
+                            key=msg_key.encode("utf-8"),
+                            value=msg_value,
+                            callback=self._delivery_callback,
+                        )
+
+                        # Poll until delivery confirmed or timeout
+                        deadline = time.time() + 10.0
+                        while not event.is_set() and time.time() < deadline:
+                            self.producer.poll(0.1)
+
+                        # Check result
+                        with self._delivery_lock:
+                            err = self._delivery_results.get(msg_key)
+                            del self._delivery_events[msg_key]
+                            del self._delivery_results[msg_key]
+
+                        if err:
+                            logging.debug(f"Kafka delivery error, using fallback: {err}")
+                            self.mailboxes[message.receiver_id].add_message(message)
+                        elif not event.is_set():
+                            # Timeout - use fallback
+                            logging.debug("Kafka send timeout, using fallback")
+                            self.mailboxes[message.receiver_id].add_message(message)
+
+                    except Exception as e:
+                        with self._delivery_lock:
+                            self._delivery_events.pop(msg_key, None)
+                            self._delivery_results.pop(msg_key, None)
+                        raise e
 
             else:
                 # Fallback: direct delivery to mailbox
@@ -501,18 +607,28 @@ class KafkaCommunicationService:
                 content=payload_copy,
                 reply_to=message.reply_to,
             )
-            future = self.producer.send(
-                self.broadcast_topic, value=broadcast_message.to_json()
-            )
-            if self.latency_mode != LatencyMode.SEND_ONLY:
-                try:
-                    future.get(timeout=5)
-                except Exception as exc:
-                    logging.warning(
-                        f"Broadcast publish failed for {message.sender_id}: {exc}"
-                    )
-                    delivered = 0
-                    failed = total_targets
+            msg_value = broadcast_message.to_json().encode("utf-8")
+
+            try:
+                self.producer.produce(self.broadcast_topic, value=msg_value)
+
+                if self.latency_mode != LatencyMode.SEND_ONLY:
+                    # Flush to ensure delivery
+                    remaining = self.producer.flush(timeout=5)
+                    if remaining > 0:
+                        logging.warning(
+                            f"Broadcast: {remaining} messages not delivered"
+                        )
+                        delivered = 0
+                        failed = total_targets
+
+            except Exception as exc:
+                logging.warning(
+                    f"Broadcast publish failed for {message.sender_id}: {exc}"
+                )
+                delivered = 0
+                failed = total_targets
+
             message_ids.append(broadcast_message.message_id)
         else:
             self._enqueue_broadcast_task(
@@ -561,10 +677,14 @@ class KafkaCommunicationService:
         for mailbox in self.mailboxes.values():
             mailbox.close()
 
-        # Close producer
+        # Close producer with flush
         if self.producer:
-            self.producer.flush()
-            self.producer.close()
+            try:
+                remaining = self.producer.flush(timeout=5)
+                if remaining > 0:
+                    logging.debug(f"Producer close: {remaining} messages not delivered")
+            except Exception as e:
+                logging.debug(f"Kafka producer flush error during close: {e}")
 
     def _enqueue_broadcast_task(
         self, sender_id: str, content: Dict[str, Any], reply_to: Optional[str]

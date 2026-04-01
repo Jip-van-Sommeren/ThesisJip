@@ -1,0 +1,62 @@
+# Extensive hierarchy benchmark suite with ablation across all strategies.
+#
+# Run with:
+#   python3 src/benchmarks/benchmark_runner.py \
+#     --config-file src/benchmarks/benchmark_configs/hierarchy_extensive_ablation.yml
+
+mode: extensive
+
+hierarchy_only: true
+hierarchy_ablation: true
+
+# Applied to hierarchy runs as well as communication runs.
+num_trials: 5
+warm_up_operations: 1
+
+hierarchy_types:
+  - tree
+  - peer_to_peer
+  - hybrid
+
+hierarchy_environments:
+  - task_distribution
+  - resource_allocation
+  - collaborative
+  - fault_recovery
+  - scalability
+
+hierarchy_agent_counts:
+  - 3
+  - 5
+  - 8
+  - 12
+
+hierarchy_episodes: 10
+
+hierarchy_ablation_params:
+  hierarchy_depth: [1, 2, 3]
+  planning_frequency: [1, 5, 10]
+  communication_limit: [null, 50, 100]
+
+# One base config per strategy. Ablation parameters above are swept from each base.
+hierarchy_ablation_base_configs:
+  - hierarchy_type: tree
+    num_agents: 8
+    environment_type: task_distribution
+    num_episodes: 8
+    hierarchy_depth: 2
+    planning_frequency: 1
+
+  - hierarchy_type: peer_to_peer
+    num_agents: 8
+    environment_type: task_distribution
+    num_episodes: 8
+    hierarchy_depth: 2
+    planning_frequency: 1
+
+  - hierarchy_type: hybrid
+    num_agents: 8
+    environment_type: task_distribution
+    num_episodes: 8
+    hierarchy_depth: 2
+    planning_frequency: 1

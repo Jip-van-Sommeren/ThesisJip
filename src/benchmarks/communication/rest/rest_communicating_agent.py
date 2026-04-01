@@ -284,6 +284,7 @@ class RestCommunicationEnvironment:
         from benchmarks.communication.base_communication import LatencyMode
 
         self.service_host = service_host
+        self.preferred_service_port = service_port
         self.service_port = service_port
         self.latency_mode = latency_mode or LatencyMode.END_TO_END
         self.transport_mode = transport_mode
@@ -301,10 +302,11 @@ class RestCommunicationEnvironment:
         # Find available port if default is taken
         import socket
 
-        port = self.service_port
-        while port < self.service_port + 100:  # Try up to 100 ports
+        port = self.preferred_service_port
+        while port < self.preferred_service_port + 100:  # Try up to 100 ports
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                     s.bind((self.service_host, port))
                     break
             except OSError:
@@ -337,12 +339,14 @@ class RestCommunicationEnvironment:
                 self.comm_service.shutdown()
             except Exception:
                 pass
-            # Flask doesn't have a clean shutdown method, so we set a flag
             self.is_running = False
-            # In a production environment, you'd use a proper WSGI server
-            # that supports graceful shutdown
             print(f"Communication service on port {self.service_port} stopped")
+            if self.service_thread and self.service_thread.is_alive():
+                self.service_thread.join(timeout=2.0)
         self.comm_service = None
+        self.service_thread = None
+        # Prefer reusing the configured base port (default 5000) on the next run.
+        self.service_port = self.preferred_service_port
 
     def get_service_url(self) -> str:
         """Get the service URL."""

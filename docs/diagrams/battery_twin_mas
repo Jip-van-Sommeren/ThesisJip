@@ -1,0 +1,280 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36" version="29.6.0">
+  <diagram id="battery-twin-mas" name="Battery Twin on MAS">
+    <mxGraphModel dx="1579" dy="1064" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;align=center;verticalAlign=middle;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Environment&#xa;(telemetry source/replay, MQTT broker, storage backends)" vertex="1">
+          <mxGeometry height="100" width="1010" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="Telemetry Source / ReplayEngine&#xa;(src/battery_twin/data)" vertex="1">
+          <mxGeometry height="60" width="210" x="820" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="Storage Backends&#xa;InfluxDB • MongoDB • Redis • Neo4j (optional)" vertex="1">
+          <mxGeometry height="60" width="270" x="50" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="10" parent="1" style="swimlane;rounded=0;startSize=30;html=1;fontStyle=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;align=right;" value="Services &amp;amp; Storage&lt;div&gt;&amp;nbsp;(src/battery_twin)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="740" width="260" x="40" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="10" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="BatteryTwinOrchestrator&#xa;(src/battery_twin/orchestrator.py)&#xa;lifecycle, monitoring" vertex="1">
+          <mxGeometry height="70" width="180" x="60" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="10" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="HybridDigitalTwin Service&lt;br&gt;(src/battery_twin/hybrid/&lt;div&gt;core/digital_twin.py)&lt;br&gt;physics + ML residual&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="60" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="QXSjStcM7mmeOwL2DeJG-177" edge="1" parent="10" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="12" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="70" y="320" />
+              <mxPoint x="70" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="13" parent="10" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="BatteryStorageManager&#xa;(src/battery_twin/storage)&#xa;persistence hooks (optional)" vertex="1">
+          <mxGeometry height="150" width="180" x="60" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="20" parent="1" style="swimlane;rounded=0;startSize=30;html=1;fontStyle=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;" value="Battery Twin Agents (src/battery_twin/agents)" vertex="1">
+          <mxGeometry height="740" width="500" x="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="21" parent="20" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="TelemetryIngestorAgent&#xa;Reactive (BatteryReactiveAgent)" vertex="1">
+          <mxGeometry height="60" width="200" x="150" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="22" parent="20" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="StateEstimatorAgent&#xa;BDI + EKF (BatteryBDIAgent)" vertex="1">
+          <mxGeometry height="60" width="200" x="150" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="23" parent="20" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="HealthMonitorAgent&#xa;BDI (BatteryBDIAgent)" vertex="1">
+          <mxGeometry height="60" width="200" x="150" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="24" parent="20" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="PhysicsModelAgent&#xa;Hybrid (BatteryHybridAgent)" vertex="1">
+          <mxGeometry height="60" width="200" x="150" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="25" parent="20" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="MLResidualAgent&#xa;BDI (BatteryBDIAgent)" vertex="1">
+          <mxGeometry height="60" width="200" x="150" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="110" edge="1" parent="20" source="25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" value="pub hybrid_prediction">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="540" />
+              <mxPoint x="440" y="540" />
+            </Array>
+            <mxPoint x="520" y="540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="109" edge="1" parent="20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="25" value="sub physics_prediction&lt;div&gt;&amp;nbsp;+ capacity&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="500" />
+              <mxPoint x="440" y="500" />
+            </Array>
+            <mxPoint x="520" y="500" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="108" edge="1" parent="20" source="24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" value="pub physics_prediction">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430" y="450" />
+              <mxPoint x="430" y="450" />
+            </Array>
+            <mxPoint x="520" y="450" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="107" edge="1" parent="20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="24" value="sub clean_telemetry&amp;nbsp;&lt;div&gt;+ capacity&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="390" y="410" />
+              <mxPoint x="390" y="410" />
+            </Array>
+            <mxPoint x="520" y="410" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="106" edge="1" parent="20" source="23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" value="pub health_report">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="390" y="370" />
+              <mxPoint x="390" y="370" />
+            </Array>
+            <mxPoint x="520" y="370" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="105" edge="1" parent="20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="23" value="sub state_estimate">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="390" y="330" />
+              <mxPoint x="390" y="330" />
+            </Array>
+            <mxPoint x="520" y="330" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="103" edge="1" parent="20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="22" value="sub clean_telemetry">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="440" y="290" />
+              <mxPoint x="440" y="290" />
+            </Array>
+            <mxPoint x="520" y="290" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="104" edge="1" parent="20" source="22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" value="pub state_estimate">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="400" y="250" />
+              <mxPoint x="400" y="250" />
+            </Array>
+            <mxPoint x="520" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="101" edge="1" parent="20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="21" value="sub raw_telemetry">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="480" y="210" />
+              <mxPoint x="480" y="210" />
+            </Array>
+            <mxPoint x="520" y="210" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="102" edge="1" parent="20" source="21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" value="pub clean_telemetry">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="170" />
+              <mxPoint x="440" y="170" />
+            </Array>
+            <mxPoint x="520" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="QXSjStcM7mmeOwL2DeJG-176" edge="1" parent="1" source="30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="3" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="120" />
+              <mxPoint x="900" y="120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="30" parent="1" style="swimlane;rounded=0;startSize=30;html=1;fontStyle=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;align=left;" value="MAS Communication&amp;nbsp;&lt;div&gt;(src/mas/communication)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="740" width="250" x="800" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="33" parent="30" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="MQTT Topics / Message Bus&#xa;battery/{id}/raw&#xa;battery/{id}/telemetry/clean&#xa;battery/{id}/capacity&#xa;battery/{id}/state/estimate&#xa;battery/{id}/health/report&#xa;battery/{id}/prediction/physics&#xa;battery/{id}/prediction/hybrid&#xa;system/agents/{agent_id}/*" vertex="1">
+          <mxGeometry height="490" width="210" x="20" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="32" parent="30" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;align=center;verticalAlign=middle;" value="MqttTransport&#xa;(mas.communication, paho-mqtt)" vertex="1">
+          <mxGeometry height="60" width="210" x="20" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="113" edge="1" parent="30" source="32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="33" value="pub/sub">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="140" y="620" />
+              <mxPoint x="140" y="620" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="31" parent="30" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="TopicManager&#xa;(src/battery_twin/config/mqtt_topics.yaml)" vertex="1">
+          <mxGeometry height="60" width="210" x="20" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="112" edge="1" parent="30" source="31" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="32" value="resolve topics">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="100" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="33" value="raw_telemetry publish">
+          <mxGeometry relative="1" x="-0.4545" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="970" y="190" />
+              <mxPoint x="970" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="111" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="12" value="runs service">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="120" edge="1" parent="1" source="21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="13" value="persist telemetry">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="340" />
+              <mxPoint x="430" y="400" />
+              <mxPoint x="150" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="121" edge="1" parent="1" source="22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="13" value="persist estimates">
+          <mxGeometry relative="1" x="-0.3335" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="260" y="440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="122" edge="1" parent="1" source="24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 8;" target="13" value="persist predictions&amp;nbsp;">
+          <mxGeometry relative="1" x="0.1765" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="370" y="600" />
+              <mxPoint x="370" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="123" edge="1" parent="1" source="25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="13" value="persist model/preds">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="370" y="690" />
+              <mxPoint x="370" y="690" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="124" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="13" value="persist&amp;nbsp;&lt;div&gt;samples/&lt;/div&gt;&lt;div&gt;preds&lt;/div&gt;">
+          <mxGeometry relative="1" x="0.033" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="70" y="245" />
+              <mxPoint x="70" y="640" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="125" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="4" value="writes to&lt;div&gt;&amp;nbsp;backends&lt;/div&gt;">
+          <mxGeometry relative="1" x="-0.9333" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="60" y="660" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="130" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="33" value="agent_command (opt.)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="550" y="220" />
+              <mxPoint x="550" y="220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="131" edge="1" parent="1" source="33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="11" value="agent_heartbeat/status (opt.)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="540" y="270" />
+              <mxPoint x="540" y="270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="140" edge="1" parent="1" source="24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="12" value="">
+          <mxGeometry relative="1" x="-0.227" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="400" y="570" />
+              <mxPoint x="400" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="141" edge="1" parent="1" source="25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="12" value="shared&amp;nbsp;&lt;div&gt;hybrid service&lt;/div&gt;">
+          <mxGeometry relative="1" x="0.7143" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="400" y="650" />
+              <mxPoint x="400" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
