@@ -5,7 +5,6 @@ In-memory transport implementation for unit testing agents
 without requiring a real MQTT broker.
 """
 
-import fnmatch
 import logging
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -178,7 +177,9 @@ class MockTransport(Transport):
         if not self.topic_manager:
             raise ValueError("TopicManager not configured")
 
-        pattern = self.topic_manager.get_subscription_pattern(topic_name, **topic_vars)
+        pattern = self.topic_manager.get_subscription_pattern(
+            topic_name, **topic_vars
+        )
         return self.subscribe(pattern, callback, qos)
 
     def simulate_message(self, topic: str, payload: str) -> int:
@@ -237,7 +238,10 @@ class MockTransport(Transport):
             for i in range(hash_index):
                 if i >= len(topic_parts):
                     return False
-                if pattern_parts[i] != "+" and pattern_parts[i] != topic_parts[i]:
+                if (
+                    pattern_parts[i] != "+"
+                    and pattern_parts[i] != topic_parts[i]
+                ):
                     return False
             return True
 
@@ -270,7 +274,9 @@ class MockTransport(Transport):
         """Clear only published messages (keep subscriptions)."""
         self.published.clear()
 
-    def get_published_to_topic(self, topic_pattern: str) -> List[Tuple[str, str]]:
+    def get_published_to_topic(
+        self, topic_pattern: str
+    ) -> List[Tuple[str, str]]:
         """
         Get all messages published to topics matching pattern.
 
@@ -299,9 +305,9 @@ class MockTransport(Transport):
         """
         matching = self.get_published_to_topic(topic_pattern)
         actual = len(matching)
-        assert actual == count, (
-            f"Expected {count} messages to {topic_pattern}, got {actual}"
-        )
+        assert (
+            actual == count
+        ), f"Expected {count} messages to {topic_pattern}, got {actual}"
 
 
 __all__ = ["MockTransport"]

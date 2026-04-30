@@ -41,7 +41,6 @@ from mas.communication import Transport
 from battery_twin.agents.battery_agent_base import BatteryBDIAgent
 from battery_twin.communication.message_schemas import (
     PredictionMessage,
-    CapacityMessage,
     MessageFactory,
 )
 from battery_twin.storage.battery_storage_manager import (
@@ -49,7 +48,6 @@ from battery_twin.storage.battery_storage_manager import (
 )
 from battery_twin.models.residual_learner import (
     ResidualLearner,
-    CycleFeatures,
     CycleFeatures,
 )
 from battery_twin.models.neural_network import NeuralNetConfig
@@ -266,7 +264,9 @@ class MLResidualAgent(BatteryBDIAgent):
         """Agent-specific setup."""
         try:
             # Register MQTT action handlers using topic manager if available
-            tm = getattr(getattr(self, "transport", None), "topic_manager", None)
+            tm = getattr(
+                getattr(self, "transport", None), "topic_manager", None
+            )
             physics_topic = (
                 tm.get_topic("physics_prediction", battery_id=self.battery_id)
                 if tm

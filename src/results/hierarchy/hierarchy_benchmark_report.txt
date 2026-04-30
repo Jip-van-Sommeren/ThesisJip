@@ -1,0 +1,158 @@
+======================================================================
+HIERARCHY STRATEGY BENCHMARK REPORT
+======================================================================
+
+BENCHMARK SUMMARY
+------------------------------
+Total Benchmarks: 60
+Strategies Tested: Hybrid, Peer To Peer, Tree
+Environments: Task Distribution, Resource Allocation, Collaborative, Fault Recovery, Scalability
+Agent Counts: 3, 5, 8, 12
+
+
+TASK DISTRIBUTION
+----------------------------------------------------------------------
+
+  Hybrid         :
+    Success Rate:        100.0%
+    Normalized Return:   0.928
+    Avg Makespan:         21.4 steps
+    Coordination Records/Episode:  155.5
+    Manager Util:        100.0
+
+  Peer To Peer   :
+    Success Rate:        100.0%
+    Normalized Return:   0.937
+    Avg Makespan:         16.7 steps
+    Coordination Records/Episode:   97.2
+    Manager Util:          0.0
+
+  Tree           :
+    Success Rate:        100.0%
+    Normalized Return:   0.928
+    Avg Makespan:         21.6 steps
+    Coordination Records/Episode:   71.4
+    Manager Util:        200.0
+
+RESOURCE ALLOCATION
+----------------------------------------------------------------------
+
+  Hybrid         :
+    Success Rate:         79.0%
+    Normalized Return:   0.488
+    Avg Makespan:         21.1 steps
+    Coordination Records/Episode:  154.9
+    Manager Util:        100.0
+
+  Peer To Peer   :
+    Success Rate:         72.5%
+    Normalized Return:   0.540
+    Avg Makespan:         16.8 steps
+    Coordination Records/Episode:  137.1
+    Manager Util:          0.0
+
+  Tree           :
+    Success Rate:         78.0%
+    Normalized Return:   0.516
+    Avg Makespan:         21.5 steps
+    Coordination Records/Episode:   71.2
+    Manager Util:        200.0
+
+COLLABORATIVE
+----------------------------------------------------------------------
+
+  Hybrid         :
+    Success Rate:         75.5%
+    Normalized Return:  18.649
+    Avg Makespan:         24.4 steps
+    Coordination Records/Episode:  247.7
+    Manager Util:        100.0
+
+  Peer To Peer   :
+    Success Rate:        100.0%
+    Normalized Return:  10.036
+    Avg Makespan:         42.9 steps
+    Coordination Records/Episode:  667.4
+    Manager Util:          0.0
+
+  Tree           :
+    Success Rate:         83.5%
+    Normalized Return:  15.062
+    Avg Makespan:         25.0 steps
+    Coordination Records/Episode:  123.1
+    Manager Util:        200.0
+
+FAULT RECOVERY
+----------------------------------------------------------------------
+
+  Hybrid         :
+    Success Rate:         25.0%
+    Normalized Return:   2.095
+    Avg Makespan:         13.7 steps
+    Coordination Records/Episode:   47.3
+    Manager Util:         11.4
+
+  Peer To Peer   :
+    Success Rate:         30.0%
+    Normalized Return:   2.519
+    Avg Makespan:         13.6 steps
+    Coordination Records/Episode:   27.4
+    Manager Util:          0.0
+
+  Tree           :
+    Success Rate:         28.0%
+    Normalized Return:   2.600
+    Avg Makespan:         13.3 steps
+    Coordination Records/Episode:   19.1
+    Manager Util:         30.4
+
+SCALABILITY
+----------------------------------------------------------------------
+
+  Hybrid         :
+    Success Rate:        100.0%
+    Normalized Return:  -0.135
+    Avg Makespan:         21.4 steps
+    Coordination Records/Episode:  155.8
+    Manager Util:        100.0
+
+  Peer To Peer   :
+    Success Rate:        100.0%
+    Normalized Return:  -0.002
+    Avg Makespan:         16.6 steps
+    Coordination Records/Episode:   96.3
+    Manager Util:          0.0
+
+  Tree           :
+    Success Rate:        100.0%
+    Normalized Return:   0.000
+    Avg Makespan:         21.9 steps
+    Coordination Records/Episode:   71.5
+    Manager Util:        200.0
+
+
+======================================================================
+BEST PERFORMING STRATEGIES
+======================================================================
+
+Highest Success Rate:    Peer To Peer
+Most Time Efficient:     Hybrid
+Lowest Coordination Records: Tree
+
+
+RECOMMENDATIONS
+------------------------------
+
+• Tree Hierarchy:
+  - Best for: Clear task delegation, centralized control
+  - Trade-offs: Higher manager overhead, single point of failure
+
+• Peer-to-Peer:
+  - Best for: Fault tolerance, distributed decision making
+  - Trade-offs: Higher coordination record cost, slower consensus
+
+• Hybrid:
+  - Best for: Balanced performance, flexible coordination
+  - Trade-offs: Moderate overhead, complex implementation
+
+======================================================================

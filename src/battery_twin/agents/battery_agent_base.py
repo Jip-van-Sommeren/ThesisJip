@@ -19,7 +19,6 @@ from __future__ import annotations
 import logging
 import time
 import threading
-from abc import abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, Set
@@ -40,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 class AgentStatus(Enum):
     """Agent lifecycle status."""
+
     CREATED = "created"
     INITIALIZING = "initializing"
     READY = "ready"
@@ -53,6 +53,7 @@ class AgentStatus(Enum):
 @dataclass
 class PerformanceMetrics:
     """Performance tracking metrics."""
+
     messages_received: int = 0
     messages_sent: int = 0
     actions_executed: int = 0
@@ -85,6 +86,7 @@ class PerformanceMetrics:
 @dataclass
 class ActionHandler:
     """Registered action with topic subscription."""
+
     action_id: str
     handler: Callable
     topic_pattern: Optional[str] = None
@@ -183,23 +185,25 @@ class BatteryAgentMixin:
         with self.action_lock:
             for action_id, handler_info in self.action_handlers.items():
                 if handler_info.topic_pattern and handler_info.enabled:
+
                     def make_wrapper(handler, aid):
                         def wrapper(topic: str, payload: str):
-                            self._execute_action_wrapper(aid, handler, topic, payload)
+                            self._execute_action_wrapper(
+                                aid, handler, topic, payload
+                            )
+
                         return wrapper
 
                     self.transport.subscribe(
                         handler_info.topic_pattern,
                         make_wrapper(handler_info.handler, action_id),
                     )
-                    logger.debug(f"Subscribed action {action_id} to {handler_info.topic_pattern}")
+                    logger.debug(
+                        f"Subscribed action {action_id} to {handler_info.topic_pattern}"
+                    )
 
     def _execute_action_wrapper(
-        self,
-        action_id: str,
-        handler: Callable,
-        topic: str,
-        payload: str
+        self, action_id: str, handler: Callable, topic: str, payload: str
     ):
         """Execute action with metrics tracking."""
         start_time = time.time()
@@ -217,10 +221,7 @@ class BatteryAgentMixin:
     # ---- Publishing ----
 
     def publish_message(
-        self,
-        topic_name: str,
-        message: Any,
-        **topic_vars
+        self, topic_name: str, message: Any, **topic_vars
     ) -> bool:
         """
         Publish a message using TopicManager for topic resolution.
@@ -404,7 +405,9 @@ class BatteryAgentMixin:
             self._stop_heartbeat()
 
             # Agent-specific teardown
-            if hasattr(self, "_agent_teardown") and callable(self._agent_teardown):
+            if hasattr(self, "_agent_teardown") and callable(
+                self._agent_teardown
+            ):
                 self._agent_teardown()
 
             with self.status_lock:

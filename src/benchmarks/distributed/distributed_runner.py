@@ -15,10 +15,9 @@ import json
 import os
 import platform
 import statistics
-import sys
 import time
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 
@@ -42,6 +41,7 @@ from benchmarks.distributed.clock_sync import (
 
 
 WORKER_PORT = 8080
+_SERVICE_PORTS = {"rest": 5000, "grpc": 50051}
 
 
 class EnumEncoder(json.JSONEncoder):
@@ -60,9 +60,7 @@ def _wait_for_worker(host: HostConfig, timeout: int = 60) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            r = requests.get(
-                _worker_url(host, "/health"), timeout=5
-            )
+            r = requests.get(_worker_url(host, "/health"), timeout=5)
             if r.status_code == 200:
                 return True
         except requests.ConnectionError:
@@ -78,9 +76,7 @@ def _poll_worker_status(
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            r = requests.get(
-                _worker_url(host, "/status"), timeout=10
-            )
+            r = requests.get(_worker_url(host, "/status"), timeout=10)
             data = r.json()
             if data["status"] in ("completed", "error"):
                 return data
@@ -140,17 +136,31 @@ class DistributedBenchmarkRunner:
         for host in self.config.all_remote_hosts:
             ssh_cfg = self._ssh_config(host)
             print(f"  Checking {host.name} ({host.ip})...")
-            if not ssh_wait_until_ready(ssh_cfg, max_retries=3, retry_interval=5):
+            if not ssh_wait_until_ready(
+                ssh_cfg, max_retries=3, retry_interval=5
+            ):
                 raise RuntimeError(
                     f"Cannot reach host {host.name} ({host.ip}) via SSH"
                 )
-            print(f"    {host.name} OK")
+            # Auto-discover private IP if not set
+            if not host.private_ip:
+                result = ssh_run(
+                    ssh_cfg,
+                    "hostname -I | awk '{print $1}'",
+                    timeout=10,
+                    check=False,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    host.private_ip = result.stdout.strip()
+                    print(f"    {host.name} OK (private: {host.private_ip})")
+                else:
+                    print(f"    {host.name} OK (no private IP found)")
+            else:
+                print(f"    {host.name} OK (private: {host.private_ip})")
 
     def _deploy_code(self):
         project_root = os.path.dirname(
-            os.path.dirname(
-                os.path.dirname(os.path.abspath(__file__))
-            )
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         )
         results = deploy_to_all_hosts(
             hosts=self.config.all_remote_hosts,
@@ -171,9 +181,7 @@ class DistributedBenchmarkRunner:
             max_offset_ms=self.config.time_sync.max_offset_ms,
         )
         self.clock_offsets = get_clock_offsets(statuses)
-        if not all_hosts_synced(
-            statuses, self.config.time_sync.max_offset_ms
-        ):
+        if not all_hosts_synced(statuses, self.config.time_sync.max_offset_ms):
             print(
                 "  WARNING: Not all hosts meet clock sync threshold. "
                 "Latency measurements may be less accurate."
@@ -202,7 +210,12 @@ class DistributedBenchmarkRunner:
                 "docker rm -f mqtt-benchmark 2>/dev/null; "
                 "docker run -d --name mqtt-benchmark "
                 "-p 1883:1883 -p 9001:9001 "
-                "eclipse-mosquitto:latest",
+                "eclipse-mosquitto:latest "
+                "sh -c '"
+                'echo -e "listener 1883 0.0.0.0\\n'
+                'allow_anonymous true" '
+                "> /mosquitto/config/mosquitto.conf && "
+                "mosquitto -c /mosquitto/config/mosquitto.conf'",
                 check=False,
             )
             time.sleep(3)
@@ -210,7 +223,7 @@ class DistributedBenchmarkRunner:
 
         if "kafka" in self.config.protocols:
             print(f"  Starting Kafka broker on {broker_host.name}...")
-            broker_ip = broker_host.ip
+            broker_ip = broker_host.private_ip or broker_host.ip
             ssh_run(
                 ssh_cfg,
                 "docker rm -f kafka-benchmark 2>/dev/null; "
@@ -239,6 +252,138 @@ class DistributedBenchmarkRunner:
             time.sleep(15)
             print("    Kafka broker started")
 
+    def _get_service_host(self) -> HostConfig:
+        """Host used to run the REST/gRPC communication service."""
+        return self.config.broker_host or self.config.agent_hosts[0]
+
+    def _start_protocol_service(
+        self, protocol: str, variant_params: Dict[str, Any]
+    ):
+        """Start a REST or gRPC service on the service host.
+
+        The service is started as a background process via SSH so that
+        every agent worker connects to it over the network, making the
+        benchmark comparable with broker-based protocols.
+        """
+        import base64
+
+        service_host = self._get_service_host()
+        ssh_cfg = self._ssh_config(service_host)
+        code_path = self.config.code_path
+        latency_mode = self.config.latency_mode
+
+        # Kill any lingering protocol service
+        ssh_run(
+            ssh_cfg,
+            "pkill -f 'protocol_service' 2>/dev/null || true",
+            check=False,
+        )
+        time.sleep(1)
+
+        mode_snippet = (
+            "mode = {"
+            "'send_only': LatencyMode.SEND_ONLY, "
+            "'app_ack': LatencyMode.APP_ACK, "
+            "'end_to_end': LatencyMode.END_TO_END"
+            "}.get('" + latency_mode + "', LatencyMode.APP_ACK)"
+        )
+
+        if protocol == "rest":
+            transport_mode = variant_params.get("transport_mode", "http1")
+            py_script = (
+                f"import sys; sys.path.insert(0, '{code_path}')\n"
+                "from benchmarks.communication.base_communication "
+                "import LatencyMode\n"
+                "from benchmarks.communication.rest.rest_communication "
+                "import RESTCommunicationService\n"
+                f"{mode_snippet}\n"
+                "s = RESTCommunicationService('0.0.0.0', 5000, "
+                f"latency_mode=mode, transport_mode='{transport_mode}')\n"
+                "s.start_server()\n"
+            )
+        elif protocol == "grpc":
+            py_script = (
+                f"import sys; sys.path.insert(0, '{code_path}')\n"
+                "from benchmarks.communication.base_communication "
+                "import LatencyMode\n"
+                "from benchmarks.communication.grpc.grpc_communication "
+                "import GrpcCommunicationServer\n"
+                f"{mode_snippet}\n"
+                "s = GrpcCommunicationServer('0.0.0.0', 50051, "
+                "latency_mode=mode, allow_port_fallback=False)\n"
+                "s.start_server()\n"
+                "s.server.wait_for_termination()\n"
+            )
+        else:
+            return
+
+        bash_script = (
+            "#!/bin/bash\n"
+            "/home/ubuntu/venv/bin/python3 << 'PYEOF'\n"
+            f"{py_script}"
+            "PYEOF\n"
+        )
+        encoded = base64.b64encode(bash_script.encode()).decode()
+        ssh_run(
+            ssh_cfg,
+            f"echo {encoded} | base64 -d > /tmp/protocol_service.sh && "
+            "chmod +x /tmp/protocol_service.sh",
+            timeout=15,
+            check=False,
+        )
+        ssh_run(
+            ssh_cfg,
+            "nohup /tmp/protocol_service.sh "
+            "> /tmp/protocol_service.log 2>&1 &",
+            timeout=15,
+            check=False,
+        )
+
+        service_ip = service_host.private_ip or service_host.ip
+        port = _SERVICE_PORTS[protocol]
+        print(
+            f"    Protocol service on "
+            f"{service_host.name} ({service_ip}:{port})"
+        )
+
+        # Wait until the service is actually accepting connections.
+        self._wait_for_service(ssh_cfg, service_ip, port)
+
+    def _wait_for_service(
+        self, ssh_cfg: SSHConfig, host: str, port: int, timeout: int = 30
+    ):
+        """Block until a TCP connection to *host:port* succeeds.
+
+        The check runs on the remote host via SSH (using localhost)
+        because the orchestrator may not be able to reach private IPs
+        directly.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            result = ssh_run(
+                ssh_cfg,
+                f"bash -c 'echo > /dev/tcp/localhost/{port}' 2>/dev/null",
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0:
+                return
+            time.sleep(1)
+        raise RuntimeError(
+            f"Protocol service on {host}:{port} not ready " f"after {timeout}s"
+        )
+
+    def _stop_protocol_service(self, protocol: str):
+        """Stop the protocol service on the service host."""
+        service_host = self._get_service_host()
+        ssh_cfg = self._ssh_config(service_host)
+        ssh_run(
+            ssh_cfg,
+            "pkill -f 'protocol_service' 2>/dev/null || true",
+            check=False,
+        )
+        time.sleep(1)
+
     def _start_worker(self, host: HostConfig):
         """Start the agent worker on a remote host."""
         ssh_cfg = self._ssh_config(host)
@@ -253,10 +398,13 @@ class DistributedBenchmarkRunner:
         time.sleep(1)
 
         # Start worker in background
+        # code_path points to the src/ directory; use venv python
         ssh_run_background(
             ssh_cfg,
-            f"cd {code_path}/src && "
-            f"python3 -m benchmarks.distributed.agent_worker "
+            f"cd {code_path} && "
+            f"PYTHONPATH={code_path} "
+            f"/home/ubuntu/venv/bin/python3 "
+            f"-m benchmarks.distributed.agent_worker "
             f"--port {WORKER_PORT}",
         )
 
@@ -314,15 +462,13 @@ class DistributedBenchmarkRunner:
     ):
         """Run a single benchmark across distributed workers."""
         label = f"{protocol}::{variant}"
-        print(
-            f"\n  Running: {label} / {scenario} "
-            f"/ {agent_count} agents"
-        )
+        print(f"\n  Running: {label} / {scenario} " f"/ {agent_count} agents")
 
-        # Determine broker address for broker-based protocols
+        # Determine broker / service address for inter-host communication
         broker_params = {}
         if protocol in ("mqtt", "kafka") and self.config.broker_host:
-            broker_ip = self.config.broker_host.ip
+            broker = self.config.broker_host
+            broker_ip = broker.private_ip or broker.ip
             if protocol == "mqtt":
                 broker_params = {
                     "broker_host": broker_ip,
@@ -333,6 +479,16 @@ class DistributedBenchmarkRunner:
                     "broker_host": broker_ip,
                     "broker_port": 9092,
                 }
+
+        # For REST/gRPC the communication service also runs on a
+        # remote host so that messages traverse the network, just
+        # like broker-based protocols.
+        is_p2p = protocol in ("rest", "grpc")
+        service_address = None
+        if is_p2p:
+            shost = self._get_service_host()
+            sip = shost.private_ip or shost.ip
+            service_address = f"{sip}:{_SERVICE_PORTS[protocol]}"
 
         # Build variant-specific params
         variant_params = {}
@@ -346,18 +502,30 @@ class DistributedBenchmarkRunner:
                 variant_params.update(scenario_overrides[scenario])
 
         # Map variant names to protocol-specific params
-        variant_params.update(
-            _variant_to_params(protocol, variant)
-        )
+        variant_params.update(_variant_to_params(protocol, variant))
 
         # Distribute agents across hosts (round-robin)
         agents_per_host = _distribute_agents(
             agent_count, len(agent_hosts), self.config.agent_placement
         )
+        agent_names_per_host: List[List[str]] = []
+        next_agent_index = 0
+        for host_agent_count in agents_per_host:
+            host_agent_names = [
+                f"agent_{next_agent_index + i}"
+                for i in range(host_agent_count)
+            ]
+            agent_names_per_host.append(host_agent_names)
+            next_agent_index += host_agent_count
 
         trial_results = []
         for trial in range(self.config.num_trials):
             print(f"    Trial {trial + 1}/{self.config.num_trials}...")
+
+            # Start a fresh protocol service for REST/gRPC each trial
+            # so mailboxes and topology are clean.
+            if is_p2p:
+                self._start_protocol_service(protocol, variant_params)
 
             # Setup and run on each worker
             host_metrics = []
@@ -368,10 +536,14 @@ class DistributedBenchmarkRunner:
 
                 params = {
                     "agent_count": host_agent_count,
+                    "agent_names": agent_names_per_host[i],
                     "latency_mode": self.config.latency_mode,
                     **broker_params,
                     **variant_params,
                 }
+
+                if service_address:
+                    params["remote_service_address"] = service_address
 
                 # Setup worker
                 setup_payload = {
@@ -388,8 +560,7 @@ class DistributedBenchmarkRunner:
                     )
                     if r.status_code != 200:
                         print(
-                            f"      Setup failed on {host.name}: "
-                            f"{r.text}"
+                            f"      Setup failed on {host.name}: " f"{r.text}"
                         )
                         continue
                 except requests.RequestException as e:
@@ -398,9 +569,7 @@ class DistributedBenchmarkRunner:
 
                 # Start benchmark
                 try:
-                    r = requests.post(
-                        _worker_url(host, "/start"), timeout=10
-                    )
+                    r = requests.post(_worker_url(host, "/start"), timeout=10)
                 except requests.RequestException as e:
                     print(f"      Start error on {host.name}: {e}")
                     continue
@@ -417,10 +586,12 @@ class DistributedBenchmarkRunner:
                             _worker_url(host, "/metrics"), timeout=30
                         )
                         metrics = r.json().get("metrics", {})
-                        host_metrics.append({
-                            "host": host.name,
-                            "metrics": metrics,
-                        })
+                        host_metrics.append(
+                            {
+                                "host": host.name,
+                                "metrics": metrics,
+                            }
+                        )
                     except requests.RequestException:
                         pass
                 else:
@@ -430,11 +601,13 @@ class DistributedBenchmarkRunner:
 
                 # Teardown worker for next trial
                 try:
-                    requests.post(
-                        _worker_url(host, "/teardown"), timeout=10
-                    )
+                    requests.post(_worker_url(host, "/teardown"), timeout=10)
                 except requests.RequestException:
                     pass
+
+            # Stop protocol service so next trial starts clean
+            if is_p2p:
+                self._stop_protocol_service(protocol)
 
             if host_metrics:
                 aggregated = _aggregate_host_metrics(host_metrics)
@@ -450,9 +623,7 @@ class DistributedBenchmarkRunner:
                 "trials": trial_results,
                 "aggregated": _aggregate_trials(trial_results),
             }
-            latency = self.results[key]["aggregated"].get(
-                "latency_avg_ms", 0
-            )
+            latency = self.results[key]["aggregated"].get("latency_avg_ms", 0)
             throughput = self.results[key]["aggregated"].get(
                 "throughput_avg", 0
             )
@@ -640,7 +811,7 @@ def _aggregate_trials(
             return {"mean": mean, "ci_lower": mean, "ci_upper": mean}
         std = statistics.stdev(values)
         n = len(values)
-        margin = 1.96 * std / (n ** 0.5)
+        margin = 1.96 * std / (n**0.5)
         return {
             "mean": mean,
             "ci_lower": mean - margin,
@@ -688,6 +859,7 @@ def _get_hardware_metadata() -> Dict[str, Any]:
     """Collect orchestrator hardware metadata."""
     try:
         import psutil
+
         return {
             "system": platform.system(),
             "release": platform.release(),

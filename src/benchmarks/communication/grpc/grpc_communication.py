@@ -446,11 +446,16 @@ class GrpcCommunicationServer:
     """
 
     def __init__(
-        self, host: str = "localhost", port: int = 50051, latency_mode=None
+        self,
+        host: str = "localhost",
+        port: int = 50051,
+        latency_mode=None,
+        allow_port_fallback: bool = True,
     ):
         self.host = host
         self.port = port
         self.latency_mode = latency_mode or LatencyMode.END_TO_END
+        self.allow_port_fallback = allow_port_fallback
         self.server = None
         self.service_impl = CommunicationServiceImpl(
             latency_mode=self.latency_mode
@@ -462,9 +467,11 @@ class GrpcCommunicationServer:
         if self.is_running:
             return
 
-        # Find available port
+        # Find an available port. Remote distributed runs depend on a
+        # fixed advertised port, while local benchmarks can fall back.
         port = self.port
-        while port < self.port + 100:
+        max_port = self.port + (100 if self.allow_port_fallback else 1)
+        while port < max_port:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.bind((self.host, port))
@@ -472,7 +479,9 @@ class GrpcCommunicationServer:
             except OSError:
                 port += 1
         else:
-            raise RuntimeError("No available ports found")
+            if self.allow_port_fallback:
+                raise RuntimeError("No available ports found")
+            raise RuntimeError(f"Port {self.port} is unavailable")
 
         self.port = port
 

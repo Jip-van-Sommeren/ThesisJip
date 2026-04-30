@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
 Hierarchy Benchmark Analysis and Visualization
-Provides tools for analyzing hierarchy strategy benchmark results and generating
-comprehensive visualizations for comparing tree, peer-to-peer, and hybrid strategies.
+Provides tools for analyzing hierarchy strategy benchmark results and
+generating comprehensive visualizations for comparing tree,
+peer-to-peer, and hybrid strategies.
 """
 
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 import argparse
 import glob
 import os
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 
 
 class HierarchyBenchmarkAnalyzer:
@@ -117,7 +117,9 @@ class HierarchyBenchmarkAnalyzer:
     def create_success_rate_comparison(
         self, output_file: str = "hierarchy_success_rates.png"
     ):
-        """Create success rate comparison across strategies and environments."""
+        """
+        Create success rate comparison across strategies and environments.
+        """
         if not self.benchmarks:
             print("No benchmark data available")
             return
@@ -389,7 +391,6 @@ class HierarchyBenchmarkAnalyzer:
         axes[1, 0].legend()
         axes[1, 0].grid(True, alpha=0.3)
 
-        # Plot 4: Manager utilization vs team size (only for hierarchical strategies)
         for strategy in ["tree", "hybrid"]:
             strategy_df = df[
                 df["Strategy"] == strategy.replace("_", " ").title()
@@ -654,7 +655,9 @@ class HierarchyBenchmarkAnalyzer:
     def create_strategy_radar_chart(
         self, output_file: str = "hierarchy_strategy_radar.png"
     ):
-        """Create radar chart comparing strategies across multiple dimensions."""
+        """
+        Create radar chart comparing strategies across multiple dimensions.
+        """
         if not self.benchmarks:
             print("No benchmark data available")
             return
@@ -700,21 +703,18 @@ class HierarchyBenchmarkAnalyzer:
             avg_messages = np.mean(messages) if messages else 30
 
             # Normalize: convert to 0-100 scale where higher is better
-            # For makespan: lower is better, so invert (max 100 steps = 0 score)
             time_eff = (
                 max(0, 100 - (avg_makespan / 100 * 100))
                 if avg_makespan > 0
                 else 50
             )
 
-            # For action efficiency: lower is better (max 1200 actions = 0 score)
             action_score = (
                 max(0, 100 - (avg_actions / 1200 * 100))
                 if avg_actions > 0
                 else 50
             )
 
-            # For coordination records: lower is better (max 60000 records = 0 score)
             comm_score = (
                 max(0, 100 - (avg_messages / 60000 * 100))
                 if avg_messages > 0
@@ -1003,7 +1003,9 @@ class HierarchyBenchmarkAnalyzer:
                     return str(value)
 
             if integer_x_labels:
-                x_labels = [_format_x_value(v, force_int=True) for v in x_values]
+                x_labels = [
+                    _format_x_value(v, force_int=True) for v in x_values
+                ]
             else:
                 x_labels = [_format_x_value(v) for v in x_values]
 

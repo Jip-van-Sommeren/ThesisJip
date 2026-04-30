@@ -1,0 +1,639 @@
+DISTRIBUTED BENCHMARK SUMMARY REPORT
+============================================================
+
+Timestamp:    20260407_184407
+Duration:     1129.6s
+Latency mode: end_to_end
+Trials:       1
+Protocols:    rest, grpc, mqtt, kafka
+Scenarios:    point_to_point_latency, broadcast_throughput, concurrent_messaging, scalability_stress
+
+Hosts (6):
+      broker: 56.228.1.6 (broker)
+     agent_0: 13.51.159.53 (agent)
+     agent_1: 13.60.3.31 (agent)
+     agent_2: 16.170.167.98 (agent)
+     agent_3: 51.20.192.5 (agent)
+     agent_4: 51.20.75.86 (agent)
+
+Clock offsets (ms):
+      broker: +0.01
+     agent_0: +0.01
+     agent_1: +0.00
+     agent_2: +0.01
+     agent_3: +0.01
+     agent_4: +0.02
+
+------------------------------------------------------------
+RESULTS
+------------------------------------------------------------
+
+REST / http1 / Point To Point Latency / 10 agents
+  Latency  avg=   9.41ms  p95=  14.14ms  p99=  15.95ms
+  Throughput   234.3 msg/s  |  Success 100.0%
+  CI(95%) latency [9.41, 9.41]  throughput [234.3, 234.3]
+
+REST / http1 / Point To Point Latency / 15 agents
+  Latency  avg=  14.34ms  p95=  20.72ms  p99=  27.93ms
+  Throughput   184.7 msg/s  |  Success 100.0%
+  CI(95%) latency [14.34, 14.34]  throughput [184.7, 184.7]
+
+REST / http1 / Point To Point Latency / 20 agents
+  Latency  avg=  18.44ms  p95=  24.17ms  p99=  27.25ms
+  Throughput   163.4 msg/s  |  Success 100.0%
+  CI(95%) latency [18.44, 18.44]  throughput [163.4, 163.4]
+
+REST / http1 / Broadcast Throughput / 10 agents
+  Latency  avg=   8.19ms  p95=  12.88ms  p99=  15.54ms
+  Throughput   166.1 msg/s  |  Success 100.0%
+  CI(95%) latency [8.19, 8.19]  throughput [166.1, 166.1]
+
+REST / http1 / Broadcast Throughput / 15 agents
+  Latency  avg=  12.66ms  p95=  18.75ms  p99=  20.91ms
+  Throughput   141.2 msg/s  |  Success 100.0%
+  CI(95%) latency [12.66, 12.66]  throughput [141.2, 141.2]
+
+REST / http1 / Broadcast Throughput / 20 agents
+  Latency  avg=  16.86ms  p95=  24.81ms  p99=  27.45ms
+  Throughput   126.5 msg/s  |  Success 100.0%
+  CI(95%) latency [16.86, 16.86]  throughput [126.5, 126.5]
+
+REST / http1 / Concurrent Messaging / 10 agents
+  Latency  avg=   5.22ms  p95=   9.03ms  p99=  12.74ms
+  Throughput   466.7 msg/s  |  Success 100.0%
+  CI(95%) latency [5.22, 5.22]  throughput [466.7, 466.7]
+
+REST / http1 / Concurrent Messaging / 15 agents
+  Latency  avg=   9.02ms  p95=  14.59ms  p99=  22.42ms
+  Throughput   582.7 msg/s  |  Success 100.0%
+  CI(95%) latency [9.02, 9.02]  throughput [582.7, 582.7]
+
+REST / http1 / Concurrent Messaging / 20 agents
+  Latency  avg=  15.21ms  p95=  22.20ms  p99=  25.99ms
+  Throughput   583.7 msg/s  |  Success 100.0%
+  CI(95%) latency [15.21, 15.21]  throughput [583.7, 583.7]
+
+REST / http1 / Scalability Stress / 10 agents
+  Latency  avg=  16.71ms  p95=  21.81ms  p99=  24.10ms
+  Throughput   558.0 msg/s  |  Success 100.0%
+  CI(95%) latency [16.71, 16.71]  throughput [558.0, 558.0]
+
+REST / http1 / Scalability Stress / 15 agents
+  Latency  avg=  25.59ms  p95=  32.38ms  p99=  35.56ms
+  Throughput   558.1 msg/s  |  Success 100.0%
+  CI(95%) latency [25.59, 25.59]  throughput [558.1, 558.1]
+
+REST / http1 / Scalability Stress / 20 agents
+  Latency  avg=  33.84ms  p95=  43.93ms  p99=  49.57ms
+  Throughput   567.2 msg/s  |  Success 100.0%
+  CI(95%) latency [33.84, 33.84]  throughput [567.2, 567.2]
+
+REST / http2 / Point To Point Latency / 10 agents
+  Latency  avg=   8.88ms  p95=  13.53ms  p99=  17.69ms
+  Throughput   240.1 msg/s  |  Success 100.0%
+  CI(95%) latency [8.88, 8.88]  throughput [240.1, 240.1]
+
+REST / http2 / Point To Point Latency / 15 agents
+  Latency  avg=  13.69ms  p95=  18.86ms  p99=  21.29ms
+  Throughput   191.2 msg/s  |  Success 100.0%
+  CI(95%) latency [13.69, 13.69]  throughput [191.2, 191.2]
+
+REST / http2 / Point To Point Latency / 20 agents
+  Latency  avg=  18.74ms  p95=  24.77ms  p99=  27.64ms
+  Throughput   160.2 msg/s  |  Success 100.0%
+  CI(95%) latency [18.74, 18.74]  throughput [160.2, 160.2]
+
+REST / http2 / Broadcast Throughput / 10 agents
+  Latency  avg=   8.39ms  p95=  13.52ms  p99=  20.74ms
+  Throughput   162.4 msg/s  |  Success 100.0%
+  CI(95%) latency [8.39, 8.39]  throughput [162.4, 162.4]
+
+REST / http2 / Broadcast Throughput / 15 agents
+  Latency  avg=  12.77ms  p95=  19.06ms  p99=  22.44ms
+  Throughput   140.4 msg/s  |  Success 100.0%
+  CI(95%) latency [12.77, 12.77]  throughput [140.4, 140.4]
+
+REST / http2 / Broadcast Throughput / 20 agents
+  Latency  avg=  17.28ms  p95=  24.09ms  p99=  25.74ms
+  Throughput   125.0 msg/s  |  Success 100.0%
+  CI(95%) latency [17.28, 17.28]  throughput [125.0, 125.0]
+
+REST / http2 / Concurrent Messaging / 10 agents
+  Latency  avg=   4.88ms  p95=   8.06ms  p99=   9.37ms
+  Throughput   460.8 msg/s  |  Success 100.0%
+  CI(95%) latency [4.88, 4.88]  throughput [460.8, 460.8]
+
+REST / http2 / Concurrent Messaging / 15 agents
+  Latency  avg=   8.95ms  p95=  16.18ms  p99=  20.97ms
+  Throughput   589.7 msg/s  |  Success 100.0%
+  CI(95%) latency [8.95, 8.95]  throughput [589.7, 589.7]
+
+REST / http2 / Concurrent Messaging / 20 agents
+  Latency  avg=  15.41ms  p95=  23.97ms  p99=  26.83ms
+  Throughput   590.5 msg/s  |  Success 100.0%
+  CI(95%) latency [15.41, 15.41]  throughput [590.5, 590.5]
+
+REST / http2 / Scalability Stress / 10 agents
+  Latency  avg=  16.69ms  p95=  21.91ms  p99=  26.28ms
+  Throughput   559.0 msg/s  |  Success 100.0%
+  CI(95%) latency [16.69, 16.69]  throughput [559.0, 559.0]
+
+REST / http2 / Scalability Stress / 15 agents
+  Latency  avg=  25.92ms  p95=  32.87ms  p99=  36.54ms
+  Throughput   551.6 msg/s  |  Success 100.0%
+  CI(95%) latency [25.92, 25.92]  throughput [551.6, 551.6]
+
+REST / http2 / Scalability Stress / 20 agents
+  Latency  avg=  34.55ms  p95=  43.43ms  p99=  45.72ms
+  Throughput   556.6 msg/s  |  Success 100.0%
+  CI(95%) latency [34.55, 34.55]  throughput [556.6, 556.6]
+
+GRPC / unary / Point To Point Latency / 10 agents
+  Latency  avg=   1.85ms  p95=   3.00ms  p99=   4.34ms
+  Throughput   390.8 msg/s  |  Success 100.0%
+  CI(95%) latency [1.85, 1.85]  throughput [390.8, 390.8]
+
+GRPC / unary / Point To Point Latency / 15 agents
+  Latency  avg=   2.27ms  p95=   3.70ms  p99=   4.45ms
+  Throughput   375.6 msg/s  |  Success 100.0%
+  CI(95%) latency [2.27, 2.27]  throughput [375.6, 375.6]
+
+GRPC / unary / Point To Point Latency / 20 agents
+  Latency  avg=   2.53ms  p95=   4.26ms  p99=   5.07ms
+  Throughput   370.8 msg/s  |  Success 100.0%
+  CI(95%) latency [2.53, 2.53]  throughput [370.8, 370.8]
+
+GRPC / unary / Broadcast Throughput / 10 agents
+  Latency  avg=   1.86ms  p95=   3.00ms  p99=   3.59ms
+  Throughput   219.4 msg/s  |  Success 100.0%
+  CI(95%) latency [1.86, 1.86]  throughput [219.4, 219.4]
+
+GRPC / unary / Broadcast Throughput / 15 agents
+  Latency  avg=   2.15ms  p95=   3.35ms  p99=   4.31ms
+  Throughput   216.5 msg/s  |  Success 100.0%
+  CI(95%) latency [2.15, 2.15]  throughput [216.5, 216.5]
+
+GRPC / unary / Broadcast Throughput / 20 agents
+  Latency  avg=   2.70ms  p95=   4.60ms  p99=   5.22ms
+  Throughput   212.1 msg/s  |  Success 100.0%
+  CI(95%) latency [2.70, 2.70]  throughput [212.1, 212.1]
+
+GRPC / unary / Concurrent Messaging / 10 agents
+  Latency  avg=   1.48ms  p95=   2.39ms  p99=   2.78ms
+  Throughput   601.2 msg/s  |  Success 100.0%
+  CI(95%) latency [1.48, 1.48]  throughput [601.2, 601.2]
+
+GRPC / unary / Concurrent Messaging / 15 agents
+  Latency  avg=   1.55ms  p95=   2.85ms  p99=   3.23ms
+  Throughput   921.1 msg/s  |  Success 100.0%
+  CI(95%) latency [1.55, 1.55]  throughput [921.1, 921.1]
+
+GRPC / unary / Concurrent Messaging / 20 agents
+  Latency  avg=   1.94ms  p95=   3.41ms  p99=   4.02ms
+  Throughput  1166.8 msg/s  |  Success 100.0%
+  CI(95%) latency [1.94, 1.94]  throughput [1166.8, 1166.8]
+
+GRPC / unary / Scalability Stress / 10 agents
+  Latency  avg=   5.84ms  p95=   7.87ms  p99=   8.57ms
+  Throughput  1439.2 msg/s  |  Success 100.0%
+  CI(95%) latency [5.84, 5.84]  throughput [1439.2, 1439.2]
+
+GRPC / unary / Scalability Stress / 15 agents
+  Latency  avg=   9.30ms  p95=  11.94ms  p99=  12.67ms
+  Throughput  1439.7 msg/s  |  Success 100.0%
+  CI(95%) latency [9.30, 9.30]  throughput [1439.7, 1439.7]
+
+GRPC / unary / Scalability Stress / 20 agents
+  Latency  avg=  12.48ms  p95=  15.89ms  p99=  16.78ms
+  Throughput  1468.5 msg/s  |  Success 100.0%
+  CI(95%) latency [12.48, 12.48]  throughput [1468.5, 1468.5]
+
+GRPC / streaming / Point To Point Latency / 10 agents
+  Latency  avg=   2.52ms  p95=   4.12ms  p99=   4.68ms
+  Throughput   366.9 msg/s  |  Success 100.0%
+  CI(95%) latency [2.52, 2.52]  throughput [366.9, 366.9]
+
+GRPC / streaming / Point To Point Latency / 15 agents
+  Latency  avg=   3.23ms  p95=   4.71ms  p99=   5.44ms
+  Throughput   352.0 msg/s  |  Success 100.0%
+  CI(95%) latency [3.23, 3.23]  throughput [352.0, 352.0]
+
+GRPC / streaming / Point To Point Latency / 20 agents
+  Latency  avg=   3.40ms  p95=   5.33ms  p99=   6.67ms
+  Throughput   343.6 msg/s  |  Success 100.0%
+  CI(95%) latency [3.40, 3.40]  throughput [343.6, 343.6]
+
+GRPC / streaming / Broadcast Throughput / 10 agents
+  Latency  avg=   1.91ms  p95=   2.95ms  p99=   3.14ms
+  Throughput   220.5 msg/s  |  Success 100.0%
+  CI(95%) latency [1.91, 1.91]  throughput [220.5, 220.5]
+
+GRPC / streaming / Broadcast Throughput / 15 agents
+  Latency  avg=   2.18ms  p95=   3.48ms  p99=   3.94ms
+  Throughput   216.7 msg/s  |  Success 100.0%
+  CI(95%) latency [2.18, 2.18]  throughput [216.7, 216.7]
+
+GRPC / streaming / Broadcast Throughput / 20 agents
+  Latency  avg=   2.46ms  p95=   3.91ms  p99=   4.95ms
+  Throughput   213.4 msg/s  |  Success 100.0%
+  CI(95%) latency [2.46, 2.46]  throughput [213.4, 213.4]
+
+GRPC / streaming / Concurrent Messaging / 10 agents
+  Latency  avg=   2.24ms  p95=   3.01ms  p99=   5.19ms
+  Throughput   545.5 msg/s  |  Success 100.0%
+  CI(95%) latency [2.24, 2.24]  throughput [545.5, 545.5]
+
+GRPC / streaming / Concurrent Messaging / 15 agents
+  Latency  avg=   2.19ms  p95=   3.69ms  p99=   4.19ms
+  Throughput   903.5 msg/s  |  Success 100.0%
+  CI(95%) latency [2.19, 2.19]  throughput [903.5, 903.5]
+
+GRPC / streaming / Concurrent Messaging / 20 agents
+  Latency  avg=   2.88ms  p95=   4.67ms  p99=   5.47ms
+  Throughput  1141.2 msg/s  |  Success 100.0%
+  CI(95%) latency [2.88, 2.88]  throughput [1141.2, 1141.2]
+
+GRPC / streaming / Scalability Stress / 10 agents
+  Latency  avg=   7.07ms  p95=   9.29ms  p99=  10.01ms
+  Throughput  1222.9 msg/s  |  Success 100.0%
+  CI(95%) latency [7.07, 7.07]  throughput [1222.9, 1222.9]
+
+GRPC / streaming / Scalability Stress / 15 agents
+  Latency  avg=  10.94ms  p95=  14.05ms  p99=  15.73ms
+  Throughput  1242.5 msg/s  |  Success 100.0%
+  CI(95%) latency [10.94, 10.94]  throughput [1242.5, 1242.5]
+
+GRPC / streaming / Scalability Stress / 20 agents
+  Latency  avg=  14.71ms  p95=  19.25ms  p99=  39.30ms
+  Throughput  1248.6 msg/s  |  Success 100.0%
+  CI(95%) latency [14.71, 14.71]  throughput [1248.6, 1248.6]
+
+MQTT / qos0 / Point To Point Latency / 10 agents
+  Latency  avg=   0.24ms  p95=   0.34ms  p99=   0.38ms
+  Throughput   481.5 msg/s  |  Success 100.0%
+  CI(95%) latency [0.24, 0.24]  throughput [481.5, 481.5]
+
+MQTT / qos0 / Point To Point Latency / 15 agents
+  Latency  avg=   0.25ms  p95=   0.34ms  p99=   0.39ms
+  Throughput   480.5 msg/s  |  Success 100.0%
+  CI(95%) latency [0.25, 0.25]  throughput [480.5, 480.5]
+
+MQTT / qos0 / Point To Point Latency / 20 agents
+  Latency  avg=   0.25ms  p95=   0.34ms  p99=   0.41ms
+  Throughput   479.9 msg/s  |  Success 100.0%
+  CI(95%) latency [0.25, 0.25]  throughput [479.9, 479.9]
+
+MQTT / qos0 / Broadcast Throughput / 10 agents
+  Latency  avg=   0.31ms  p95=   0.39ms  p99=   0.41ms
+  Throughput   244.4 msg/s  |  Success 100.0%
+  CI(95%) latency [0.31, 0.31]  throughput [244.4, 244.4]
+
+MQTT / qos0 / Broadcast Throughput / 15 agents
+  Latency  avg=   0.31ms  p95=   0.37ms  p99=   0.44ms
+  Throughput   244.3 msg/s  |  Success 100.0%
+  CI(95%) latency [0.31, 0.31]  throughput [244.3, 244.3]
+
+MQTT / qos0 / Broadcast Throughput / 20 agents
+  Latency  avg=   0.31ms  p95=   0.38ms  p99=   0.44ms
+  Throughput   244.1 msg/s  |  Success 100.0%
+  CI(95%) latency [0.31, 0.31]  throughput [244.1, 244.1]
+
+MQTT / qos0 / Concurrent Messaging / 10 agents
+  Latency  avg=   0.21ms  p95=   0.33ms  p99=   0.39ms
+  Throughput   621.6 msg/s  |  Success 100.0%
+  CI(95%) latency [0.21, 0.21]  throughput [621.6, 621.6]
+
+MQTT / qos0 / Concurrent Messaging / 15 agents
+  Latency  avg=   0.20ms  p95=   0.34ms  p99=   0.45ms
+  Throughput  1067.8 msg/s  |  Success 100.0%
+  CI(95%) latency [0.20, 0.20]  throughput [1067.8, 1067.8]
+
+MQTT / qos0 / Concurrent Messaging / 20 agents
+  Latency  avg=   0.17ms  p95=   0.27ms  p99=   0.33ms
+  Throughput  1284.8 msg/s  |  Success 100.0%
+  CI(95%) latency [0.17, 0.17]  throughput [1284.8, 1284.8]
+
+MQTT / qos0 / Scalability Stress / 10 agents
+  Latency  avg=   0.11ms  p95=   0.29ms  p99=   0.37ms
+  Throughput  8146.6 msg/s  |  Success 100.0%
+  CI(95%) latency [0.11, 0.11]  throughput [8146.6, 8146.6]
+
+MQTT / qos0 / Scalability Stress / 15 agents
+  Latency  avg=   0.18ms  p95=   0.31ms  p99=   1.22ms
+  Throughput 11989.3 msg/s  |  Success 100.0%
+  CI(95%) latency [0.18, 0.18]  throughput [11989.3, 11989.3]
+
+MQTT / qos0 / Scalability Stress / 20 agents
+  Latency  avg=   0.12ms  p95=   0.30ms  p99=   0.54ms
+  Throughput 16100.4 msg/s  |  Success 100.0%
+  CI(95%) latency [0.12, 0.12]  throughput [16100.4, 16100.4]
+
+MQTT / qos1 / Point To Point Latency / 10 agents
+  Latency  avg=   0.26ms  p95=   0.34ms  p99=   0.47ms
+  Throughput   480.3 msg/s  |  Success 100.0%
+  CI(95%) latency [0.26, 0.26]  throughput [480.3, 480.3]
+
+MQTT / qos1 / Point To Point Latency / 15 agents
+  Latency  avg=   0.25ms  p95=   0.35ms  p99=   0.43ms
+  Throughput   480.5 msg/s  |  Success 100.0%
+  CI(95%) latency [0.25, 0.25]  throughput [480.5, 480.5]
+
+MQTT / qos1 / Point To Point Latency / 20 agents
+  Latency  avg=   0.26ms  p95=   0.35ms  p99=   0.41ms
+  Throughput   479.8 msg/s  |  Success 100.0%
+  CI(95%) latency [0.26, 0.26]  throughput [479.8, 479.8]
+
+MQTT / qos1 / Broadcast Throughput / 10 agents
+  Latency  avg=   0.31ms  p95=   0.39ms  p99=   0.48ms
+  Throughput   244.2 msg/s  |  Success 100.0%
+  CI(95%) latency [0.31, 0.31]  throughput [244.2, 244.2]
+
+MQTT / qos1 / Broadcast Throughput / 15 agents
+  Latency  avg=   0.32ms  p95=   0.40ms  p99=   0.51ms
+  Throughput   244.1 msg/s  |  Success 100.0%
+  CI(95%) latency [0.32, 0.32]  throughput [244.1, 244.1]
+
+MQTT / qos1 / Broadcast Throughput / 20 agents
+  Latency  avg=   0.32ms  p95=   0.39ms  p99=   0.46ms
+  Throughput   236.4 msg/s  |  Success 100.0%
+  CI(95%) latency [0.32, 0.32]  throughput [236.4, 236.4]
+
+MQTT / qos1 / Concurrent Messaging / 10 agents
+  Latency  avg=   0.23ms  p95=   0.34ms  p99=   0.54ms
+  Throughput   697.0 msg/s  |  Success 100.0%
+  CI(95%) latency [0.23, 0.23]  throughput [697.0, 697.0]
+
+MQTT / qos1 / Concurrent Messaging / 15 agents
+  Latency  avg=   0.20ms  p95=   0.32ms  p99=   0.43ms
+  Throughput  1014.8 msg/s  |  Success 100.0%
+  CI(95%) latency [0.20, 0.20]  throughput [1014.8, 1014.8]
+
+MQTT / qos1 / Concurrent Messaging / 20 agents
+  Latency  avg=   0.20ms  p95=   0.35ms  p99=   0.58ms
+  Throughput  1348.2 msg/s  |  Success 100.0%
+  CI(95%) latency [0.20, 0.20]  throughput [1348.2, 1348.2]
+
+MQTT / qos1 / Scalability Stress / 10 agents
+  Latency  avg=   0.13ms  p95=   0.20ms  p99=   0.38ms
+  Throughput  7465.7 msg/s  |  Success 100.0%
+  CI(95%) latency [0.13, 0.13]  throughput [7465.7, 7465.7]
+
+MQTT / qos1 / Scalability Stress / 15 agents
+  Latency  avg=   0.15ms  p95=   0.24ms  p99=   0.44ms
+  Throughput 11053.7 msg/s  |  Success 100.0%
+  CI(95%) latency [0.15, 0.15]  throughput [11053.7, 11053.7]
+
+MQTT / qos1 / Scalability Stress / 20 agents
+  Latency  avg=   0.15ms  p95=   0.30ms  p99=   0.60ms
+  Throughput 13244.6 msg/s  |  Success 100.0%
+  CI(95%) latency [0.15, 0.15]  throughput [13244.6, 13244.6]
+
+MQTT / qos2 / Point To Point Latency / 10 agents
+  Latency  avg=   0.26ms  p95=   0.35ms  p99=   0.43ms
+  Throughput   479.8 msg/s  |  Success 100.0%
+  CI(95%) latency [0.26, 0.26]  throughput [479.8, 479.8]
+
+MQTT / qos2 / Point To Point Latency / 15 agents
+  Latency  avg=   0.26ms  p95=   0.35ms  p99=   0.45ms
+  Throughput   478.6 msg/s  |  Success 100.0%
+  CI(95%) latency [0.26, 0.26]  throughput [478.6, 478.6]
+
+MQTT / qos2 / Point To Point Latency / 20 agents
+  Latency  avg=   0.26ms  p95=   0.36ms  p99=   0.43ms
+  Throughput   479.1 msg/s  |  Success 100.0%
+  CI(95%) latency [0.26, 0.26]  throughput [479.1, 479.1]
+
+MQTT / qos2 / Broadcast Throughput / 10 agents
+  Latency  avg=   0.32ms  p95=   0.38ms  p99=   0.52ms
+  Throughput   244.2 msg/s  |  Success 100.0%
+  CI(95%) latency [0.32, 0.32]  throughput [244.2, 244.2]
+
+MQTT / qos2 / Broadcast Throughput / 15 agents
+  Latency  avg=   0.32ms  p95=   0.41ms  p99=   0.47ms
+  Throughput   244.2 msg/s  |  Success 100.0%
+  CI(95%) latency [0.32, 0.32]  throughput [244.2, 244.2]
+
+MQTT / qos2 / Broadcast Throughput / 20 agents
+  Latency  avg=   0.38ms  p95=   0.47ms  p99=   0.95ms
+  Throughput   241.5 msg/s  |  Success 100.0%
+  CI(95%) latency [0.38, 0.38]  throughput [241.5, 241.5]
+
+MQTT / qos2 / Concurrent Messaging / 10 agents
+  Latency  avg=   0.24ms  p95=   0.37ms  p99=   1.29ms
+  Throughput   712.9 msg/s  |  Success 100.0%
+  CI(95%) latency [0.24, 0.24]  throughput [712.9, 712.9]
+
+MQTT / qos2 / Concurrent Messaging / 15 agents
+  Latency  avg=   0.20ms  p95=   0.34ms  p99=   0.59ms
+  Throughput  1048.9 msg/s  |  Success 100.0%
+  CI(95%) latency [0.20, 0.20]  throughput [1048.9, 1048.9]
+
+MQTT / qos2 / Concurrent Messaging / 20 agents
+  Latency  avg=   0.16ms  p95=   0.26ms  p99=   0.37ms
+  Throughput  1369.0 msg/s  |  Success 100.0%
+  CI(95%) latency [0.16, 0.16]  throughput [1369.0, 1369.0]
+
+MQTT / qos2 / Scalability Stress / 10 agents
+  Latency  avg=   0.13ms  p95=   0.18ms  p99=   0.30ms
+  Throughput  7647.7 msg/s  |  Success 100.0%
+  CI(95%) latency [0.13, 0.13]  throughput [7647.7, 7647.7]
+
+MQTT / qos2 / Scalability Stress / 15 agents
+  Latency  avg=   0.13ms  p95=   0.18ms  p99=   0.44ms
+  Throughput 11363.2 msg/s  |  Success 100.0%
+  CI(95%) latency [0.13, 0.13]  throughput [11363.2, 11363.2]
+
+MQTT / qos2 / Scalability Stress / 20 agents
+  Latency  avg=   0.15ms  p95=   0.18ms  p99=   0.53ms
+  Throughput 14582.5 msg/s  |  Success 100.0%
+  CI(95%) latency [0.15, 0.15]  throughput [14582.5, 14582.5]
+
+KAFKA / acks0 / Point To Point Latency / 10 agents
+  Latency  avg=  14.93ms  p95=   5.67ms  p99=  13.49ms
+  Throughput   157.8 msg/s  |  Success 100.0%
+  CI(95%) latency [14.93, 14.93]  throughput [157.8, 157.8]
+
+KAFKA / acks0 / Point To Point Latency / 15 agents
+  Latency  avg=   5.55ms  p95=   5.67ms  p99=   6.01ms
+  Throughput   317.1 msg/s  |  Success 100.0%
+  CI(95%) latency [5.55, 5.55]  throughput [317.1, 317.1]
+
+KAFKA / acks0 / Point To Point Latency / 20 agents
+  Latency  avg=   5.55ms  p95=   5.65ms  p99=   5.78ms
+  Throughput   318.5 msg/s  |  Success 100.0%
+  CI(95%) latency [5.55, 5.55]  throughput [318.5, 318.5]
+
+KAFKA / acks0 / Broadcast Throughput / 10 agents
+  Latency  avg=   0.85ms  p95=   0.52ms  p99=   3.69ms
+  Throughput   222.1 msg/s  |  Success 100.0%
+  CI(95%) latency [0.85, 0.85]  throughput [222.1, 222.1]
+
+KAFKA / acks0 / Broadcast Throughput / 15 agents
+  Latency  avg=   0.48ms  p95=   0.56ms  p99=   3.82ms
+  Throughput   241.5 msg/s  |  Success 100.0%
+  CI(95%) latency [0.48, 0.48]  throughput [241.5, 241.5]
+
+KAFKA / acks0 / Broadcast Throughput / 20 agents
+  Latency  avg=   0.47ms  p95=   0.54ms  p99=   3.13ms
+  Throughput   241.8 msg/s  |  Success 100.0%
+  CI(95%) latency [0.47, 0.47]  throughput [241.8, 241.8]
+
+KAFKA / acks0 / Concurrent Messaging / 10 agents
+  Latency  avg=  23.70ms  p95=  30.97ms  p99= 100.39ms
+  Throughput   223.3 msg/s  |  Success 100.0%
+  CI(95%) latency [23.70, 23.70]  throughput [223.3, 223.3]
+
+KAFKA / acks0 / Concurrent Messaging / 15 agents
+  Latency  avg=  31.70ms  p95=  57.00ms  p99= 100.38ms
+  Throughput   246.1 msg/s  |  Success 100.0%
+  CI(95%) latency [31.70, 31.70]  throughput [246.1, 246.1]
+
+KAFKA / acks0 / Concurrent Messaging / 20 agents
+  Latency  avg=  52.16ms  p95=  79.35ms  p99= 100.44ms
+  Throughput   249.5 msg/s  |  Success 100.0%
+  CI(95%) latency [52.16, 52.16]  throughput [249.5, 249.5]
+
+KAFKA / acks0 / Scalability Stress / 10 agents
+  Latency  avg=  12.01ms  p95=  12.26ms  p99=  12.45ms
+  Throughput   755.4 msg/s  |  Success 100.0%
+  CI(95%) latency [12.01, 12.01]  throughput [755.4, 755.4]
+
+KAFKA / acks0 / Scalability Stress / 15 agents
+  Latency  avg=  18.57ms  p95=  18.99ms  p99=  19.20ms
+  Throughput   756.6 msg/s  |  Success 100.0%
+  CI(95%) latency [18.57, 18.57]  throughput [756.6, 756.6]
+
+KAFKA / acks0 / Scalability Stress / 20 agents
+  Latency  avg=  24.97ms  p95=  25.63ms  p99=  26.10ms
+  Throughput   762.2 msg/s  |  Success 100.0%
+  CI(95%) latency [24.97, 24.97]  throughput [762.2, 762.2]
+
+KAFKA / acks1 / Point To Point Latency / 10 agents
+  Latency  avg=   6.38ms  p95=   7.23ms  p99=   7.74ms
+  Throughput   289.2 msg/s  |  Success 100.0%
+  CI(95%) latency [6.38, 6.38]  throughput [289.2, 289.2]
+
+KAFKA / acks1 / Point To Point Latency / 15 agents
+  Latency  avg=   6.31ms  p95=   7.07ms  p99=   7.25ms
+  Throughput   291.7 msg/s  |  Success 100.0%
+  CI(95%) latency [6.31, 6.31]  throughput [291.7, 291.7]
+
+KAFKA / acks1 / Point To Point Latency / 20 agents
+  Latency  avg=   6.46ms  p95=   7.63ms  p99=  10.30ms
+  Throughput   277.5 msg/s  |  Success 100.0%
+  CI(95%) latency [6.46, 6.46]  throughput [277.5, 277.5]
+
+KAFKA / acks1 / Broadcast Throughput / 10 agents
+  Latency  avg=   1.62ms  p95=   2.02ms  p99=  22.05ms
+  Throughput   205.9 msg/s  |  Success 100.0%
+  CI(95%) latency [1.62, 1.62]  throughput [205.9, 205.9]
+
+KAFKA / acks1 / Broadcast Throughput / 15 agents
+  Latency  avg=   1.20ms  p95=   2.03ms  p99=   2.62ms
+  Throughput   226.2 msg/s  |  Success 100.0%
+  CI(95%) latency [1.20, 1.20]  throughput [226.2, 226.2]
+
+KAFKA / acks1 / Broadcast Throughput / 20 agents
+  Latency  avg=   1.35ms  p95=   2.40ms  p99=   5.37ms
+  Throughput   223.6 msg/s  |  Success 100.0%
+  CI(95%) latency [1.35, 1.35]  throughput [223.6, 223.6]
+
+KAFKA / acks1 / Concurrent Messaging / 10 agents
+  Latency  avg=  14.47ms  p95=  31.35ms  p99= 100.31ms
+  Throughput   255.8 msg/s  |  Success 100.0%
+  CI(95%) latency [14.47, 14.47]  throughput [255.8, 255.8]
+
+KAFKA / acks1 / Concurrent Messaging / 15 agents
+  Latency  avg=  20.86ms  p95=  52.67ms  p99= 100.32ms
+  Throughput   287.7 msg/s  |  Success 100.0%
+  CI(95%) latency [20.86, 20.86]  throughput [287.7, 287.7]
+
+KAFKA / acks1 / Concurrent Messaging / 20 agents
+  Latency  avg=  38.13ms  p95=  77.85ms  p99= 100.39ms
+  Throughput   282.5 msg/s  |  Success 100.0%
+  CI(95%) latency [38.13, 38.13]  throughput [282.5, 282.5]
+
+KAFKA / acks1 / Scalability Stress / 10 agents
+  Latency  avg=  13.20ms  p95=  15.03ms  p99=  15.84ms
+  Throughput   691.9 msg/s  |  Success 100.0%
+  CI(95%) latency [13.20, 13.20]  throughput [691.9, 691.9]
+
+KAFKA / acks1 / Scalability Stress / 15 agents
+  Latency  avg=  20.12ms  p95=  22.91ms  p99=  23.56ms
+  Throughput   701.2 msg/s  |  Success 100.0%
+  CI(95%) latency [20.12, 20.12]  throughput [701.2, 701.2]
+
+KAFKA / acks1 / Scalability Stress / 20 agents
+  Latency  avg=  30.73ms  p95=  51.15ms  p99=  98.06ms
+  Throughput   616.5 msg/s  |  Success 100.0%
+  CI(95%) latency [30.73, 30.73]  throughput [616.5, 616.5]
+
+KAFKA / acksall / Point To Point Latency / 10 agents
+  Latency  avg=   6.35ms  p95=   7.20ms  p99=   7.70ms
+  Throughput   290.0 msg/s  |  Success 100.0%
+  CI(95%) latency [6.35, 6.35]  throughput [290.0, 290.0]
+
+KAFKA / acksall / Point To Point Latency / 15 agents
+  Latency  avg=   6.27ms  p95=   7.07ms  p99=   7.39ms
+  Throughput   291.6 msg/s  |  Success 100.0%
+  CI(95%) latency [6.27, 6.27]  throughput [291.6, 291.6]
+
+KAFKA / acksall / Point To Point Latency / 20 agents
+  Latency  avg=   6.25ms  p95=   6.98ms  p99=   7.10ms
+  Throughput   293.2 msg/s  |  Success 100.0%
+  CI(95%) latency [6.25, 6.25]  throughput [293.2, 293.2]
+
+KAFKA / acksall / Broadcast Throughput / 10 agents
+  Latency  avg=   1.16ms  p95=   2.00ms  p99=   2.57ms
+  Throughput   225.8 msg/s  |  Success 100.0%
+  CI(95%) latency [1.16, 1.16]  throughput [225.8, 225.8]
+
+KAFKA / acksall / Broadcast Throughput / 15 agents
+  Latency  avg=   1.22ms  p95=   2.02ms  p99=   2.45ms
+  Throughput   225.7 msg/s  |  Success 100.0%
+  CI(95%) latency [1.22, 1.22]  throughput [225.7, 225.7]
+
+KAFKA / acksall / Broadcast Throughput / 20 agents
+  Latency  avg=   1.41ms  p95=   2.58ms  p99=   6.02ms
+  Throughput   224.0 msg/s  |  Success 100.0%
+  CI(95%) latency [1.41, 1.41]  throughput [224.0, 224.0]
+
+KAFKA / acksall / Concurrent Messaging / 10 agents
+  Latency  avg=  17.67ms  p95=  31.60ms  p99= 100.38ms
+  Throughput   235.2 msg/s  |  Success 100.0%
+  CI(95%) latency [17.67, 17.67]  throughput [235.2, 235.2]
+
+KAFKA / acksall / Concurrent Messaging / 15 agents
+  Latency  avg=  21.60ms  p95=  51.49ms  p99= 100.39ms
+  Throughput   284.0 msg/s  |  Success 100.0%
+  CI(95%) latency [21.60, 21.60]  throughput [284.0, 284.0]
+
+KAFKA / acksall / Concurrent Messaging / 20 agents
+  Latency  avg=  32.61ms  p95=  72.80ms  p99= 100.40ms
+  Throughput   297.7 msg/s  |  Success 100.0%
+  CI(95%) latency [32.61, 32.61]  throughput [297.7, 297.7]
+
+KAFKA / acksall / Scalability Stress / 10 agents
+  Latency  avg=  13.19ms  p95=  14.72ms  p99=  15.26ms
+  Throughput   692.5 msg/s  |  Success 100.0%
+  CI(95%) latency [13.19, 13.19]  throughput [692.5, 692.5]
+
+KAFKA / acksall / Scalability Stress / 15 agents
+  Latency  avg=  20.35ms  p95=  22.76ms  p99=  23.50ms
+  Throughput   693.9 msg/s  |  Success 100.0%
+  CI(95%) latency [20.35, 20.35]  throughput [693.9, 693.9]
+
+KAFKA / acksall / Scalability Stress / 20 agents
+  Latency  avg=  26.81ms  p95=  30.68ms  p99=  31.22ms
+  Throughput   711.8 msg/s  |  Success 100.0%
+  CI(95%) latency [26.81, 26.81]  throughput [711.8, 711.8]
+
+------------------------------------------------------------
+BEST PERFORMERS (20 agents)
+------------------------------------------------------------
+
+  Lowest latency:     MQTT / qos0 (0.12ms)
+  Highest throughput: MQTT / qos0 (16100.4 msg/s)
+  Most reliable:      REST / http1 (100.0%)
+
+============================================================

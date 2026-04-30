@@ -14,9 +14,8 @@ Author: Battery Twin Development Team
 Date: 2025-03-01
 """
 
-import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
@@ -957,7 +956,9 @@ class HealthMonitorAgent(BatteryBDIAgent):
         )
 
         # Publish
-        self.publish_message("health_report", report, battery_id=self.battery_id)
+        self.publish_message(
+            "health_report", report, battery_id=self.battery_id
+        )
         tm = getattr(getattr(self, "transport", None), "topic_manager", None)
         dbg_topic = (
             tm.get_topic("health_report", battery_id=self.battery_id)

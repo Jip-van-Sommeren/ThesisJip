@@ -178,7 +178,9 @@ class MqttTransport(Transport):
             return False
 
         try:
-            result = self.client.publish(topic, payload, qos=qos, retain=retain)
+            result = self.client.publish(
+                topic, payload, qos=qos, retain=retain
+            )
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
                 logger.debug(f"Published to {topic}")
                 return True
@@ -304,7 +306,9 @@ class MqttTransport(Transport):
         if not self.topic_manager:
             raise ValueError("TopicManager not configured")
 
-        pattern = self.topic_manager.get_subscription_pattern(topic_name, **topic_vars)
+        pattern = self.topic_manager.get_subscription_pattern(
+            topic_name, **topic_vars
+        )
         return self.subscribe(pattern, callback, qos)
 
     def _on_connect(self, client, userdata, flags, rc):

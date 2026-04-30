@@ -15,7 +15,9 @@ import subprocess
 import socket
 from typing import Dict, Any, List, Optional
 import concurrent.futures
-from benchmarks.local.communication_benchmarks.communication_benchmark import generate_payload
+from benchmarks.local.communication_benchmarks.communication_benchmark import (
+    generate_payload,
+)
 
 from benchmarks.communication.kafka.kafka_communication_agent import (
     KafkaCommunicationEnvironment,
@@ -68,7 +70,10 @@ def _consume_ack_for(mailbox, message_id: str) -> int:
             return 0
         keep = []
         for msg in mailbox.messages:
-            if _is_ack_message(msg) and msg.content.get("ack_for") == message_id:
+            if (
+                _is_ack_message(msg)
+                and msg.content.get("ack_for") == message_id
+            ):
                 removed += 1
                 continue
             keep.append(msg)
@@ -285,11 +290,7 @@ def ensure_kafka_running() -> bool:
 
 
 def setup_kafka_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Setup for basic Kafka latency/throughput scenarios.
-
-    Default latency_mode is 'end_to_end' for fair comparison across all protocols.
-    Kafka producer uses acks=1 (leader acknowledgment) for comparable durability to MQTT QoS 1.
-    """
+    """Setup for basic Kafka latency/throughput scenarios."""
     agent_count = params.get("agent_count", 5)
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
@@ -359,7 +360,6 @@ def setup_kafka_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
         if kafka_service:
             mailbox = kafka_service.mailboxes.get(agent.agent_id)
             if mailbox is None:
-                # Register again as a safeguard in case the mailbox wasn't ready yet
                 kafka_service.register_agent(agent.agent_id)
                 mailbox = kafka_service.mailboxes.get(agent.agent_id)
             if mailbox is None:
@@ -571,7 +571,11 @@ def test_kafka_broadcast_throughput(
                 expected_acks = len(receivers)
                 received_acks = 0
                 # Allow override via parameters; default 0.5s for local app_ack
-                ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                ack_timeout = float(
+                    params.get(
+                        "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                    )
+                )
                 timeout = ack_timeout
                 start_time = time.time()
 
@@ -703,7 +707,11 @@ def test_kafka_concurrent_messaging(
 
             if success:
                 if latency_mode == "app_ack":
-                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    ack_timeout = float(
+                        params.get(
+                            "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                        )
+                    )
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id
@@ -828,7 +836,11 @@ def test_kafka_scalability_stress(
 
             if success:
                 if latency_mode == "app_ack":
-                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    ack_timeout = float(
+                        params.get(
+                            "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                        )
+                    )
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id

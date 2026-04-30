@@ -17,7 +17,9 @@ import threading
 from typing import Dict, Any, List, Optional
 import concurrent.futures
 from mas.core import AgentId
-from benchmarks.local.communication_benchmarks.communication_benchmark import generate_payload
+from benchmarks.local.communication_benchmarks.communication_benchmark import (
+    generate_payload,
+)
 from benchmarks.communication.rest.rest_communicating_agent import (
     ExtendedRestCommunicatingAgent,
     RestCommunicationEnvironment,
@@ -30,7 +32,10 @@ from benchmarks.local.communication_benchmarks.communication_benchmark import (
     CommunicationBenchmark,
     BenchmarkScenario,
 )
-from benchmarks.communication.base_communication import MessageType, LatencyMode
+from benchmarks.communication.base_communication import (
+    MessageType,
+    LatencyMode,
+)
 
 
 def create_test_agent(
@@ -51,11 +56,7 @@ def create_test_agent(
 
 
 def setup_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Setup for basic latency/throughput scenarios.
-
-    Default latency_mode is 'end_to_end' for fair comparison across all protocols.
-    This measures complete message delivery time including acknowledgments.
-    """
+    """Setup for basic latency/throughput scenarios."""
     agent_count = params.get("agent_count", 5)
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
@@ -161,7 +162,10 @@ def _consume_ack_for(mailbox, message_id: str) -> int:
             return 0
         keep = []
         for msg in mailbox.messages:
-            if _is_ack_message(msg) and msg.content.get("ack_for") == message_id:
+            if (
+                _is_ack_message(msg)
+                and msg.content.get("ack_for") == message_id
+            ):
                 removed += 1
                 continue
             keep.append(msg)
@@ -186,7 +190,9 @@ def _wait_for_ack(agent, message_id: str, timeout: float = 0.5) -> bool:
     while time.time() - start_time < timeout:
         if _consume_ack_for(agent.mailbox, message_id):
             return True
-        time.sleep(0.005)  # Optimized polling interval (was 0.001, reduced CPU usage by 5x)
+        time.sleep(
+            0.005
+        )  # Optimized polling interval (was 0.001, reduced CPU usage by 5x)
     return False
 
 
@@ -342,7 +348,11 @@ def test_broadcast_throughput(
                 expected_acks = len(receivers)
                 received_acks = 0
                 timeout_start = time.time()
-                ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                ack_timeout = float(
+                    params.get(
+                        "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                    )
+                )
                 timeout = ack_timeout
 
                 while (
@@ -481,7 +491,11 @@ def test_concurrent_messaging(
             if success:
                 if latency_mode == "app_ack":
                     # Wait for ACK from receiver (configurable, default 0.5s)
-                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    ack_timeout = float(
+                        params.get(
+                            "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                        )
+                    )
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id
@@ -606,7 +620,11 @@ def test_scalability_stress(
             if success:
                 if latency_mode == "app_ack":
                     # Wait for ACK from receiver (configurable, default 0.5s)
-                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    ack_timeout = float(
+                        params.get(
+                            "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                        )
+                    )
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id

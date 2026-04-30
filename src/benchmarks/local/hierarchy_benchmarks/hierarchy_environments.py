@@ -14,7 +14,10 @@ from typing import Dict, List, Tuple, Any, Set
 from dataclasses import dataclass, field
 import random
 import time
-from benchmarks.local.hierarchy_benchmarks.hierarchy_strategies import Task, HierarchyStrategy
+from benchmarks.local.hierarchy_benchmarks.hierarchy_strategies import (
+    Task,
+    HierarchyStrategy,
+)
 
 
 @dataclass
@@ -227,14 +230,18 @@ class ResourceAllocationEnvironment(HierarchyEnvironment):
         for resource, amount in requirements.items():
             capacity = self.resource_capacity.get(resource, 0)
             current = self.resource_usage.get(resource, 0)
-            if current + amount > capacity * (1 + self.over_allocation_tolerance):
+            if current + amount > capacity * (
+                1 + self.over_allocation_tolerance
+            ):
                 return False
         return True
 
     def _allocate_resources(self, task_id: str, requirements: Dict[str, int]):
         """Allocate resources for a task."""
         for resource, amount in requirements.items():
-            self.resource_usage[resource] = self.resource_usage.get(resource, 0) + amount
+            self.resource_usage[resource] = (
+                self.resource_usage.get(resource, 0) + amount
+            )
         self.active_allocations.add(task_id)
 
     def _release_resources(self, task_id: str):
@@ -405,7 +412,9 @@ class CollaborativeProblemSolving(HierarchyEnvironment):
 
         # Check task completion with dependency validation
         for task in self.tasks:
-            deps_satisfied = self._dependencies_satisfied(task.task_id, hierarchy)
+            deps_satisfied = self._dependencies_satisfied(
+                task.task_id, hierarchy
+            )
 
             if task.status == "in_progress" and not deps_satisfied:
                 # Pause progress until dependencies are satisfied

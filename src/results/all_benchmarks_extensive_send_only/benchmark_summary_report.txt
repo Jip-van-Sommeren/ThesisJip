@@ -1,0 +1,83 @@
+COMMUNICATION PROTOCOL BENCHMARK SUMMARY REPORT
+============================================================
+
+Benchmark Date: 20260304_020918
+Total Duration: 19448.8                    seconds
+Mode: extensive
+Protocols Tested:                    rest, grpc, mqtt, kafka
+Scenarios Tested:                    point_to_point_latency, broadcast_throughput, concurrent_messaging, scalability_stress
+
+Hardware:
+  System: Linux 6.8.0-101-generic (x86_64)
+  Node: jip-pc
+  CPU: AMD Ryzen 9 5900HX with Radeon Graphics (8C/16T)
+  CPU Max MHz: 4680
+  Memory: 30.75 GB
+  Python: 3.10.12
+
+CROSS-PROTOCOL COMPARISON
+------------------------------
+
+Scenario: Point To Point Latency
+  KAFKA::ACKS1: Latency    0.1ms | Throughput                              89.1                                msg/s | Success                            100.0% | CPU  0.8% | Memory 571.8MB
+  KAFKA::ACKSALL: Latency    0.1ms | Throughput                              89.1                                msg/s | Success                            100.0% | CPU  0.8% | Memory 608.6MB
+  KAFKA::ACKS0: Latency    0.1ms | Throughput                              89.0                                msg/s | Success                            100.0% | CPU  0.5% | Memory 554.5MB
+  MQTT::QOS0: Latency    0.2ms | Throughput                              87.4                                msg/s | Success                            100.0% | CPU  0.2% | Memory 158.4MB
+  MQTT::QOS1: Latency    0.3ms | Throughput                              87.3                                msg/s | Success                            100.0% | CPU  0.2% | Memory 230.1MB
+  MQTT::QOS2: Latency    0.3ms | Throughput                              87.1                                msg/s | Success                            100.0% | CPU  0.2% | Memory 458.8MB
+  GRPC::UNARY: Latency    1.1ms | Throughput                              81.0                                msg/s | Success                            100.0% | CPU  0.7% | Memory 131.5MB
+  GRPC::STREAMING: Latency    1.2ms | Throughput                              81.6                                msg/s | Success                            100.0% | CPU  0.9% | Memory 145.6MB
+  REST::HTTP2: Latency    2.0ms | Throughput                              76.5                                msg/s | Success                            100.0% | CPU  1.1% | Memory 111.8MB
+  REST::HTTP1: Latency    2.5ms | Throughput                              73.9                                msg/s | Success                            100.0% | CPU  1.2% | Memory  69.3MB
+
+Scenario: Broadcast Throughput
+  KAFKA::ACKSALL: Latency    0.5ms | Throughput                              43.5                                msg/s | Success                            100.0% | CPU  2.7% | Memory 615.7MB
+  KAFKA::ACKS0: Latency    0.5ms | Throughput                              44.1                                msg/s | Success                            100.0% | CPU  2.4% | Memory 573.5MB
+  KAFKA::ACKS1: Latency    0.6ms | Throughput                              43.5                                msg/s | Success                            100.0% | CPU  2.7% | Memory 581.4MB
+  MQTT::QOS1: Latency    0.6ms | Throughput                              43.9                                msg/s | Success                            100.0% | CPU  0.4% | Memory 218.0MB
+  MQTT::QOS2: Latency    0.6ms | Throughput                              43.8                                msg/s | Success                            100.0% | CPU  0.4% | Memory 442.3MB
+  MQTT::QOS0: Latency    0.6ms | Throughput                              43.8                                msg/s | Success                            100.0% | CPU  0.5% | Memory 162.1MB
+  GRPC::STREAMING: Latency    2.4ms | Throughput                              40.7                                msg/s | Success                            100.0% | CPU  0.8% | Memory 147.5MB
+  GRPC::UNARY: Latency    2.4ms | Throughput                              40.6                                msg/s | Success                            100.0% | CPU  0.8% | Memory 133.0MB
+  REST::HTTP2: Latency    3.5ms | Throughput                              39.0                                msg/s | Success                            100.0% | CPU  1.0% | Memory 111.8MB
+  REST::HTTP1: Latency    4.3ms | Throughput                              37.9                                msg/s | Success                            100.0% | CPU  1.1% | Memory  80.4MB
+
+Scenario: Concurrent Messaging
+  KAFKA::ACKSALL: Latency    0.1ms | Throughput                            2917.2                                msg/s | Success                            100.0% | CPU  5.7% | Memory 633.7MB
+  KAFKA::ACKS1: Latency    0.1ms | Throughput                            2896.1                                msg/s | Success                            100.0% | CPU  5.6% | Memory 608.2MB
+  MQTT::QOS0: Latency    0.1ms | Throughput                            2973.6                                msg/s | Success                            100.0% | CPU  1.9% | Memory 163.2MB
+  KAFKA::ACKS0: Latency    0.1ms | Throughput                            2919.2                                msg/s | Success                            100.0% | CPU  4.8% | Memory 572.7MB
+  MQTT::QOS2: Latency    0.1ms | Throughput                            2827.6                                msg/s | Success                            100.0% | CPU  2.2% | Memory 440.1MB
+  MQTT::QOS1: Latency    0.1ms | Throughput                            2852.3                                msg/s | Success                            100.0% | CPU  2.1% | Memory 213.9MB
+  GRPC::UNARY: Latency    8.4ms | Throughput                            1709.6                                msg/s | Success                            100.0% | CPU  7.0% | Memory 137.5MB
+  GRPC::STREAMING: Latency   17.4ms | Throughput                            1223.7                                msg/s | Success                            100.0% | CPU  8.1% | Memory 152.5MB
+  REST::HTTP2: Latency   57.7ms | Throughput                             551.6                                msg/s | Success                            100.0% | CPU  6.5% | Memory 114.9MB
+  REST::HTTP1: Latency   76.6ms | Throughput                             442.9                                msg/s | Success                            100.0% | CPU  6.6% | Memory  95.7MB
+
+Scenario: Scalability Stress
+  MQTT::QOS0: Latency    0.1ms | Throughput                            11064.8                                msg/s | Success                            100.0% | CPU  5.8% | Memory 194.3MB
+  MQTT::QOS1: Latency    0.1ms | Throughput                            8500.8                                msg/s | Success                            100.0% | CPU  5.7% | Memory 368.8MB
+  MQTT::QOS2: Latency    0.4ms | Throughput                            8332.7                                msg/s | Success                            100.0% | CPU  5.7% | Memory 507.2MB
+  KAFKA::ACKS1: Latency    0.6ms | Throughput                            7382.7                                msg/s | Success                            100.0% | CPU 10.9% | Memory 608.9MB
+  KAFKA::ACKSALL: Latency    0.6ms | Throughput                            7337.6                                msg/s | Success                            100.0% | CPU 10.8% | Memory 633.7MB
+  KAFKA::ACKS0: Latency    0.7ms | Throughput                            7276.2                                msg/s | Success                            100.0% | CPU 10.3% | Memory 572.9MB
+  GRPC::UNARY: Latency   16.3ms | Throughput                            2556.1                                msg/s | Success                            100.0% | CPU 10.3% | Memory 144.5MB
+  GRPC::STREAMING: Latency   26.4ms | Throughput                            1605.6                                msg/s | Success                            100.0% | CPU 10.6% | Memory 155.6MB
+  REST::HTTP2: Latency   66.6ms | Throughput                             643.9                                msg/s | Success                            100.0% | CPU  7.5% | Memory 121.7MB
+  REST::HTTP1: Latency   68.1ms | Throughput                             625.4                                msg/s | Success                            100.0% | CPU  7.5% | Memory 110.2MB
+
+BEST PERFORMING PROTOCOLS BY METRIC
+----------------------------------------
+
+Lowest Latency:     MQTT
+Highest Throughput: MQTT
+Most Reliable:      REST
+
+RECOMMENDATIONS
+---------------
+
+• For low-latency applications: Use                        MQTT
+• For high-throughput applications: Use                        MQTT
+• For mission-critical reliability: Use                        REST
+
+============================================================

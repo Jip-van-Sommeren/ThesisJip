@@ -18,15 +18,17 @@ class HostConfig:
     """Configuration for a single host in the distributed benchmark."""
 
     name: str
-    ip: str
+    ip: str  # Public IP (used by orchestrator for SSH)
     role: str  # "broker", "agent", or "orchestrator"
+    private_ip: str = ""  # Private IP (used for inter-host communication)
     instance_type: str = "t3.medium"
 
     def __post_init__(self):
         valid_roles = {"broker", "agent", "orchestrator"}
         if self.role not in valid_roles:
             raise ValueError(
-                f"Invalid host role '{self.role}'. Must be one of: {valid_roles}"
+                f"Invalid host role '{self.role}'. \
+                    Must be one of: {valid_roles}"
             )
 
 
@@ -48,7 +50,7 @@ class DistributedConfig:
     ssh_key: str = "~/.ssh/benchmark-key.pem"
     code_path: str = "/home/ubuntu/thesis"
     hosts: Dict[str, HostConfig] = field(default_factory=dict)
-    agent_placement: str = "round_robin"  # or "all_on_separate"
+    agent_placement: str = "round_robin"
     time_sync: TimeSyncConfig = field(default_factory=TimeSyncConfig)
 
     # Benchmark parameters (forwarded to workers)
@@ -90,7 +92,9 @@ class DistributedConfig:
         if not self.hosts:
             raise ValueError("No hosts configured")
 
-        broker_count = sum(1 for h in self.hosts.values() if h.role == "broker")
+        broker_count = sum(
+            1 for h in self.hosts.values() if h.role == "broker"
+        )
         agent_count = sum(1 for h in self.hosts.values() if h.role == "agent")
 
         if broker_count > 1:
@@ -144,6 +148,7 @@ def load_distributed_config(path: str) -> DistributedConfig:
             name=name,
             ip=host_data["ip"],
             role=host_data.get("role", "agent"),
+            private_ip=host_data.get("private_ip", ""),
             instance_type=host_data.get("instance_type", "t3.medium"),
         )
 
@@ -168,7 +173,9 @@ def load_distributed_config(path: str) -> DistributedConfig:
                 if isinstance(variants, dict):
                     protocol_variants[proto] = list(variants.keys())
                     for vname, vcfg in variants.items():
-                        variant_settings.setdefault(proto, {})[vname] = vcfg or {}
+                        variant_settings.setdefault(proto, {})[vname] = (
+                            vcfg or {}
+                        )
                 elif isinstance(variants, list):
                     protocol_variants[proto] = [str(v) for v in variants]
     elif isinstance(protocols_section, list):

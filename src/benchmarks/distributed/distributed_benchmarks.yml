@@ -1,19 +1,21 @@
-# Distributed Benchmark Configuration
-# Runs benchmarks across multiple AWS hosts for real network latency.
-#
-# Prerequisites:
-#   1. Provision infrastructure: cd infra && terraform apply
-#   2. Generate config with real IPs: ./infra/generate_config.sh
-#      OR manually fill in the host IPs below.
-#
-# Usage:
-#   cd src && python3 -m benchmarks.distributed.distributed_runner \
-#     benchmarks/benchmark_configs/distributed_benchmarks.yml
+# Auto-generated distributed benchmark configuration
+# Generated from Terraform outputs on 2026-04-07
 
-mode: extensive
-num_trials: 3
+num_trials: 1
+warm_up_operations: 0
+agent_counts:
+  - 10
+  - 15
+  - 20
+
+scenarios:
+  - point_to_point_latency
+  - broadcast_throughput
+  - concurrent_messaging
+  - scalability_stress
+
 latency_mode: app_ack
-output_dir: results/distributed_benchmarks
+output_dir: results/distributed_benchmarks_app_ack
 
 distributed:
   enabled: true
@@ -28,9 +30,12 @@ distributed:
     ntp_source: "169.254.169.123"
 
   hosts:
-    broker:  { ip: "REPLACE_WITH_BROKER_IP", role: broker }
-    agent_0: { ip: "REPLACE_WITH_AGENT_0_IP", role: agent }
-    agent_1: { ip: "REPLACE_WITH_AGENT_1_IP", role: agent }
+    broker: { ip: "13.60.76.144", role: broker }
+    agent_0: { ip: "16.170.214.29", role: agent }
+    agent_1: { ip: "13.60.201.247", role: agent }
+    agent_2: { ip: "13.53.122.254", role: agent }
+    agent_3: { ip: "51.20.73.174", role: agent }
+    agent_4: { ip: "13.49.72.14", role: agent }
 
 protocols:
   rest:
@@ -45,18 +50,20 @@ protocols:
     variants:
       qos0: {}
       qos1: {}
+      qos2: {}
   kafka:
     variants:
-      acks0: {}
-      acks1: {}
-      acksall: {}
+      acks0:
+        parameters:
+          kafka_acks: "0"
+          compression_type: lz4
+      acks1:
+        parameters:
+          kafka_acks: "1"
+          compression_type: lz4
+      acksall:
+        parameters:
+          kafka_acks: all
+          compression_type: lz4
 
-scenarios:
-  - point_to_point_latency
-  - broadcast_throughput
-  - concurrent_messaging
 
-agent_counts:
-  - 2
-  - 4
-  - 8

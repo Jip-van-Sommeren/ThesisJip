@@ -372,6 +372,35 @@ class RestCommunicationEnvironment:
         # Provide direct mailbox access for benchmark instrumentation
         agent.mailbox = self.comm_service.mailboxes.get(agent_id_str)
 
+    def create_agent(
+        self, agent_id: str, observable_properties: Set[str] = None
+    ) -> ExtendedRestCommunicatingAgent:
+        """Create and register a new REST communicating agent."""
+        if not self.is_running:
+            raise RuntimeError(
+                "Service must be started before creating agents"
+            )
+
+        if observable_properties is None:
+            observable_properties = {"environment", "messages"}
+
+        parts = agent_id.split(".")
+        if len(parts) == 3:
+            id_obj = AgentId(app=parts[0], type=parts[1], instance=parts[2])
+        else:
+            id_obj = AgentId(
+                app="rest_benchmark", type="agent", instance=agent_id
+            )
+
+        agent = ExtendedRestCommunicatingAgent(
+            id_obj,
+            observable_properties,
+            transport_mode=self.transport_mode,
+        )
+        agent.initialize_agent()
+        self.register_agent(agent)
+        return agent
+
     def setup_fully_connected_topology(self):
         """Setup fully connected communication topology."""
         agent_ids = list(self.agents.keys())

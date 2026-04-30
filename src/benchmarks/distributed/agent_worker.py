@@ -11,14 +11,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 import time
 import traceback
-from dataclasses import asdict
 from threading import Thread
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from flask import Flask, jsonify, request
 
@@ -45,10 +43,32 @@ _state: Dict[str, Any] = {
 }
 
 
+def _agent_instance_names(params: Dict[str, Any]) -> list[str]:
+    """Resolve the worker-local agent instance names for a benchmark run."""
+    agent_count = int(params.get("agent_count", 2))
+    configured_names = params.get("agent_names")
+
+    if configured_names is not None:
+        names = [str(name) for name in configured_names]
+        if len(names) != agent_count:
+            raise ValueError("agent_names length does not match agent_count")
+        return names
+
+    offset = int(params.get("agent_offset", 0))
+    return [f"agent_{offset + i}" for i in range(agent_count)]
+
+
 def _create_rest_env(params: Dict[str, Any]):
-    """Create REST benchmark environment."""
+    """Create REST benchmark environment.
+
+    When ``remote_service_address`` is present in *params* the worker
+    connects to a service running on a remote host instead of starting
+    its own.  This ensures messages traverse the network, making the
+    benchmark comparable with broker-based protocols (MQTT/Kafka).
+    """
     from benchmarks.communication.base_communication import LatencyMode
     from benchmarks.communication.rest.rest_communicating_agent import (
+        ExtendedRestCommunicatingAgent,
         RestCommunicationEnvironment,
     )
     from benchmarks.communication.communication_config import (
@@ -56,14 +76,11 @@ def _create_rest_env(params: Dict[str, Any]):
         TopologyPattern,
     )
     from mas.core import AgentId
-    from benchmarks.communication.rest.rest_communicating_agent import (
-        ExtendedRestCommunicatingAgent,
-    )
 
     latency_mode = params.get("latency_mode", "app_ack")
     transport_mode = params.get("transport_mode", "http1")
     service_host = params.get("service_host", "0.0.0.0")
-    agent_count = params.get("agent_count", 2)
+    agent_names = _agent_instance_names(params)
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
     )
@@ -75,6 +92,104 @@ def _create_rest_env(params: Dict[str, Any]):
     }
     latency_mode_enum = mode_map.get(latency_mode, LatencyMode.APP_ACK)
 
+    remote_addr = params.get("remote_service_address")
+
+    if remote_addr:
+        # --- Remote mode: connect to service on another host ---
+        import requests as http_requests
+        import threading as _threading
+        from benchmarks.communication.rest.rest_communication import (
+            RestMailbox,
+        )
+
+        r_host, r_port = remote_addr.rsplit(":", 1)
+        service_url = f"http://{remote_addr}"
+
+        # Create environment shell (no local service)
+        env = RestCommunicationEnvironment(
+            service_host=r_host,
+            latency_mode=latency_mode_enum,
+            transport_mode=transport_mode,
+        )
+        env.service_port = int(r_port)
+        env.is_running = True  # service lives on the remote host
+
+        agents = []
+        for agent_name in agent_names:
+            id_obj = AgentId(
+                app="rest_benchmark", type="agent", instance=agent_name
+            )
+            agent = ExtendedRestCommunicatingAgent(
+                id_obj,
+                {"environment", "messages"},
+                transport_mode=transport_mode,
+            )
+            agent.initialize_agent()
+
+            agent_id_str = str(id_obj)
+            # Register with the remote service via HTTP.
+            # Retry in case the service is still starting.
+            for _attempt in range(10):
+                try:
+                    http_requests.post(
+                        f"{service_url}/register/{agent_id_str}", timeout=10
+                    )
+                    break
+                except http_requests.ConnectionError:
+                    if _attempt == 9:
+                        raise
+                    time.sleep(1)
+            agent.comm_agent.configure_transport(service_url, transport_mode)
+            agent.transport_mode = transport_mode
+
+            # Create a local mailbox so benchmark scenarios can access
+            # agent.mailbox directly (matches local-mode behaviour).
+            agent.mailbox = RestMailbox(agent_id_str)
+
+            env.agents[agent_id_str] = agent
+            agents.append(agent)
+
+        # Start a background poller per agent that pulls messages from
+        # the remote service into the local mailbox.
+        _stop_pollers = _threading.Event()
+
+        def _mailbox_poller(ag):
+            while not _stop_pollers.is_set():
+                try:
+                    msgs = ag.comm_agent.receive_messages(clear_mailbox=True)
+                    for msg in msgs:
+                        ag.mailbox.add_message(msg)
+                except Exception:
+                    pass
+                _stop_pollers.wait(0.002)
+
+        poller_threads = []
+        for ag in agents:
+            t = _threading.Thread(
+                target=_mailbox_poller, args=(ag,), daemon=True
+            )
+            t.start()
+            poller_threads.append(t)
+
+        # Store the stop event so cleanup can halt the pollers.
+        env._stop_pollers = _stop_pollers
+        env._poller_threads = poller_threads
+
+        config = CommunicationConfiguration()
+        config.set_agents([str(a.id) for a in agents])
+        if isinstance(topology_pattern, str):
+            topology_pattern = TopologyPattern(topology_pattern)
+        topology = config.set_topology(topology_pattern)
+        for sender, receiver in topology.links:
+            http_requests.post(
+                f"{service_url}/topology/link",
+                json={"sender_id": sender, "receiver_id": receiver},
+                timeout=10,
+            )
+
+        return env, agents, config
+
+    # --- Local mode (original behaviour) ---
     env = RestCommunicationEnvironment(
         service_host=service_host,
         latency_mode=latency_mode_enum,
@@ -83,18 +198,9 @@ def _create_rest_env(params: Dict[str, Any]):
     env.start_service()
 
     agents = []
-    for i in range(agent_count):
-        agent_id = AgentId("benchmark", "distributed", f"agent_{i}")
-        agent = ExtendedRestCommunicatingAgent(
-            agent_id,
-            {"environment", "messages"},
-            transport_mode=transport_mode,
-        )
-        agent.initialize_agent()
+    for agent_name in agent_names:
+        agent = env.create_agent(agent_name)
         agents.append(agent)
-        env.register_agent(agent)
-        if getattr(agent, "mailbox", None) is None and env.comm_service:
-            agent.mailbox = env.comm_service.mailboxes.get(str(agent.id))
 
     config = CommunicationConfiguration()
     config.set_agents([str(a.id) for a in agents])
@@ -108,20 +214,28 @@ def _create_rest_env(params: Dict[str, Any]):
 
 
 def _create_grpc_env(params: Dict[str, Any]):
-    """Create gRPC benchmark environment."""
+    """Create gRPC benchmark environment.
+
+    When ``remote_service_address`` is present in *params* the worker
+    connects to a gRPC service running on a remote host instead of
+    starting its own.
+    """
     from benchmarks.communication.base_communication import LatencyMode
     from benchmarks.communication.grpc.grpc_communication_agent import (
+        ExtendedGrpcCommunicatingAgent,
         GrpcCommunicationEnvironment,
     )
+    from benchmarks.communication.grpc import communication_pb2
     from benchmarks.communication.communication_config import (
         CommunicationConfiguration,
         TopologyPattern,
     )
+    from mas.core import AgentId
 
     latency_mode = params.get("latency_mode", "app_ack")
     communication_mode = params.get("grpc_mode", "unary")
     service_host = params.get("service_host", "0.0.0.0")
-    agent_count = params.get("agent_count", 2)
+    agent_names = _agent_instance_names(params)
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
     )
@@ -133,6 +247,104 @@ def _create_grpc_env(params: Dict[str, Any]):
     }
     latency_mode_enum = mode_map.get(latency_mode, LatencyMode.APP_ACK)
 
+    remote_addr = params.get("remote_service_address")
+
+    if remote_addr:
+        # --- Remote mode: connect to gRPC service on another host ---
+        import threading as _threading
+        from benchmarks.communication.grpc.grpc_communication import (
+            GrpcMailbox,
+        )
+
+        r_host, r_port = remote_addr.rsplit(":", 1)
+
+        env = GrpcCommunicationEnvironment(
+            service_host=r_host,
+            service_port=int(r_port),
+            latency_mode=latency_mode_enum,
+            communication_mode=communication_mode,
+        )
+        env.is_running = True  # service lives on the remote host
+
+        agents = []
+        for agent_name in agent_names:
+            id_obj = AgentId(
+                app="grpc_benchmark", type="agent", instance=agent_name
+            )
+            agent = ExtendedGrpcCommunicatingAgent(
+                id_obj,
+                {"environment", "messages"},
+                grpc_service_address=remote_addr,
+                communication_mode=communication_mode,
+            )
+            agent.initialize_agent()
+
+            # Register via gRPC RPC (works over the network).
+            # Retry a few times in case the service is still starting.
+            agent_id_str = str(id_obj)
+            for _attempt in range(10):
+                try:
+                    agent.grpc_agent.stub.RegisterAgent(
+                        communication_pb2.RegisterAgentRequest(
+                            agent_id=agent_id_str
+                        )
+                    )
+                    break
+                except Exception:
+                    if _attempt == 9:
+                        raise
+                    time.sleep(1)
+
+            # Create a local mailbox so benchmark scenarios can access
+            # agent.mailbox directly (matches local-mode behaviour).
+            agent.mailbox = GrpcMailbox(agent_id_str)
+
+            env.agents[agent_id_str] = agent
+            agents.append(agent)
+
+        # Start a background poller per agent that pulls messages from
+        # the remote service into the local mailbox.
+        _stop_pollers = _threading.Event()
+
+        def _mailbox_poller(ag):
+            while not _stop_pollers.is_set():
+                try:
+                    msgs = ag.grpc_agent.receive_messages(clear_mailbox=True)
+                    for msg in msgs:
+                        ag.mailbox.add_message(msg)
+                except Exception:
+                    pass
+                _stop_pollers.wait(0.002)
+
+        poller_threads = []
+        for ag in agents:
+            t = _threading.Thread(
+                target=_mailbox_poller, args=(ag,), daemon=True
+            )
+            t.start()
+            poller_threads.append(t)
+
+        env._stop_pollers = _stop_pollers
+        env._poller_threads = poller_threads
+
+        config = CommunicationConfiguration()
+        config.set_agents([str(a.id) for a in agents])
+        if isinstance(topology_pattern, str):
+            topology_pattern = TopologyPattern(topology_pattern)
+        topology = config.set_topology(topology_pattern)
+
+        # Add topology links via gRPC RPC
+        stub = agents[0].grpc_agent.stub
+        for sender, receiver in topology.links:
+            stub.AddCommunicationLink(
+                communication_pb2.AddLinkRequest(
+                    sender_id=sender, receiver_id=receiver
+                )
+            )
+
+        return env, agents, config
+
+    # --- Local mode (original behaviour) ---
     env = GrpcCommunicationEnvironment(
         service_host=service_host,
         latency_mode=latency_mode_enum,
@@ -141,12 +353,12 @@ def _create_grpc_env(params: Dict[str, Any]):
     env.start_service()
 
     agents = []
-    for i in range(agent_count):
-        agent = env.create_agent(f"agent_{i}")
+    for agent_name in agent_names:
+        agent = env.create_agent(agent_name)
         agents.append(agent)
 
     config = CommunicationConfiguration()
-    config.set_agents([str(getattr(a, "agent_id", a.id)) for a in agents])
+    config.set_agents([str(a.id) for a in agents])
     if isinstance(topology_pattern, str):
         topology_pattern = TopologyPattern(topology_pattern)
     topology = config.set_topology(topology_pattern)
@@ -292,6 +504,7 @@ def _get_scenario_functions(protocol: str):
         from benchmarks.local.communication_benchmarks import (
             rest_benchmark_scenarios as mod,
         )
+
         return {
             "point_to_point_latency": mod.test_point_to_point_latency,
             "broadcast_throughput": mod.test_broadcast_throughput,
@@ -302,6 +515,7 @@ def _get_scenario_functions(protocol: str):
         from benchmarks.local.communication_benchmarks import (
             grpc_benchmark_scenarios as mod,
         )
+
         return {
             "point_to_point_latency": mod.test_grpc_point_to_point_latency,
             "broadcast_throughput": mod.test_grpc_broadcast_throughput,
@@ -312,6 +526,7 @@ def _get_scenario_functions(protocol: str):
         from benchmarks.local.communication_benchmarks import (
             mqtt_benchmark_scenarios as mod,
         )
+
         return {
             "point_to_point_latency": mod.test_mqtt_point_to_point_latency,
             "broadcast_throughput": mod.test_mqtt_broadcast_throughput,
@@ -322,6 +537,7 @@ def _get_scenario_functions(protocol: str):
         from benchmarks.local.communication_benchmarks import (
             kafka_benchmark_scenarios as mod,
         )
+
         return {
             "point_to_point_latency": mod.test_kafka_point_to_point_latency,
             "broadcast_throughput": mod.test_kafka_broadcast_throughput,
@@ -428,6 +644,16 @@ def _teardown_env():
     if env is None:
         return
 
+    # Stop remote-mode mailbox pollers if running.
+    if hasattr(env, "_stop_pollers"):
+        env._stop_pollers.set()
+    if hasattr(env, "_poller_threads"):
+        for thread in env._poller_threads:
+            try:
+                thread.join(timeout=0.5)
+            except Exception:
+                pass
+
     try:
         if hasattr(env, "stop_service"):
             env.stop_service()
@@ -438,8 +664,12 @@ def _teardown_env():
 
     for agent in _state.get("agents", []):
         try:
+            if hasattr(agent, "close"):
+                agent.close()
             if hasattr(agent, "comm_agent"):
                 agent.comm_agent.close()
+            if hasattr(agent, "grpc_agent"):
+                agent.grpc_agent.close()
         except Exception:
             pass
 
@@ -467,7 +697,10 @@ def setup():
     }
     """
     if _state["status"] not in ("idle", "completed", "error"):
-        return jsonify({"error": "Worker busy", "status": _state["status"]}), 409
+        return (
+            jsonify({"error": "Worker busy", "status": _state["status"]}),
+            409,
+        )
 
     config = request.get_json()
     if not config:
@@ -484,10 +717,15 @@ def setup():
 def start():
     """Start the benchmark run."""
     if _state["status"] != "ready":
-        return jsonify({
-            "error": "Not ready. Call /setup first.",
-            "status": _state["status"],
-        }), 409
+        return (
+            jsonify(
+                {
+                    "error": "Not ready. Call /setup first.",
+                    "status": _state["status"],
+                }
+            ),
+            409,
+        )
 
     config = _state["config"]
     thread = Thread(target=_run_benchmark, args=(config,), daemon=True)
@@ -498,30 +736,44 @@ def start():
 
 @app.route("/status", methods=["GET"])
 def status():
-    return jsonify({
-        "status": _state["status"],
-        "error": _state.get("error"),
-    })
+    return jsonify(
+        {
+            "status": _state["status"],
+            "error": _state.get("error"),
+        }
+    )
 
 
 @app.route("/metrics", methods=["GET"])
 def metrics():
     """Return collected metrics."""
     if _state["status"] == "completed" and _state["metrics"]:
-        return jsonify({
-            "status": "completed",
-            "metrics": _state["metrics"],
-        })
+        return jsonify(
+            {
+                "status": "completed",
+                "metrics": _state["metrics"],
+            }
+        )
     elif _state["status"] == "error":
-        return jsonify({
-            "status": "error",
-            "error": _state["error"],
-        }), 500
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "error": _state["error"],
+                }
+            ),
+            500,
+        )
     else:
-        return jsonify({
-            "status": _state["status"],
-            "message": "Benchmark not yet completed",
-        }), 202
+        return (
+            jsonify(
+                {
+                    "status": _state["status"],
+                    "message": "Benchmark not yet completed",
+                }
+            ),
+            202,
+        )
 
 
 @app.route("/teardown", methods=["POST"])
@@ -540,11 +792,15 @@ def main():
         description="Distributed benchmark agent worker"
     )
     parser.add_argument(
-        "--port", type=int, default=8080,
+        "--port",
+        type=int,
+        default=8080,
         help="Port for the worker control server (default: 8080)",
     )
     parser.add_argument(
-        "--host", type=str, default="0.0.0.0",
+        "--host",
+        type=str,
+        default="0.0.0.0",
         help="Host to bind to (default: 0.0.0.0)",
     )
     args = parser.parse_args()

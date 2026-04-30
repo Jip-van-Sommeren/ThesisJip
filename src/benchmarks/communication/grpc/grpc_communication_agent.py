@@ -359,6 +359,36 @@ class GrpcCommunicationEnvironment:
                 agent_id_str
             )
 
+    def create_agent(
+        self, agent_id: str, observable_properties: Set[str] = None
+    ) -> ExtendedGrpcCommunicatingAgent:
+        """Create and register a new gRPC communicating agent."""
+        if not self.is_running:
+            raise RuntimeError(
+                "Environment not started. Call start_service() first."
+            )
+
+        if observable_properties is None:
+            observable_properties = {"environment", "messages"}
+
+        parts = agent_id.split(".")
+        if len(parts) == 3:
+            id_obj = AgentId(app=parts[0], type=parts[1], instance=parts[2])
+        else:
+            id_obj = AgentId(
+                app="grpc_benchmark", type="agent", instance=agent_id
+            )
+
+        agent = ExtendedGrpcCommunicatingAgent(
+            id_obj,
+            observable_properties,
+            grpc_service_address=self.get_service_address(),
+            communication_mode=self.communication_mode,
+        )
+        agent.initialize_agent()
+        self.register_agent(agent)
+        return agent
+
     def setup_fully_connected_topology(self):
         """Setup fully connected communication topology."""
         agent_ids = list(self.agents.keys())

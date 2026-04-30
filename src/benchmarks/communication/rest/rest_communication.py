@@ -309,6 +309,12 @@ class RESTCommunicationService:
             except Exception as e:
                 return jsonify({"error": str(e)}), 400
 
+        @self.app.route("/register/<agent_id>", methods=["POST"])
+        def register_agent_endpoint(agent_id: str):
+            """Register an agent remotely (creates a fresh mailbox)."""
+            self.mailboxes[agent_id] = RestMailbox(agent_id)
+            return jsonify({"status": "registered", "agent_id": agent_id})
+
         @self.app.route("/stats", methods=["GET"])
         def get_statistics():
             """Get communication statistics."""

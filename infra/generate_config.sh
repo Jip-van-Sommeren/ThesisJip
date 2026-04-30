@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-OUTPUT_FILE="${1:-../src/benchmarks/benchmark_configs/distributed_benchmarks.yml}"
+OUTPUT_FILE="${1:-../src/benchmarks/distributed/distributed_benchmarks.yml}"
 SSH_KEY="${SSH_KEY:-~/.ssh/benchmark-key.pem}"
 SSH_USER="${SSH_USER:-ubuntu}"
 
@@ -25,10 +25,21 @@ cat > "$OUTPUT_FILE" << YAMLEOF
 # Auto-generated distributed benchmark configuration
 # Generated from Terraform outputs on $(date -I)
 
-mode: extensive
-num_trials: 3
+num_trials: 1
+warm_up_operations: 0
+agent_counts:
+  - 10
+  - 15
+  - 20
+
+scenarios:
+  - point_to_point_latency
+  - broadcast_throughput
+  - concurrent_messaging
+  - scalability_stress
+
 latency_mode: app_ack
-output_dir: results/distributed_benchmarks
+output_dir: results/distributed_benchmarks_app_ack
 
 distributed:
   enabled: true
@@ -62,26 +73,33 @@ protocols:
   rest:
     variants:
       http1: {}
+      http2: {}
   grpc:
     variants:
       unary: {}
+      streaming: {}
   mqtt:
     variants:
+      qos0: {}
       qos1: {}
+      qos2: {}
   kafka:
     variants:
-      acks1: {}
+      acks0:
+        parameters:
+          kafka_acks: "0"
+          compression_type: lz4
+      acks1:
+        parameters:
+          kafka_acks: "1"
+          compression_type: lz4
+      acksall:
+        parameters:
+          kafka_acks: all
+          compression_type: lz4
 
-scenarios:
-  - point_to_point_latency
-  - concurrent_messaging
 
-agent_counts:
-  - 2
-  - 4
 YAMLEOF
 
 echo "Config written to: $OUTPUT_FILE"
-echo ""
-echo "To run distributed benchmarks:"
-echo "  cd ../src && python3 -m benchmarks.distributed.distributed_runner $OUTPUT_FILE"
+

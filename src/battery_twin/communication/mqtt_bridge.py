@@ -9,16 +9,15 @@ Provides MQTT publish/subscribe functionality with:
 - Callback routing
 """
 
-import json
 import logging
 import threading
 import time
-from typing import Dict, List, Optional, Callable, Any
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Callable
+from dataclasses import dataclass
 from collections import defaultdict
 
 import paho.mqtt.client as mqtt
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 import sys
 from pathlib import Path

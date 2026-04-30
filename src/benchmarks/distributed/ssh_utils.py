@@ -74,9 +74,30 @@ def ssh_run_background(
     config: SSHConfig,
     command: str,
 ) -> subprocess.CompletedProcess:
-    """Run a command on a remote host in the background (nohup)."""
-    bg_cmd = f"nohup {command} > /dev/null 2>&1 & echo $!"
-    return ssh_run(config, bg_cmd, check=False)
+    """Run a command on a remote host in the background."""
+    # Two-step: first write script, then run it
+    # Use printf to avoid heredoc issues over SSH
+    import base64
+
+    script_content = f"#!/bin/bash\n{command}\n"
+    encoded = base64.b64encode(script_content.encode()).decode()
+
+    write_result = ssh_run(
+        config,
+        f"echo {encoded} | base64 -d > /tmp/run_worker.sh && "
+        f"chmod +x /tmp/run_worker.sh",
+        timeout=15,
+        check=False,
+    )
+    if write_result.returncode != 0:
+        return write_result
+
+    return ssh_run(
+        config,
+        "nohup /tmp/run_worker.sh > /tmp/worker.log 2>&1 & echo $!",
+        timeout=15,
+        check=False,
+    )
 
 
 def ssh_check_alive(config: SSHConfig) -> bool:

@@ -7,7 +7,6 @@ These schemas ensure type safety and validation for inter-agent communication.
 
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field, field_validator
-from datetime import datetime
 
 
 # ============================================================================

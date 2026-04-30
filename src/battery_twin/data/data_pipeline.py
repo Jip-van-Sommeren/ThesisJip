@@ -12,10 +12,18 @@ from dataclasses import dataclass, field
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from src.battery_twin.data.nasa_loader import NASABatteryLoader, BatteryDatasetInfo
-from src.battery_twin.data.replay_engine import ReplayEngine, ReplayMode, ReplayEvent
+from src.battery_twin.data.nasa_loader import (
+    NASABatteryLoader,
+    BatteryDatasetInfo,
+)
+from src.battery_twin.data.replay_engine import (
+    ReplayEngine,
+    ReplayMode,
+    ReplayEvent,
+)
 from src.battery_twin.communication.mqtt_bridge import MqttBridge, MqttConfig
 
 logger = logging.getLogger(__name__)
@@ -24,6 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PipelineStats:
     """Statistics for data pipeline."""
+
     batteries_loaded: int = 0
     total_cycles: int = 0
     total_samples: int = 0
@@ -81,7 +90,7 @@ class BatteryDataPipeline:
     def __init__(
         self,
         dataset_path: Optional[str] = None,
-        mqtt_config: Optional[MqttConfig] = None
+        mqtt_config: Optional[MqttConfig] = None,
     ):
         """
         Initialize data pipeline.
@@ -98,7 +107,7 @@ class BatteryDataPipeline:
                 broker="localhost",
                 port=1883,
                 qos=1,
-                client_id_prefix="pipeline_"
+                client_id_prefix="pipeline_",
             )
         self.mqtt_config = mqtt_config
 
@@ -114,9 +123,7 @@ class BatteryDataPipeline:
         logger.info("BatteryDataPipeline initialized")
 
     def load_batteries(
-        self,
-        battery_ids: List[str],
-        validate: bool = True
+        self, battery_ids: List[str], validate: bool = True
     ) -> Dict[str, BatteryDatasetInfo]:
         """
         Load battery datasets.
@@ -134,7 +141,9 @@ class BatteryDataPipeline:
         for battery_id in battery_ids:
             try:
                 # Load cycles
-                cycles = self.loader.load_battery(battery_id, validate=validate)
+                cycles = self.loader.load_battery(
+                    battery_id, validate=validate
+                )
 
                 # Get dataset info
                 info = self.loader.get_dataset_info(battery_id)
@@ -145,8 +154,10 @@ class BatteryDataPipeline:
                 self.stats.total_cycles += info.n_cycles
                 self.stats.total_samples += info.n_total_samples
 
-                logger.info(f"Loaded {battery_id}: {info.n_cycles} cycles, "
-                           f"{info.n_total_samples:,} samples")
+                logger.info(
+                    f"Loaded {battery_id}: {info.n_cycles} cycles, "
+                    f"{info.n_total_samples:,} samples"
+                )
 
             except Exception as e:
                 error_msg = f"Failed to load {battery_id}: {e}"
@@ -154,7 +165,9 @@ class BatteryDataPipeline:
                 self.stats.errors.append(error_msg)
                 raise
 
-        logger.info(f"Loaded {self.stats.batteries_loaded} batteries successfully")
+        logger.info(
+            f"Loaded {self.stats.batteries_loaded} batteries successfully"
+        )
         return self.battery_info
 
     def replay_battery(
@@ -163,7 +176,7 @@ class BatteryDataPipeline:
         mode: ReplayMode = ReplayMode.BATCH,
         speed_multiplier: float = 1.0,
         start_cycle: Optional[int] = None,
-        end_cycle: Optional[int] = None
+        end_cycle: Optional[int] = None,
     ) -> bool:
         """
         Replay a single battery.
@@ -183,15 +196,18 @@ class BatteryDataPipeline:
         try:
             # Create replay engine
             engine = ReplayEngine(
-                loader=self.loader,
-                mqtt_config=self.mqtt_config
+                loader=self.loader, mqtt_config=self.mqtt_config
             )
 
             # Add event handler to track stats
             def on_event(event: ReplayEvent, data: dict):
                 if event == ReplayEvent.REPLAY_COMPLETED:
-                    self.stats.cycles_replayed += data.get('cycles_replayed', 0)
-                    self.stats.samples_published += data.get('samples_published', 0)
+                    self.stats.cycles_replayed += data.get(
+                        "cycles_replayed", 0
+                    )
+                    self.stats.samples_published += data.get(
+                        "samples_published", 0
+                    )
                 elif event == ReplayEvent.ERROR:
                     self.stats.errors.append(
                         f"{battery_id}: {data.get('error', 'Unknown error')}"
@@ -206,7 +222,7 @@ class BatteryDataPipeline:
                 speed_multiplier=speed_multiplier,
                 start_cycle=start_cycle,
                 end_cycle=end_cycle,
-                blocking=True
+                blocking=True,
             )
 
             if success:
@@ -225,7 +241,7 @@ class BatteryDataPipeline:
     def replay_all(
         self,
         mode: ReplayMode = ReplayMode.BATCH,
-        speed_multiplier: float = 1.0
+        speed_multiplier: float = 1.0,
     ) -> bool:
         """
         Replay all loaded batteries sequentially.
@@ -255,7 +271,9 @@ class BatteryDataPipeline:
 
         return success
 
-    def get_battery_info(self, battery_id: str) -> Optional[BatteryDatasetInfo]:
+    def get_battery_info(
+        self, battery_id: str
+    ) -> Optional[BatteryDatasetInfo]:
         """
         Get metadata for a battery.
 
@@ -298,9 +316,13 @@ class BatteryDataPipeline:
             print(f"\n{battery_id}:")
             print(f"  Cycles: {info.n_cycles}")
             print(f"  Samples: {info.n_total_samples:,}")
-            print(f"  Capacity Range: {info.capacity_range[0]:.3f} - "
-                  f"{info.capacity_range[1]:.3f} Ah")
-            print(f"  Degradation: {((1 - info.capacity_range[1]/info.capacity_range[0]) * 100):.1f}%")
+            print(
+                f"  Capacity Range: {info.capacity_range[0]:.3f} - "
+                f"{info.capacity_range[1]:.3f} Ah"
+            )
+            print(
+                f"  Degradation: {((1 - info.capacity_range[1]/info.capacity_range[0]) * 100):.1f}%"
+            )
 
         print("\n" + "=" * 70)
         print(str(self.stats))
@@ -310,7 +332,7 @@ class BatteryDataPipeline:
 def run_simple_replay(
     battery_id: str = "B0005",
     mode: ReplayMode = ReplayMode.BATCH,
-    dataset_path: Optional[str] = None
+    dataset_path: Optional[str] = None,
 ):
     """
     Simple helper function for quick replay.
@@ -336,7 +358,7 @@ def run_simple_replay(
 
 
 __all__ = [
-    'BatteryDataPipeline',
-    'PipelineStats',
-    'run_simple_replay',
+    "BatteryDataPipeline",
+    "PipelineStats",
+    "run_simple_replay",
 ]

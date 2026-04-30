@@ -22,7 +22,7 @@ usermod -aG docker ubuntu
 # --- Chrony (NTP time sync) ---
 apt-get install -y chrony
 
-# Configure chrony to use Amazon Time Sync Service
+
 cat > /etc/chrony/chrony.conf << 'CHRONYEOF'
 # Amazon Time Sync Service (sub-ms accuracy)
 server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4
@@ -38,8 +38,6 @@ CHRONYEOF
 
 systemctl restart chrony
 
-# --- Project dependencies ---
-# Create a venv and install common benchmark dependencies
 python3 -m venv /home/ubuntu/venv
 chown -R ubuntu:ubuntu /home/ubuntu/venv
 sudo -u ubuntu /home/ubuntu/venv/bin/pip install --upgrade pip
@@ -54,7 +52,9 @@ sudo -u ubuntu /home/ubuntu/venv/bin/pip install \
     grpcio-tools \
     protobuf \
     httpx \
-    httpx[http2]
+    "httpx[http2]" \
+    networkx \
+    pydantic
 
 # --- Auto-shutdown after 2 hours (cost safety) ---
 cat > /etc/cron.d/auto-shutdown << 'CRONEOF'

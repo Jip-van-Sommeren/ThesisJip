@@ -14,6 +14,7 @@ from typing import Set, Dict, Any, Optional
 
 class PermissionType(Enum):
     """Types of permissions a role can have."""
+
     READ_DATA = "read_data"
     WRITE_DATA = "write_data"
     COMMAND_AGENTS = "command_agents"
@@ -26,6 +27,7 @@ class PermissionType(Enum):
 
 class ExpectationType(Enum):
     """Types of behavioral expectations for roles."""
+
     RESPONSE_TIME = "response_time"
     REPORTING_FREQUENCY = "reporting_frequency"
     ESCALATION_THRESHOLD = "escalation_threshold"
@@ -36,6 +38,7 @@ class ExpectationType(Enum):
 @dataclass
 class Responsibility:
     """A specific duty or task the role should perform."""
+
     name: str
     description: str
     priority: float = 1.0
@@ -56,6 +59,7 @@ class Responsibility:
 @dataclass
 class Permission:
     """A right or authority the role has."""
+
     permission_type: PermissionType
     resource: str  # What resource this permission applies to
     scope: str = "local"  # "local", "group", "global"
@@ -79,6 +83,7 @@ class Permission:
 @dataclass
 class Requirement:
     """A condition or skill needed to occupy the role."""
+
     name: str
     requirement_type: str  # "capability", "resource", "knowledge"
     value: Any
@@ -99,6 +104,7 @@ class Requirement:
 @dataclass
 class Expectation:
     """A constraint or norm on the role's behavior."""
+
     expectation_type: ExpectationType
     value: Any
     enforcement_level: str = "soft"  # "soft", "hard", "critical"
@@ -123,6 +129,7 @@ class Role:
     Defines abstract behavior/function within organization that an agent can fulfill.
     Influences agent goals, available actions, and behavioral constraints.
     """
+
     name: str
     description: str
     responsibilities: Set[Responsibility] = field(default_factory=set)
@@ -147,9 +154,7 @@ class Role:
         self.expectations.add(expectation)
 
     def has_permission(
-        self,
-        permission_type: PermissionType,
-        resource: str = "*"
+        self, permission_type: PermissionType, resource: str = "*"
     ) -> bool:
         """Check if role has specific permission for resource."""
         for perm in self.permissions:
@@ -179,8 +184,7 @@ class Role:
         return True
 
     def get_priority_responsibilities(
-        self,
-        min_priority: float = 1.0
+        self, min_priority: float = 1.0
     ) -> Set[Responsibility]:
         """Get responsibilities above specified priority threshold."""
         return {r for r in self.responsibilities if r.priority >= min_priority}
@@ -252,17 +256,16 @@ class RoleManager:
     ) -> bool:
         """Check if agent has specific permission through any of its roles."""
         roles = self.get_agent_roles(agent_id)
-        return any(role.has_permission(permission_type, resource) for role in roles)
+        return any(
+            role.has_permission(permission_type, resource) for role in roles
+        )
 
     def get_available_roles(self) -> Set[str]:
         """Get names of all available role definitions."""
         return set(self.role_definitions.keys())
 
     def validate_role_assignment(
-        self,
-        agent_id: str,
-        role_name: str,
-        agent_capabilities: Dict[str, Any]
+        self, agent_id: str, role_name: str, agent_capabilities: Dict[str, Any]
     ) -> bool:
         """Validate if agent meets requirements for role assignment."""
         role = self.get_role(role_name)

@@ -3,12 +3,8 @@
 */__pycache__/
 */.pytest_cache/
 *.pyc
-*benchmark.json
 .DS_Store
-*/results/
 /Digital-Twin-in-python
 /.pytest_cache
-# *.tex
-*.drawio
-*.graphml
-/sections
+/config
+*terraform*

@@ -12,7 +12,9 @@ import threading
 from typing import Dict, Any, List, Optional
 import concurrent.futures
 from mas.core import AgentId
-from benchmarks.local.communication_benchmarks.communication_benchmark import generate_payload
+from benchmarks.local.communication_benchmarks.communication_benchmark import (
+    generate_payload,
+)
 from benchmarks.communication.grpc.grpc_communication_agent import (
     ExtendedGrpcCommunicatingAgent,
     GrpcCommunicationEnvironment,
@@ -66,7 +68,10 @@ def _consume_ack_for(mailbox, message_id: str) -> int:
             return 0
         keep = []
         for msg in mailbox.messages:
-            if _is_ack_message(msg) and msg.content.get("ack_for") == message_id:
+            if (
+                _is_ack_message(msg)
+                and msg.content.get("ack_for") == message_id
+            ):
                 removed += 1
                 continue
             keep.append(msg)
@@ -96,11 +101,7 @@ def create_grpc_test_agent(
 
 
 def setup_grpc_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Setup for basic gRPC latency/throughput scenarios.
-
-    Default latency_mode is 'end_to_end' for fair comparison across all protocols.
-    This measures complete message delivery time including gRPC response acknowledgments.
-    """
+    """Setup for basic gRPC latency/throughput scenarios."""
     agent_count = params.get("agent_count", 5)
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
@@ -195,7 +196,6 @@ def test_grpc_point_to_point_latency(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test basic point-to-point message latency via gRPC."""
-    from benchmarks.communication.base_communication import MessageType
 
     agents = params["agents"]
     message_count = params.get("message_count", 100)
@@ -269,14 +269,16 @@ def test_grpc_point_to_point_latency(
         stop_ack_thread.set()
         ack_thread.join(timeout=1.0)
 
-    return {"delivery_failures": delivery_failures, "ack_timeouts": ack_timeouts}
+    return {
+        "delivery_failures": delivery_failures,
+        "ack_timeouts": ack_timeouts,
+    }
 
 
 def test_grpc_broadcast_throughput(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test gRPC broadcast message throughput."""
-    from benchmarks.communication.base_communication import MessageType
 
     agents = params["agents"]
     message_count = params.get("message_count", 50)
@@ -311,7 +313,9 @@ def test_grpc_broadcast_throughput(
 
     if latency_mode == "app_ack" and receivers:
         for receiver in receivers:
-            thread = threading.Thread(target=receiver_ack_loop, args=(receiver,), daemon=True)
+            thread = threading.Thread(
+                target=receiver_ack_loop, args=(receiver,), daemon=True
+            )
             thread.start()
             ack_threads.append(thread)
 
@@ -338,10 +342,17 @@ def test_grpc_broadcast_throughput(
                 expected_acks = len(receivers)
                 received_acks = 0
                 timeout_start = time.time()
-                ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                ack_timeout = float(
+                    params.get(
+                        "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                    )
+                )
                 timeout = ack_timeout
 
-                while received_acks < expected_acks and time.time() - timeout_start < timeout:
+                while (
+                    received_acks < expected_acks
+                    and time.time() - timeout_start < timeout
+                ):
                     received_acks += _consume_ack_for(
                         sender.mailbox, message_id
                     )
@@ -367,14 +378,16 @@ def test_grpc_broadcast_throughput(
         for thread in ack_threads:
             thread.join(timeout=1.0)
 
-    return {"delivery_failures": delivery_failures, "ack_timeouts": ack_timeouts}
+    return {
+        "delivery_failures": delivery_failures,
+        "ack_timeouts": ack_timeouts,
+    }
 
 
 def test_grpc_concurrent_messaging(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test concurrent gRPC messaging between multiple agents."""
-    from benchmarks.communication.base_communication import MessageType
 
     agents = params["agents"]
     messages_per_agent = params.get("messages_per_agent", 20)
@@ -413,7 +426,9 @@ def test_grpc_concurrent_messaging(
 
     if latency_mode == "app_ack":
         for agent in agents:
-            thread = threading.Thread(target=receiver_ack_loop, args=(agent,), daemon=True)
+            thread = threading.Thread(
+                target=receiver_ack_loop, args=(agent,), daemon=True
+            )
             thread.start()
             ack_threads.append(thread)
 
@@ -464,9 +479,15 @@ def test_grpc_concurrent_messaging(
             if success:
                 if latency_mode == "app_ack":
                     # Wait for ACK from receiver (configurable)
-                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    ack_timeout = float(
+                        params.get(
+                            "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                        )
+                    )
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
-                        benchmark.latency_tracker.end_message_timing(message_id)
+                        benchmark.latency_tracker.end_message_timing(
+                            message_id
+                        )
                     else:
                         ack_timeouts += 1
                         delivery_failures += 1
@@ -514,7 +535,6 @@ def test_grpc_scalability_stress(
     params: Dict[str, Any], benchmark: CommunicationBenchmark
 ) -> Dict[str, Any]:
     """Test gRPC system under high message load for scalability."""
-    from benchmarks.communication.base_communication import MessageType
 
     agents = params["agents"]
     stress_duration = params.get("stress_duration", 5.0)  # seconds
@@ -550,7 +570,9 @@ def test_grpc_scalability_stress(
 
     if latency_mode == "app_ack":
         for agent in agents:
-            thread = threading.Thread(target=receiver_ack_loop, args=(agent,), daemon=True)
+            thread = threading.Thread(
+                target=receiver_ack_loop, args=(agent,), daemon=True
+            )
             thread.start()
             ack_threads.append(thread)
 
@@ -586,9 +608,15 @@ def test_grpc_scalability_stress(
             if success:
                 if latency_mode == "app_ack":
                     # Wait for ACK from receiver
-                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    ack_timeout = float(
+                        params.get(
+                            "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                        )
+                    )
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
-                        benchmark.latency_tracker.end_message_timing(message_id)
+                        benchmark.latency_tracker.end_message_timing(
+                            message_id
+                        )
                     else:
                         ack_timeouts += 1
                         delivery_failures += 1

@@ -15,7 +15,9 @@ import subprocess
 import socket
 from typing import Dict, Any, List, Optional
 import concurrent.futures
-from benchmarks.local.communication_benchmarks.communication_benchmark import generate_payload
+from benchmarks.local.communication_benchmarks.communication_benchmark import (
+    generate_payload,
+)
 from benchmarks.communication.mqtt.mqtt_communication_agent import (
     MqttCommunicationEnvironment,
 )
@@ -68,7 +70,10 @@ def _consume_ack_for(mailbox, message_id: str) -> int:
             return 0
         keep = []
         for msg in mailbox.messages:
-            if _is_ack_message(msg) and msg.content.get("ack_for") == message_id:
+            if (
+                _is_ack_message(msg)
+                and msg.content.get("ack_for") == message_id
+            ):
                 removed += 1
                 continue
             keep.append(msg)
@@ -218,11 +223,7 @@ def ensure_mqtt_running() -> bool:
 
 
 def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Setup for basic MQTT latency/throughput scenarios.
-
-    Default latency_mode is 'end_to_end' for fair comparison across all protocols.
-    MQTT uses QoS 1 (at-least-once delivery) for comparable durability to Kafka acks=1.
-    """
+    """Setup for basic MQTT latency/throughput scenarios."""
     agent_count = params.get("agent_count", 5)
     topology_pattern = params.get(
         "topology_pattern", TopologyPattern.FULLY_CONNECTED
@@ -245,10 +246,6 @@ def setup_mqtt_basic_scenario(params: Dict[str, Any]) -> Dict[str, Any]:
     else:
         latency_mode_enum = LatencyMode.END_TO_END
 
-    # Create MQTT communication environment
-    # QoS 1 configuration for fair benchmark comparison:
-    # - QoS 1: At-least-once delivery with broker acknowledgment
-    # - This provides similar durability guarantees to Kafka acks=1
     mqtt_config = {
         "broker_host": "localhost",
         "broker_port": 1883,
@@ -613,7 +610,11 @@ def test_mqtt_concurrent_messaging(
             if success:
                 if latency_mode == "app_ack":
                     # Wait for ACK from receiver (configurable, default 0.5s)
-                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    ack_timeout = float(
+                        params.get(
+                            "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                        )
+                    )
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id
@@ -739,7 +740,11 @@ def test_mqtt_scalability_stress(
             if success:
                 if latency_mode == "app_ack":
                     # Wait for ACK from receiver
-                    ack_timeout = float(params.get("ack_timeout", params.get("ack_timeout_ms", 0.5)))
+                    ack_timeout = float(
+                        params.get(
+                            "ack_timeout", params.get("ack_timeout_ms", 0.5)
+                        )
+                    )
                     if _wait_for_ack(agent, message_id, timeout=ack_timeout):
                         benchmark.latency_tracker.end_message_timing(
                             message_id

@@ -28,20 +28,18 @@ data "aws_ami" "ubuntu" {
     values = ["hvm"]
   }
 
-  owners = ["099720109477"] # Canonical
+  owners = ["099720109477"]
 }
 
 locals {
   ami_id = var.ami_id != "" ? var.ami_id : data.aws_ami.ubuntu[0].id
 }
 
-# --- Default VPC ---
 
 data "aws_vpc" "default" {
   default = true
 }
 
-# --- Security Group ---
 
 resource "aws_security_group" "benchmark" {
   name        = "${var.project_name}-sg"
@@ -113,10 +111,10 @@ resource "aws_security_group" "benchmark" {
 
   # Allow all within security group
   ingress {
-    from_port = 8080
-    to_port   = 8080
-    protocol  = "tcp"
-    self      = true
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    self        = true
     description = "Agent worker internal"
   }
 
@@ -161,8 +159,8 @@ resource "aws_spot_instance_request" "agent_spot" {
   vpc_security_group_ids = [aws_security_group.benchmark.id]
   user_data              = file("${path.module}/user_data.sh")
 
-  spot_price                  = var.spot_max_price != "" ? var.spot_max_price : null
-  wait_for_fulfillment        = true
+  spot_price                     = var.spot_max_price != "" ? var.spot_max_price : null
+  wait_for_fulfillment           = true
   instance_interruption_behavior = "terminate"
 
   tags = {
@@ -199,8 +197,8 @@ resource "aws_spot_instance_request" "broker_spot" {
   vpc_security_group_ids = [aws_security_group.benchmark.id]
   user_data              = file("${path.module}/user_data.sh")
 
-  spot_price                  = var.spot_max_price != "" ? var.spot_max_price : null
-  wait_for_fulfillment        = true
+  spot_price                     = var.spot_max_price != "" ? var.spot_max_price : null
+  wait_for_fulfillment           = true
   instance_interruption_behavior = "terminate"
 
   tags = {

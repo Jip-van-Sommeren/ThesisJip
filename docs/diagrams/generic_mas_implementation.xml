@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36">
+  <diagram name="Generic MAS Framework" id="q_MvThH_kvGGxSQCAt8K">
+    <mxGraphModel dx="1367" dy="947" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="8LRHO8vaufkGakhX80z3-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;align=center;verticalAlign=middle;" value="Environment&#xa;(global state, telemetry, broker, storage)" vertex="1">
+          <mxGeometry height="70" width="380" x="10" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-2" parent="1" style="swimlane;rounded=0;startSize=30;html=1;fontStyle=1;whiteSpace=wrap;" value="Organization (src/mas/organization)" vertex="1">
+          <mxGeometry height="420" width="380" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-3" parent="8LRHO8vaufkGakhX80z3-2" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="organization.RoleManager&#xa;R=(responsibilities, permissions, requirements, expectations)" vertex="1">
+          <mxGeometry height="70" width="150" x="100" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-4" parent="8LRHO8vaufkGakhX80z3-2" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="organization.GroupManager&#xa;G=(name, roles, purpose)" vertex="1">
+          <mxGeometry height="70" width="150" x="100" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-5" parent="8LRHO8vaufkGakhX80z3-2" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="organization.HierarchyManager&#xa;Sup/Sub, escalation, messaging" vertex="1">
+          <mxGeometry height="70" width="150" x="100" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-6" parent="1" style="swimlane;rounded=0;startSize=30;html=1;fontStyle=1;whiteSpace=wrap;" value="Core Agent Kernel (src/mas/core)" vertex="1">
+          <mxGeometry height="420" width="380" x="414" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-7" parent="8LRHO8vaufkGakhX80z3-6" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;align=center;verticalAlign=middle;" value="core.Agent&#xa;A=(id, State, Goal, Perception, Action, Decision)" vertex="1">
+          <mxGeometry height="70" width="200" x="110" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-8" parent="8LRHO8vaufkGakhX80z3-6" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="core.ReactiveAgent&#xa;rule-based (no goals)" vertex="1">
+          <mxGeometry height="60" width="120" x="150" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-16" edge="1" parent="8LRHO8vaufkGakhX80z3-6" source="8LRHO8vaufkGakhX80z3-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=0;" target="8LRHO8vaufkGakhX80z3-7" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="346" y="200" />
+              <mxPoint x="346" y="160" />
+              <mxPoint x="210" y="160" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-9" parent="8LRHO8vaufkGakhX80z3-6" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="core.BDIAgent&#xa;beliefs, goals, intentions" vertex="1">
+          <mxGeometry height="60" width="120" x="150" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-17" edge="1" parent="8LRHO8vaufkGakhX80z3-6" source="8LRHO8vaufkGakhX80z3-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=0;" target="8LRHO8vaufkGakhX80z3-7" value="">
+          <mxGeometry relative="1" x="-0.6471" as="geometry">
+            <mxPoint y="-1" as="offset" />
+            <Array as="points">
+              <mxPoint x="346" y="390" />
+              <mxPoint x="346" y="160" />
+              <mxPoint x="210" y="160" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-10" parent="8LRHO8vaufkGakhX80z3-6" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="core.HybridAgent&#xa;layered reactive + deliberative" vertex="1">
+          <mxGeometry height="60" width="120" x="156" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-18" edge="1" parent="8LRHO8vaufkGakhX80z3-6" source="8LRHO8vaufkGakhX80z3-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=0;" target="8LRHO8vaufkGakhX80z3-7" value="extends">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="346" y="280" />
+              <mxPoint x="346" y="160" />
+              <mxPoint x="210" y="160" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-11" parent="1" style="swimlane;rounded=0;startSize=30;html=1;fontStyle=1;whiteSpace=wrap;" value="Communication (src/mas/communication)" vertex="1">
+          <mxGeometry height="420" width="380" x="420" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-12" parent="8LRHO8vaufkGakhX80z3-11" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="communication.Mailbox&#xa;thread-safe message buffer" vertex="1">
+          <mxGeometry height="70" width="150" x="135" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-13" parent="8LRHO8vaufkGakhX80z3-11" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;align=center;verticalAlign=middle;" value="communication.Transport&#xa;publish/subscribe interface" vertex="1">
+          <mxGeometry height="70" width="150" x="135" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-15" parent="8LRHO8vaufkGakhX80z3-11" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="communication.MqttTransport&#xa;MQTT implementation" vertex="1">
+          <mxGeometry height="70" width="150" x="135" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-21" edge="1" parent="8LRHO8vaufkGakhX80z3-11" source="8LRHO8vaufkGakhX80z3-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;exitX=0;exitY=0.212;exitDx=0;exitDy=0;exitPerimeter=0;" target="8LRHO8vaufkGakhX80z3-13" value="implements">
+          <mxGeometry relative="1" x="0.2943" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="110" y="260" />
+              <mxPoint x="100" y="260" />
+              <mxPoint x="100" y="105" />
+            </Array>
+            <mxPoint x="130" y="260" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-waQnQ_CctF_fj2JykqH-1" edge="1" parent="8LRHO8vaufkGakhX80z3-11" source="8LRHO8vaufkGakhX80z3-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="8LRHO8vaufkGakhX80z3-14" value="">
+          <mxGeometry relative="1" x="-0.5" y="-10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="205" y="340" />
+              <mxPoint x="205" y="340" />
+            </Array>
+            <mxPoint x="630" y="1000" as="sourcePoint" />
+            <mxPoint x="630" y="800" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-14" parent="8LRHO8vaufkGakhX80z3-11" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;" value="communication.TopicManager&#xa;YAML topic templates" vertex="1">
+          <mxGeometry height="70" width="150" x="135" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-19" edge="1" parent="1" source="8LRHO8vaufkGakhX80z3-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="8LRHO8vaufkGakhX80z3-12" value="perceives via">
+          <mxGeometry relative="1" x="0.8712" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="830" y="295" />
+              <mxPoint x="830" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-20" edge="1" parent="1" source="8LRHO8vaufkGakhX80z3-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="8LRHO8vaufkGakhX80z3-13" value="publishes / subscribes">
+          <mxGeometry relative="1" x="0.8475" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="830" y="295" />
+              <mxPoint x="830" y="765" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-22" edge="1" parent="1" source="8LRHO8vaufkGakhX80z3-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="8LRHO8vaufkGakhX80z3-14" value="resolves topics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="740" />
+              <mxPoint x="460" y="960" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-23" edge="1" parent="1" source="8LRHO8vaufkGakhX80z3-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="8LRHO8vaufkGakhX80z3-7" value="assigns roles">
+          <mxGeometry relative="1" x="-0.869" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="400" y="1025" />
+              <mxPoint x="400" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-24" edge="1" parent="1" source="8LRHO8vaufkGakhX80z3-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="8LRHO8vaufkGakhX80z3-7" value="manages membership">
+          <mxGeometry relative="1" x="-0.8191" y="-5" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="400" y="765" />
+              <mxPoint x="400" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-25" edge="1" parent="1" source="8LRHO8vaufkGakhX80z3-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="8LRHO8vaufkGakhX80z3-7" value="supervises">
+          <mxGeometry relative="1" x="-0.8095" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="400" y="895" />
+              <mxPoint x="400" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-26" edge="1" parent="1" source="8LRHO8vaufkGakhX80z3-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="8LRHO8vaufkGakhX80z3-7" value="observable state">
+          <mxGeometry relative="1" x="0.0751" y="-5" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="420" y="270" />
+              <mxPoint x="420" y="270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8LRHO8vaufkGakhX80z3-27" edge="1" parent="1" source="8LRHO8vaufkGakhX80z3-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;" target="8LRHO8vaufkGakhX80z3-1" value="actions affect">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="490" y="300" />
+              <mxPoint x="490" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

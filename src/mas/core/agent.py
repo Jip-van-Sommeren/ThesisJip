@@ -11,7 +11,7 @@ This module provides the foundational components for building agents:
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Set, Tuple, Optional, List, Any
 import uuid
@@ -19,17 +19,19 @@ import uuid
 
 class GoalType(Enum):
     """Types of goals an agent can have."""
-    INTRINSIC = "intrinsic"      # Built-in from role/design
-    EXTRINSIC = "extrinsic"      # Assigned by scenario/application
-    WORKFLOW = "workflow"        # Execution-oriented
+
+    INTRINSIC = "intrinsic"  # Built-in from role/design
+    EXTRINSIC = "extrinsic"  # Assigned by scenario/application
+    WORKFLOW = "workflow"  # Execution-oriented
     PERFORMANCE = "performance"  # Optimization objectives
 
 
 class ActionType(Enum):
     """Types of actions an agent can perform."""
-    TRANSIENT = "transient"    # One-shot execution
+
+    TRANSIENT = "transient"  # One-shot execution
     PERSISTENT = "persistent"  # Long-running
-    PERIODIC = "periodic"      # Repeating at intervals
+    PERIODIC = "periodic"  # Repeating at intervals
 
 
 @dataclass
@@ -43,8 +45,9 @@ class AgentId:
         AgentId("battery_twin", "telemetry_ingestor", "001")
         AgentId("factory", "controller", "zone_a")
     """
-    app: str       # Application/domain
-    type: str      # Agent type within application
+
+    app: str  # Application/domain
+    type: str  # Agent type within application
     instance: str  # Unique instance identifier
 
     def __post_init__(self):
@@ -71,6 +74,7 @@ class Belief:
     Belief_A(p, c) means agent A believes proposition p with confidence c.
     Confidence c ∈ [0, 1] where 1 = certain, 0 = no confidence.
     """
+
     proposition: str
     confidence: float = 1.0
     timestamp: float = 0.0
@@ -87,6 +91,7 @@ class Goal:
 
     Goals represent desired world states the agent aims to achieve.
     """
+
     condition: str
     goal_type: GoalType
     priority: float = 1.0
@@ -144,8 +149,12 @@ class State:
     def to_dict(self) -> Dict[str, Any]:
         """Convert state to dictionary representation."""
         return {
-            "internal": {k: v.proposition for k, v in self.internal_beliefs.items()},
-            "external": {k: v.proposition for k, v in self.external_beliefs.items()},
+            "internal": {
+                k: v.proposition for k, v in self.internal_beliefs.items()
+            },
+            "external": {
+                k: v.proposition for k, v in self.external_beliefs.items()
+            },
         }
 
 
@@ -157,6 +166,7 @@ class ReactiveRule:
     If condition φ holds then perform action a.
     Higher priority rules are evaluated first.
     """
+
     condition: callable  # Function: Dict -> bool
     action: str
     priority: float = 1.0
@@ -192,7 +202,9 @@ class Perception:
         Updates agent's external beliefs based on new observations.
         """
         for key, value in observations.items():
-            state.update_belief(key, str(value), confidence=1.0, is_internal=False)
+            state.update_belief(
+                key, str(value), confidence=1.0, is_internal=False
+            )
         return state
 
 
@@ -355,7 +367,9 @@ class Agent(ABC):
         Uses reactive rules or deliberative reasoning.
         """
         available_action_ids = set(self.available_actions.keys())
-        return self.decision.decide(self.state, self.goals, available_action_ids)
+        return self.decision.decide(
+            self.state, self.goals, available_action_ids
+        )
 
     def execute_action(self, action_id: str, environment_state: Dict) -> Dict:
         """
